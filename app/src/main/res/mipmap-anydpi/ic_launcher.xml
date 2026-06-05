@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fallback launcher icon used on devices prior to API 26 (no adaptive
+     icon support). A simple flat vector so we don't ship a PNG. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFEADDFF"
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
+    <group
+        android:scaleX="2.0"
+        android:scaleY="2.0"
+        android:translateX="36"
+        android:translateY="36">
+        <path
+            android:fillColor="#FF6750A4"
+            android:pathData="M2,18 L2,6 L5,6 L13,14 L13,6 L16,6 L16,18 L13,18 L5,10 L5,18 Z" />
+        <path
+            android:fillColor="#FF6750A4"
+            android:pathData="M16.5,18 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
+    </group>
+</vector>
