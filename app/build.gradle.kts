@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -97,4 +98,31 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.hilt.navigation.compose)
+
+    // Network
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.gson)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.gson)
+
+    // Image Loading
+    implementation(libs.coil.compose)
+
+    // Animation
+    implementation(libs.lottie.compose)
+
+    // WorkManager
+    implementation(libs.workmanager.runtime.ktx)
+
+    // Logging
+    implementation(libs.timber)
+
+    // Accompanist
+    implementation(libs.accompanist.permissions)
 }

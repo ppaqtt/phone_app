@@ -7,6 +7,7 @@ import com.example.notes.data.CategoryEntity
 import com.example.notes.data.NoteEntity
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.repository.NotesRepository
+import com.example.notes.util.SyncManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,23 +21,28 @@ data class NotesUiState(
     val notes: List<NoteWithCategory> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
     val activeCategoryId: Long? = null,
-    val query: String = ""
+    val query: String = "",
+    val isSyncing: Boolean = false,
+    val syncError: String? = null
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotesViewModel(
-    private val repository: NotesRepository
+    private val repository: NotesRepository,
+    private val syncManager: SyncManager? = null
 ) : ViewModel() {
 
     private val activeCategoryId = MutableStateFlow<Long?>(null)
     private val query = MutableStateFlow("")
+    private val isSyncing = MutableStateFlow(false)
+    private val syncError = MutableStateFlow<String?>(null)
 
     private val notes = activeCategoryId.flatMapLatest { categoryId ->
         if (categoryId == null) repository.observeNotes() else repository.observeNotesByCategory(categoryId)
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query) { notesList, categories, activeId, q ->
+        combine(notes, repository.observeCategories(), activeCategoryId, query, isSyncing, syncError) { notesList, categories, activeId, q, syncing, error ->
             val filtered = if (q.isBlank()) notesList else {
                 val needle = q.trim()
                 notesList.filter { n ->
@@ -49,7 +55,9 @@ class NotesViewModel(
                 notes = filtered,
                 categories = categories,
                 activeCategoryId = activeId,
-                query = q
+                query = q,
+                isSyncing = syncing,
+                syncError = error
             )
         }.stateIn(
             scope = viewModelScope,
@@ -104,16 +112,33 @@ class NotesViewModel(
     fun deleteCategory(category: CategoryEntity) {
         viewModelScope.launch { repository.deleteCategory(category) }
     }
+
+    // --- Sync --------------------------------------------------------------
+
+    fun syncNotes() {
+        viewModelScope.launch {
+            isSyncing.value = true
+            syncError.value = null
+            try {
+                syncManager?.syncNotes()
+            } catch (e: Exception) {
+                syncError.value = e.message
+            } finally {
+                isSyncing.value = false
+            }
+        }
+    }
 }
 
 class ViewModelFactory(
-    private val repository: NotesRepository
+    private val repository: NotesRepository,
+    private val syncManager: SyncManager? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(NotesViewModel::class.java) ->
-                NotesViewModel(repository) as T
+                NotesViewModel(repository, syncManager) as T
             else -> throw IllegalArgumentException("Unknown VM: ${modelClass.name}")
         }
     }
