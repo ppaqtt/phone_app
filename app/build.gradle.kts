@@ -1,7 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
@@ -61,6 +60,10 @@ android {
         compose = true
     }
 
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.4.8"
+    }
+
     packaging {
         resources {
             excludes += setOf(
@@ -84,7 +87,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.splashscreen)
 
     // Compose
     implementation(platform(libs.androidx.compose.bom))
@@ -145,9 +147,7 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(libs.hilt.testing)
     kspAndroidTest(libs.hilt.compiler)
-    debugImplementation(libs.compose.ui.test.manifest)
 }

@@ -1,20 +1,34 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
+        maven {
+            url = uri("http://maven.aliyun.com/repository/google")
+            isAllowInsecureProtocol = true
         }
+        maven {
+            url = uri("http://maven.aliyun.com/repository/public")
+            isAllowInsecureProtocol = true
+        }
+        maven {
+            url = uri("http://maven.aliyun.com/repository/gradle-plugin")
+            isAllowInsecureProtocol = true
+        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        maven {
+            url = uri("http://maven.aliyun.com/repository/google")
+            isAllowInsecureProtocol = true
+        }
+        maven {
+            url = uri("http://maven.aliyun.com/repository/public")
+            isAllowInsecureProtocol = true
+        }
         google()
         mavenCentral()
     }
