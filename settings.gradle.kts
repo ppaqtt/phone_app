@@ -5,16 +5,17 @@ pluginManagement {
             isAllowInsecureProtocol = true
         }
         maven {
+            url = uri("http://maven.aliyun.com/repository/public")
+            isAllowInsecureProtocol = true
+        }
+        maven {
             url = uri("http://maven.aliyun.com/repository/google")
             isAllowInsecureProtocol = true
         }
         maven {
-            url = uri("http://maven.aliyun.com/repository/public")
+            url = uri("https://mirrors.tencent.com/nexus/repository/maven-public/")
             isAllowInsecureProtocol = true
         }
-        google()
-        mavenCentral()
-        gradlePluginPortal()
     }
 }
 
@@ -30,11 +31,17 @@ dependencyResolutionManagement {
             isAllowInsecureProtocol = true
         }
         maven {
+            url = uri("http://maven.aliyun.com/repository/central")
+            isAllowInsecureProtocol = true
+        }
+        maven {
             url = uri("http://maven.aliyun.com/repository/gradle-plugin")
             isAllowInsecureProtocol = true
         }
-        google()
-        mavenCentral()
+        maven {
+            url = uri("https://mirrors.tencent.com/nexus/repository/maven-public/")
+            isAllowInsecureProtocol = true
+        }
     }
 }
 

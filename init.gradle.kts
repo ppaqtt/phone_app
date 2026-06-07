@@ -1,18 +1,32 @@
 // Global init script: force all Gradle builds to use Aliyun mirrors
-// This file should be placed in ~/.gradle/init.d/ or referenced with --init-script
+// This file replaces all repositories with Aliyun mirrors to bypass network restrictions
 
 allprojects {
-    repositories {
-        maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
-        maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
-        maven { url 'http://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
-        maven { url 'http://maven.aliyun.com/repository/central'; allowInsecureProtocol = true }
-    }
     buildscript {
         repositories {
-            maven { url 'http://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
-            maven { url 'http://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
-            maven { url 'http://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
+            clear()
+            maven { url 'https://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
+            maven { url 'https://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
+            maven { url 'https://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
+            maven { url 'https://maven.aliyun.com/repository/central'; allowInsecureProtocol = true }
+        }
+    }
+    repositories {
+        clear()
+        maven { url 'https://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
+        maven { url 'https://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
+        maven { url 'https://maven.aliyun.com/repository/central'; allowInsecureProtocol = true }
+    }
+}
+
+settingsEvaluated { settings ->
+    settings.pluginManagement {
+        repositories {
+            clear()
+            maven { url 'https://maven.aliyun.com/repository/gradle-plugin'; allowInsecureProtocol = true }
+            maven { url 'https://maven.aliyun.com/repository/public'; allowInsecureProtocol = true }
+            maven { url 'https://maven.aliyun.com/repository/google'; allowInsecureProtocol = true }
         }
     }
 }
