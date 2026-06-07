@@ -1,3 +1,15 @@
+buildscript {
+    repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.0.2")
+    }
+}
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -150,4 +162,14 @@ dependencies {
     androidTestImplementation(libs.mockk.android)
     androidTestImplementation(libs.hilt.testing)
     kspAndroidTest(libs.hilt.compiler)
+}
+
+// Force project repositories to use Aliyun mirrors
+allprojects {
+    repositories {
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
+    }
 }
