@@ -69,7 +69,9 @@ class NotesViewModel(
         categoryId: Long?,
         tags: List<String>,
         isPinned: Boolean,
-        color: Int
+        color: Int,
+        coverImageUri: String? = null,
+        reminderTime: Long? = null
     ) {
         viewModelScope.launch {
             val note = NoteEntity(
@@ -79,7 +81,9 @@ class NotesViewModel(
                 categoryId = categoryId,
                 tags = tags.joinToString(","),
                 isPinned = isPinned,
-                color = color
+                color = color,
+                coverImageUri = coverImageUri,
+                reminderTime = reminderTime
             )
             repository.saveNote(note)
         }

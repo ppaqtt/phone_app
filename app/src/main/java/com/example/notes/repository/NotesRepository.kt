@@ -42,6 +42,8 @@ class NotesRepository(
     suspend fun deleteNote(id: Long) = noteDao.deleteById(id)
     suspend fun togglePin(id: Long, pinned: Boolean) = noteDao.setPinned(id, pinned)
 
+    suspend fun getAllNotesForSync(): List<NoteEntity> = noteDao.getAllNotesForSync()
+
     // --- Categories ------------------------------------------------------
 
     fun observeCategories(): Flow<List<CategoryEntity>> = categoryDao.observeAll()

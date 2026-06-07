@@ -50,6 +50,9 @@ interface NoteDao {
 
     @Query("UPDATE notes SET is_pinned = :pinned, updated_at = :ts WHERE id = :id")
     suspend fun setPinned(id: Long, pinned: Boolean, ts: Long = System.currentTimeMillis())
+
+    @Query("SELECT * FROM notes")
+    suspend fun getAllNotesForSync(): List<NoteEntity>
 }
 
 @Dao

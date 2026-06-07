@@ -7,9 +7,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import com.example.notes.nav.NotesNavGraph
+import com.example.notes.ui.screens.SplashScreen
 import com.example.notes.ui.theme.NotesAppTheme
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.ui.viewmodel.ViewModelFactory
@@ -31,7 +36,12 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    NotesNavGraph(viewModel = viewModel)
+                    var showSplash by remember { mutableStateOf(true) }
+                    if (showSplash) {
+                        SplashScreen(onAnimationComplete = { showSplash = false })
+                    } else {
+                        NotesNavGraph(viewModel = viewModel)
+                    }
                 }
             }
         }

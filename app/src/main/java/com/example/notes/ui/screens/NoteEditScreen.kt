@@ -1,5 +1,12 @@
 package com.example.notes.ui.screens
 
+import android.Manifest
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,10 +26,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
@@ -49,12 +60,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.notes.data.NoteEntity
 import com.example.notes.repository.NotesRepository
 import com.example.notes.ui.theme.NoteSwatches
 import com.example.notes.ui.viewmodel.NotesViewModel
+import com.example.notes.util.ReminderManager
 import kotlinx.coroutines.flow.collectLatest
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +82,7 @@ fun NoteEditScreen(
     repository: NotesRepository,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     val isNew = noteId <= 0L
 
@@ -73,12 +92,57 @@ fun NoteEditScreen(
     var color by remember { mutableStateOf(NoteSwatches.first()) }
     var isPinned by remember { mutableStateOf(false) }
     var categoryId by remember { mutableStateOf<Long?>(null) }
+    var coverImageUri by remember { mutableStateOf<String?>(null) }
+    var reminderTime by remember { mutableStateOf<Long?>(null) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(isNew) }
     var lastSaved by remember { mutableStateOf<NoteEntity?>(null) }
 
-    // Load existing note (only for editing)
+    val pickMedia = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+            coverImageUri = it.toString()
+        }
+    }
+
+    val calendar = Calendar.getInstance()
+    fun showDateTimePicker() {
+        val datePicker = DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                calendar.set(year, month, day)
+                TimePickerDialog(
+                    context,
+                    { _, hour, minute ->
+                        calendar.set(Calendar.HOUR_OF_DAY, hour)
+                        calendar.set(Calendar.MINUTE, minute)
+                        calendar.set(Calendar.SECOND, 0)
+                        reminderTime = calendar.timeInMillis
+                    },
+                    calendar.get(Calendar.HOUR_OF_DAY),
+                    calendar.get(Calendar.MINUTE),
+                    true
+                ).show()
+            },
+            calendar.get(Calendar.YEAR),
+            calendar.get(Calendar.MONTH),
+            calendar.get(Calendar.DAY_OF_MONTH)
+        )
+        datePicker.datePicker.minDate = System.currentTimeMillis()
+        datePicker.show()
+    }
+
+    fun formatDateTime(timeMs: Long): String {
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        return sdf.format(timeMs)
+    }
+
     LaunchedEffect(noteId) {
         if (noteId > 0L) {
             repository.observeNote(noteId).collectLatest { nwc ->
@@ -89,11 +153,45 @@ fun NoteEditScreen(
                     color = Color(nwc.note.color)
                     isPinned = nwc.note.isPinned
                     categoryId = nwc.note.categoryId
+                    coverImageUri = nwc.note.coverImageUri
+                    reminderTime = nwc.note.reminderTime
                     lastSaved = nwc.note
                     loaded = true
                 }
             }
         }
+    }
+
+    fun saveNote() {
+        val noteIdToSave = lastSaved?.id ?: 0L
+        viewModel.saveNote(
+            id = noteIdToSave,
+            title = title,
+            content = content,
+            categoryId = categoryId,
+            tags = tags.split(",", "，").map { it.trim() }.filter { it.isNotEmpty() },
+            isPinned = isPinned,
+            color = color.value.toLong().toInt(),
+            coverImageUri = coverImageUri,
+            reminderTime = reminderTime
+        )
+
+        reminderTime?.let { time ->
+            val note = NoteEntity(
+                id = noteIdToSave,
+                title = title.ifBlank { content.lineSequence().firstOrNull().orEmpty().take(40) },
+                content = content,
+                categoryId = categoryId,
+                tags = tags,
+                isPinned = isPinned,
+                color = color.value.toLong().toInt(),
+                coverImageUri = coverImageUri,
+                reminderTime = time
+            )
+            ReminderManager.scheduleReminder(context, note, time)
+        }
+
+        onBack()
     }
 
     Scaffold(
@@ -119,18 +217,7 @@ fun NoteEditScreen(
                             Icon(Icons.Filled.Delete, contentDescription = "删除")
                         }
                     }
-                    IconButton(onClick = {
-                        viewModel.saveNote(
-                            id = lastSaved?.id ?: 0L,
-                            title = title,
-                            content = content,
-                            categoryId = categoryId,
-                            tags = tags.split(",", "，").map { it.trim() }.filter { it.isNotEmpty() },
-                            isPinned = isPinned,
-                            color = color.value.toLong().toInt()
-                        )
-                        onBack()
-                    }) {
+                    IconButton(onClick = { saveNote() }) {
                         Icon(Icons.Filled.Check, contentDescription = "保存")
                     }
                 },
@@ -146,6 +233,63 @@ fun NoteEditScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
+            coverImageUri?.let { uri ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = "封面",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    IconButton(
+                        onClick = { coverImageUri = null },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(8.dp)
+                    ) {
+                        Icon(Icons.Filled.Delete, contentDescription = "删除封面")
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            AssistChip(
+                onClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
+                label = { Text("添加封面图片") }
+            )
+            Spacer(Modifier.height(12.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Notifications,
+                    contentDescription = "提醒",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(8.dp))
+                if (reminderTime != null) {
+                    Text(
+                        text = formatDateTime(reminderTime!!),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { reminderTime = null }) {
+                        Text("取消")
+                    }
+                } else {
+                    TextButton(onClick = { showDateTimePicker() }) {
+                        Text("设置提醒")
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
@@ -174,7 +318,6 @@ fun NoteEditScreen(
             )
             Spacer(Modifier.height(12.dp))
 
-            // Category picker
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "分类:",
@@ -211,7 +354,6 @@ fun NoteEditScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // Color swatches
             Text("颜色", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             LazyRow(
@@ -246,7 +388,12 @@ fun NoteEditScreen(
             text = { Text("确认要删除这条笔记吗?该操作不可恢复。") },
             confirmButton = {
                 TextButton(onClick = {
-                    lastSaved?.let { viewModel.deleteNote(it.id) }
+                    lastSaved?.let {
+                        viewModel.deleteNote(it.id)
+                        it.reminderTime?.let { _ ->
+                            ReminderManager.cancelReminder(context, it.id)
+                        }
+                    }
                     confirmDelete = false
                     onBack()
                 }) { Text("删除") }

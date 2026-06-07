@@ -29,6 +29,12 @@ data class NoteEntity(
     @ColumnInfo(name = "color")
     val color: Int = 0xFFFFFFFF.toInt(),
 
+    @ColumnInfo(name = "cover_image_uri")
+    val coverImageUri: String? = null,
+
+    @ColumnInfo(name = "reminder_time")
+    val reminderTime: Long? = null,
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
 
