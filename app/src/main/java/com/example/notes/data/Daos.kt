@@ -27,6 +27,7 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE category_id = :categoryId ORDER BY is_pinned DESC, updated_at DESC")
     fun observeByCategory(categoryId: Long): Flow<List<NoteWithCategory>>
 
+    @Transaction
     @Query(
         """
         SELECT * FROM notes

@@ -22,9 +22,10 @@ import kotlinx.coroutines.delay
 @Composable
 fun SplashScreen(onAnimationComplete: () -> Unit) {
     val alpha = remember { Animatable(0f) }
-    val composition by rememberLottieComposition(
+    // rememberLottieComposition 直接返回 LottieCompositionResult, 不能用 by 委托
+    val composition = rememberLottieComposition(
         LottieCompositionSpec.RawRes(com.example.notes.R.raw.splash_animation)
-    )
+    ).value
 
     LaunchedEffect(Unit) {
         alpha.animateTo(

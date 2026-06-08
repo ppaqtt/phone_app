@@ -3,7 +3,6 @@ package com.example.notes
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -23,8 +22,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-
+        // 透明状态栏 / 导航栏由主题的 windowTranslucentStatus 配置,
+        // 不调用 enableEdgeToEdge (它在 activity-ktx 1.8+ 才有)。
         val app = application as NotesApplication
         val factory = ViewModelFactory(app.repository)
         val viewModel: NotesViewModel by lazy {
