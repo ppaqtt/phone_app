@@ -163,13 +163,3 @@ dependencies {
     androidTestImplementation(libs.hilt.testing)
     kspAndroidTest(libs.hilt.compiler)
 }
-
-// Force project repositories to use Aliyun mirrors
-allprojects {
-    repositories {
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
-        maven { url = uri("https://maven.aliyun.com/repository/central") }
-    }
-}
