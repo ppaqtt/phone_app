@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,7 +28,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -46,8 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
 import com.example.notes.util.AppUpdateChecker
-import com.example.notes.util.UpdateDialog
-import kotlinx.coroutines.delay
+import com.example.notes.util.NoUpdateDialog
+import com.example.notes.util.UpdateAvailableDialog
 import kotlinx.coroutines.launch
 
 private const val FEEDBACK_URL =
@@ -61,7 +59,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showNoUpdateTip by remember { mutableStateOf(false) }
     var isChecking by remember { mutableStateOf(false) }
-    val latestVersion = AppUpdateChecker.LATEST_VERSION
+    var lastCheckResult by remember { mutableStateOf<AppUpdateChecker.UpdateCheckResult?>(null) }
 
     Scaffold(
         topBar = {
@@ -93,10 +91,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                 onCheck = {
                     scope.launch {
                         isChecking = true
-                        // 模拟网络检查耗时
-                        delay(800)
+                        val result = AppUpdateChecker.checkForUpdate()
+                        lastCheckResult = result
                         isChecking = false
-                        if (AppUpdateChecker.isUpdateAvailable()) {
+                        if (result.hasUpdate) {
                             showUpdateDialog = true
                         } else {
                             showNoUpdateTip = true
@@ -110,26 +108,20 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    if (showUpdateDialog) {
-        UpdateDialog(
-            currentVersion = BuildConfig.VERSION_NAME,
-            latestVersion = latestVersion,
-            onDismiss = { showUpdateDialog = false },
-            onUpdate = {
-                showUpdateDialog = false
-                // 实际项目中此处可跳转到应用市场或下载页
-            }
+    if (showUpdateDialog && lastCheckResult?.releaseInfo != null) {
+        UpdateAvailableDialog(
+            currentVersion = lastCheckResult!!.currentVersion,
+            release = lastCheckResult!!.releaseInfo!!,
+            errorMessage = lastCheckResult!!.errorMessage,
+            onDismiss = { showUpdateDialog = false }
         )
     }
 
-    if (showNoUpdateTip) {
-        AlertDialog(
-            onDismissRequest = { showNoUpdateTip = false },
-            title = { Text("已是最新版本") },
-            text = { Text("当前版本 v${BuildConfig.VERSION_NAME} 已经是最新版本。") },
-            confirmButton = {
-                TextButton(onClick = { showNoUpdateTip = false }) { Text("好的") }
-            }
+    if (showNoUpdateTip && lastCheckResult != null) {
+        NoUpdateDialog(
+            currentVersion = lastCheckResult!!.currentVersion,
+            errorMessage = lastCheckResult!!.errorMessage,
+            onDismiss = { showNoUpdateTip = false }
         )
     }
 }
@@ -343,7 +335,10 @@ private fun ChangelogCard() {
                     "新增：5 个动作全部接上 ViewModel/Repository (重要度 0/1/2 三档)",
                     "简化：元信息行去除置顶和提醒小图标",
                     "升级：Room v3 → v4 (NoteEntity 新增 priority 字段)",
-                    "新增：5 个运行时权限 (CAMERA / RECORD_AUDIO / READ_MEDIA_*)"
+                    "新增：5 个运行时权限 (CAMERA / RECORD_AUDIO / READ_MEDIA_*)",
+                    "升级：检查更新接 GitHub Releases API (OkHttp 真实请求), 失败时回退本地版本",
+                    "升级：发现新版本时显示 release notes 摘要, 一键跳转到 GitHub Releases 页面",
+                    "升级：版本号 v1.0.0 → v1.0.3 (versionCode 1 → 3)"
                 )
             )
             Spacer(Modifier.height(16.dp))
@@ -360,7 +355,7 @@ private fun ChangelogCard() {
             )
             Spacer(Modifier.height(16.dp))
             ChangelogVersion(
-                version = "v${AppUpdateChecker.LATEST_VERSION}",
+                version = "v${AppUpdateChecker.FALLBACK_LATEST_VERSION}",
                 date = "2026-06-07",
                 items = listOf(
                     "新增：应用启动时自动检查更新",
