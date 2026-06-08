@@ -7,7 +7,6 @@ import com.example.notes.data.CategoryEntity
 import com.example.notes.data.NoteEntity
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.repository.NotesRepository
-import com.example.notes.util.SyncManager
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,28 +20,23 @@ data class NotesUiState(
     val notes: List<NoteWithCategory> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
     val activeCategoryId: Long? = null,
-    val query: String = "",
-    val isSyncing: Boolean = false,
-    val syncError: String? = null
+    val query: String = ""
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotesViewModel(
-    private val repository: NotesRepository,
-    private val syncManager: SyncManager? = null
+    private val repository: NotesRepository
 ) : ViewModel() {
 
     private val activeCategoryId = MutableStateFlow<Long?>(null)
     private val query = MutableStateFlow("")
-    private val isSyncing = MutableStateFlow(false)
-    private val syncError = MutableStateFlow<String?>(null)
 
     private val notes = activeCategoryId.flatMapLatest { categoryId ->
         if (categoryId == null) repository.observeNotes() else repository.observeNotesByCategory(categoryId)
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query, isSyncing, syncError) { notesList, categories, activeId, q, syncing, error ->
+        combine(notes, repository.observeCategories(), activeCategoryId, query) { notesList, categories, activeId, q ->
             val filtered = if (q.isBlank()) notesList else {
                 val needle = q.trim()
                 notesList.filter { n ->
@@ -55,9 +49,7 @@ class NotesViewModel(
                 notes = filtered,
                 categories = categories,
                 activeCategoryId = activeId,
-                query = q,
-                isSyncing = syncing,
-                syncError = error
+                query = q
             )
         }.stateIn(
             scope = viewModelScope,
@@ -70,6 +62,11 @@ class NotesViewModel(
     fun setQuery(value: String) { query.value = value }
     fun setCategoryFilter(id: Long?) { activeCategoryId.value = id }
 
+    /**
+     * 保存笔记并替换其全部图片。
+     * @param imageUris 图片 URI 列表，按顺序保存
+     * @return 更新后的笔记 id (新建时由数据库生成)
+     */
     fun saveNote(
         id: Long,
         title: String,
@@ -78,8 +75,8 @@ class NotesViewModel(
         tags: List<String>,
         isPinned: Boolean,
         color: Int,
-        coverImageUri: String? = null,
-        reminderTime: Long? = null
+        reminderTime: Long? = null,
+        imageUris: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             val note = NoteEntity(
@@ -90,10 +87,11 @@ class NotesViewModel(
                 tags = tags.joinToString(","),
                 isPinned = isPinned,
                 color = color,
-                coverImageUri = coverImageUri,
                 reminderTime = reminderTime
             )
-            repository.saveNote(note)
+            val savedId = repository.saveNote(note)
+            // 替换图片 (用于新建和编辑时以最终结果为准)
+            repository.replaceNoteImages(savedId, imageUris)
         }
     }
 
@@ -112,33 +110,16 @@ class NotesViewModel(
     fun deleteCategory(category: CategoryEntity) {
         viewModelScope.launch { repository.deleteCategory(category) }
     }
-
-    // --- Sync --------------------------------------------------------------
-
-    fun syncNotes() {
-        viewModelScope.launch {
-            isSyncing.value = true
-            syncError.value = null
-            try {
-                syncManager?.syncNotes()
-            } catch (e: Exception) {
-                syncError.value = e.message
-            } finally {
-                isSyncing.value = false
-            }
-        }
-    }
 }
 
 class ViewModelFactory(
-    private val repository: NotesRepository,
-    private val syncManager: SyncManager? = null
+    private val repository: NotesRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(NotesViewModel::class.java) ->
-                NotesViewModel(repository, syncManager) as T
+                NotesViewModel(repository) as T
             else -> throw IllegalArgumentException("Unknown VM: ${modelClass.name}")
         }
     }

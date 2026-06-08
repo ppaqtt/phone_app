@@ -1,6 +1,5 @@
 package com.example.notes.ui.screens
 
-import android.Manifest
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.net.Uri
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,12 +23,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PushPin
@@ -45,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -53,13 +55,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -92,22 +97,30 @@ fun NoteEditScreen(
     var color by remember { mutableStateOf(NoteSwatches.first()) }
     var isPinned by remember { mutableStateOf(false) }
     var categoryId by remember { mutableStateOf<Long?>(null) }
-    var coverImageUri by remember { mutableStateOf<String?>(null) }
+    // 多图：取代旧的单 coverImageUri
+    val imageUris: SnapshotStateList<String> = remember { mutableStateListOf() }
     var reminderTime by remember { mutableStateOf<Long?>(null) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(isNew) }
     var lastSaved by remember { mutableStateOf<NoteEntity?>(null) }
 
+    // 多图选择器
     val pickMedia = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? ->
-        uri?.let {
-            context.contentResolver.takePersistableUriPermission(
-                it,
-                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-            coverImageUri = it.toString()
+        contract = ActivityResultContracts.PickMultipleVisualMedia(
+            maxItems = 9
+        )
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }
+                imageUris.add(uri.toString())
+            }
         }
     }
 
@@ -143,6 +156,7 @@ fun NoteEditScreen(
         return sdf.format(timeMs)
     }
 
+    // 加载已有笔记
     LaunchedEffect(noteId) {
         if (noteId > 0L) {
             repository.observeNote(noteId).collectLatest { nwc ->
@@ -153,7 +167,6 @@ fun NoteEditScreen(
                     color = Color(nwc.note.color)
                     isPinned = nwc.note.isPinned
                     categoryId = nwc.note.categoryId
-                    coverImageUri = nwc.note.coverImageUri
                     reminderTime = nwc.note.reminderTime
                     lastSaved = nwc.note
                     loaded = true
@@ -162,8 +175,19 @@ fun NoteEditScreen(
         }
     }
 
+    // 加载已有图片 (独立收集, 不会与笔记主流程互相覆盖)
+    LaunchedEffect(noteId, loaded) {
+        if (noteId > 0L && loaded) {
+            repository.observeNoteImages(noteId).collectLatest { images ->
+                imageUris.clear()
+                imageUris.addAll(images.map { it.uri })
+            }
+        }
+    }
+
     fun saveNote() {
         val noteIdToSave = lastSaved?.id ?: 0L
+        val colorArgb = color.toArgb()
         viewModel.saveNote(
             id = noteIdToSave,
             title = title,
@@ -171,9 +195,9 @@ fun NoteEditScreen(
             categoryId = categoryId,
             tags = tags.split(",", "，").map { it.trim() }.filter { it.isNotEmpty() },
             isPinned = isPinned,
-            color = color.value.toLong().toInt(),
-            coverImageUri = coverImageUri,
-            reminderTime = reminderTime
+            color = colorArgb,
+            reminderTime = reminderTime,
+            imageUris = imageUris.toList()
         )
 
         reminderTime?.let { time ->
@@ -184,8 +208,7 @@ fun NoteEditScreen(
                 categoryId = categoryId,
                 tags = tags,
                 isPinned = isPinned,
-                color = color.value.toLong().toInt(),
-                coverImageUri = coverImageUri,
+                color = colorArgb,
                 reminderTime = time
             )
             ReminderManager.scheduleReminder(context, note, time)
@@ -233,38 +256,112 @@ fun NoteEditScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            coverImageUri?.let { uri ->
-                Box(
+            // === 多图画廊 ===
+            if (imageUris.isNotEmpty()) {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .height(112.dp)
                 ) {
-                    AsyncImage(
-                        model = uri,
-                        contentDescription = "封面",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    IconButton(
-                        onClick = { coverImageUri = null },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(8.dp)
-                    ) {
-                        Icon(Icons.Filled.Delete, contentDescription = "删除封面")
+                    itemsIndexed(imageUris, key = { _, uri -> uri }) { index, uri ->
+                        Box(
+                            modifier = Modifier
+                                .size(104.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            AsyncImage(
+                                model = uri,
+                                contentDescription = "图片 ${index + 1}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            // 右上角删除按钮
+                            Surface(
+                                shape = CircleShape,
+                                color = Color.Black.copy(alpha = 0.55f),
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
+                                    .size(24.dp)
+                                    .clickable { imageUris.remove(uri) }
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "删除图片",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            // 左下角序号
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color.Black.copy(alpha = 0.45f),
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(4.dp)
+                            ) {
+                                Text(
+                                    text = "${index + 1}/${imageUris.size}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                    // 末尾 "再加一张" 按钮
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .size(104.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable {
+                                    pickMedia.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Filled.Add,
+                                    contentDescription = "添加图片",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    "添加",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
+            } else {
+                AssistChip(
+                    onClick = {
+                        pickMedia.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
+                    label = { Text("添加图片 (可多选)") }
+                )
                 Spacer(Modifier.height(12.dp))
             }
-
-            AssistChip(
-                onClick = { pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
-                label = { Text("添加封面图片") }
-            )
-            Spacer(Modifier.height(12.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
@@ -361,7 +458,7 @@ fun NoteEditScreen(
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(NoteSwatches) { swatch ->
-                    val selected = swatch.value.toLong().toInt() == color.value.toLong().toInt()
+                    val selected = swatch.toArgb() == color.toArgb()
                     Box(
                         modifier = Modifier
                             .size(36.dp)

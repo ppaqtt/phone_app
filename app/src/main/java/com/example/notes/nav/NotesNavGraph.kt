@@ -1,9 +1,6 @@
 package com.example.notes.nav
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
@@ -74,15 +71,8 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
             )
         }
         composable(Routes.SETTINGS) {
-            val prefsRepository = remember {
-                (context.applicationContext as NotesApplication).preferencesRepository
-            }
-            val uiState by viewModel.uiState.collectAsState(initial = null)
             SettingsScreen(
-                preferencesRepository = prefsRepository,
-                onSyncNow = { viewModel.syncNotes() },
-                onBack = { navController.popBackStack() },
-                isSyncing = uiState?.isSyncing ?: false
+                onBack = { navController.popBackStack() }
             )
         }
     }

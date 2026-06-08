@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val app = application as NotesApplication
-        val factory = ViewModelFactory(app.repository, app.syncManager)
+        val factory = ViewModelFactory(app.repository)
         val viewModel: NotesViewModel by lazy {
             ViewModelProvider(this, factory)[NotesViewModel::class.java]
         }

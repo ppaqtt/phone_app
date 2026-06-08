@@ -40,6 +40,7 @@ fun NoteCard(
     noteWithCategory: NoteWithCategory,
     onClick: () -> Unit,
     onPinClick: (() -> Unit)? = null,
+    coverImageUri: String? = null,
     modifier: Modifier = Modifier
 ) {
     val note = noteWithCategory.note
@@ -59,7 +60,7 @@ fun NoteCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column {
-            note.coverImageUri?.let { uri ->
+            coverImageUri?.let { uri ->
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
