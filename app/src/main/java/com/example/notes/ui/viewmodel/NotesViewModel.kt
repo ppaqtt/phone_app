@@ -103,6 +103,18 @@ class NotesViewModel(
         viewModelScope.launch { repository.togglePin(id, pinned) }
     }
 
+    fun setPriority(id: Long, priority: Int) {
+        viewModelScope.launch { repository.setPriority(id, priority) }
+    }
+
+    fun setTags(id: Long, tags: List<String>) {
+        viewModelScope.launch { repository.setTags(id, tags.joinToString(",")) }
+    }
+
+    fun moveToCategory(id: Long, categoryId: Long?) {
+        viewModelScope.launch { repository.moveToCategory(id, categoryId) }
+    }
+
     fun addCategory(name: String, color: Int) {
         viewModelScope.launch { repository.addCategory(name, color) }
     }

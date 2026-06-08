@@ -55,6 +55,15 @@ interface NoteDao {
     @Query("UPDATE notes SET is_pinned = :pinned WHERE id = :id")
     suspend fun setPinned(id: Long, pinned: Boolean)
 
+    @Query("UPDATE notes SET priority = :priority WHERE id = :id")
+    suspend fun setPriority(id: Long, priority: Int)
+
+    @Query("UPDATE notes SET tags = :tags WHERE id = :id")
+    suspend fun setTags(id: Long, tags: String)
+
+    @Query("UPDATE notes SET category_id = :categoryId WHERE id = :id")
+    suspend fun setCategory(id: Long, categoryId: Long?)
+
     @Query("SELECT * FROM notes")
     suspend fun getAllNotesForSync(): List<NoteEntity>
 }

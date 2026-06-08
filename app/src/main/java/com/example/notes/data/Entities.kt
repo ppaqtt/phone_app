@@ -29,6 +29,10 @@ data class NoteEntity(
     @ColumnInfo(name = "is_pinned")
     val isPinned: Boolean = false,
 
+    /** 重要度: 0=普通, 1=重要, 2=紧急 */
+    @ColumnInfo(name = "priority", defaultValue = "0")
+    val priority: Int = 0,
+
     @ColumnInfo(name = "color")
     val color: Int = 0xFFFFFFFF.toInt(),
 

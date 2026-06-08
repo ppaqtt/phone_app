@@ -49,6 +49,10 @@ class NotesRepository(
     suspend fun deleteNote(id: Long) = noteDao.deleteById(id)
     suspend fun togglePin(id: Long, pinned: Boolean) = noteDao.setPinned(id, pinned)
 
+    suspend fun setPriority(id: Long, priority: Int) = noteDao.setPriority(id, priority)
+    suspend fun setTags(id: Long, tags: String) = noteDao.setTags(id, tags)
+    suspend fun moveToCategory(id: Long, categoryId: Long?) = noteDao.setCategory(id, categoryId)
+
     suspend fun getAllNotesForSync(): List<NoteEntity> = noteDao.getAllNotesForSync()
 
     // --- Categories ------------------------------------------------------

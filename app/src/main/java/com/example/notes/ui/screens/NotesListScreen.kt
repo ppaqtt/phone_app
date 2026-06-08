@@ -1,23 +1,38 @@
 package com.example.notes.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Grade
+import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
@@ -25,17 +40,29 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.notes.data.NoteWithCategory
 import com.example.notes.ui.components.NoteCard
 import com.example.notes.ui.viewmodel.NotesViewModel
 
@@ -50,6 +77,15 @@ fun NotesListScreen(
     onOpenSettings: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+
+    // 当前选中要做动作的笔记 (任意动作菜单弹出时)
+    var actionTarget by remember { mutableStateOf<NoteWithCategory?>(null) }
+    var showTagsDialog by remember { mutableStateOf(false) }
+    var showPriorityDialog by remember { mutableStateOf(false) }
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    fun dismissActions() { actionTarget = null }
 
     Scaffold(
         topBar = {
@@ -122,25 +158,409 @@ fun NotesListScreen(
 
             if (state.notes.isEmpty()) {
                 EmptyState(
-                        onAdd = onAddNote,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    onAdd = onAddNote,
+                    modifier = Modifier.fillMaxSize()
+                )
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(state.notes, key = { it.note.id }) { nwc ->
-                        NoteCard(
+                        SwipeableNoteRow(
                             noteWithCategory = nwc,
                             onClick = { onOpenNote(nwc.note.id) },
-                            onPinClick = { viewModel.togglePin(nwc.note.id, !nwc.note.isPinned) }
+                            onActionShown = { actionTarget = nwc }
                         )
                     }
                 }
             }
         }
     }
+
+    // ============== 动作对话框 ==============
+    actionTarget?.let { target ->
+        NoteActionsRow(
+            target = target,
+            onDismiss = { dismissActions() },
+            onPin = {
+                viewModel.togglePin(target.note.id, !target.note.isPinned)
+                dismissActions()
+            },
+            onTags = { showTagsDialog = true },
+            onDelete = { showDeleteDialog = true },
+            onMove = { showMoveDialog = true },
+            onPriority = { showPriorityDialog = true }
+        )
+    }
+
+    if (showTagsDialog && actionTarget != null) {
+        TagsEditDialog(
+            initial = actionTarget!!.note.tags,
+            onDismiss = { showTagsDialog = false; dismissActions() },
+            onConfirm = { newTags ->
+                viewModel.setTags(actionTarget!!.note.id, newTags)
+                showTagsDialog = false; dismissActions()
+            }
+        )
+    }
+
+    if (showPriorityDialog && actionTarget != null) {
+        PriorityDialog(
+            current = actionTarget!!.note.priority,
+            onDismiss = { showPriorityDialog = false; dismissActions() },
+            onConfirm = { p ->
+                viewModel.setPriority(actionTarget!!.note.id, p)
+                showPriorityDialog = false; dismissActions()
+            }
+        )
+    }
+
+    if (showMoveDialog && actionTarget != null) {
+        MoveCategoryDialog(
+            categories = state.categories,
+            current = actionTarget!!.note.categoryId,
+            onDismiss = { showMoveDialog = false; dismissActions() },
+            onConfirm = { catId ->
+                viewModel.moveToCategory(actionTarget!!.note.id, catId)
+                showMoveDialog = false; dismissActions()
+            }
+        )
+    }
+
+    if (showDeleteDialog && actionTarget != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false; dismissActions() },
+            title = { Text("删除笔记") },
+            text = { Text("确认要删除「${actionTarget!!.note.title.ifBlank { "无标题" }}」吗?该操作不可恢复。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteNote(actionTarget!!.note.id)
+                    showDeleteDialog = false; dismissActions()
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false; dismissActions() }) { Text("取消") }
+            }
+        )
+    }
+}
+
+/* ============================================================== */
+/* 右滑卡片 — 用 SwipeToDismissBox 展示 5 个动作背景                  */
+/* ============================================================== */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeableNoteRow(
+    noteWithCategory: NoteWithCategory,
+    onClick: () -> Unit,
+    onActionShown: () -> Unit
+) {
+    // 阻尼式右滑: 用户左滑/右滑结束时回调; 我们禁止真正 dismiss
+    val swipeState = rememberSwipeToDismissBoxState(
+        confirmValueChange = { target ->
+            if (target == SwipeToDismissBoxValue.EndToStart) {
+                onActionShown()
+            }
+            false // 永远不真正 dismiss, 卡片弹回
+        },
+        positionalThreshold = { totalDistance -> totalDistance * 0.35f }
+    )
+    SwipeToDismissBox(
+        state = swipeState,
+        enableDismissFromStartToEnd = false, // 禁止从左往右滑
+        enableDismissFromEndToStart = true,  // 允许从右往左滑
+        backgroundContent = {
+            // 右滑时显示在卡片右侧的 5 个动作按钮
+            NoteActionsBackground()
+        },
+        content = {
+            NoteCard(
+                noteWithCategory = noteWithCategory,
+                onClick = onClick,
+                onPinClick = null
+            )
+        }
+    )
+}
+
+/* 右滑时露出的彩色背景条 */
+@Composable
+private fun NoteActionsBackground() {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 5 个动作小图标 (背景示意, 真正点击通过菜单执行)
+        ActionBgIcon(Icons.Filled.PushPin, "置顶", MaterialTheme.colorScheme.primary)
+        ActionBgIcon(Icons.Filled.Label, "标签", Color(0xFF6750A4))
+        ActionBgIcon(Icons.Filled.Delete, "删除", MaterialTheme.colorScheme.error)
+        ActionBgIcon(Icons.Filled.DriveFileMove, "移动", Color(0xFF2196F3))
+        ActionBgIcon(Icons.Filled.Grade, "重要", Color(0xFFFF9800))
+    }
+}
+
+@Composable
+private fun ActionBgIcon(icon: ImageVector, label: String, color: Color) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .padding(horizontal = 6.dp, vertical = 12.dp)
+            .width(46.dp)
+    ) {
+        Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(2.dp))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = color)
+    }
+}
+
+/* ============================================================== */
+/* 动作菜单 (弹层)                                                   */
+/* ============================================================== */
+@Composable
+private fun NoteActionsRow(
+    target: NoteWithCategory,
+    onDismiss: () -> Unit,
+    onPin: () -> Unit,
+    onTags: () -> Unit,
+    onDelete: () -> Unit,
+    onMove: () -> Unit,
+    onPriority: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("笔记操作", maxLines = 1) },
+        text = {
+            Column {
+                ActionMenuItem(
+                    icon = if (target.note.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                    label = if (target.note.isPinned) "取消置顶" else "置顶",
+                    onClick = onPin
+                )
+                ActionMenuItem(
+                    icon = Icons.Filled.Label,
+                    label = "标签",
+                    onClick = onTags
+                )
+                ActionMenuItem(
+                    icon = Icons.Filled.Delete,
+                    label = "删除",
+                    tint = MaterialTheme.colorScheme.error,
+                    onClick = onDelete
+                )
+                ActionMenuItem(
+                    icon = Icons.Filled.DriveFileMove,
+                    label = "移动到分类",
+                    onClick = onMove
+                )
+                ActionMenuItem(
+                    icon = if (target.note.priority > 0) Icons.Filled.Star else Icons.Outlined.Star,
+                    label = "重要度",
+                    onClick = onPriority
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
+    )
+}
+
+@Composable
+private fun ActionMenuItem(
+    icon: ImageVector,
+    label: String,
+    tint: Color = MaterialTheme.colorScheme.onSurface,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(16.dp))
+        Text(label, style = MaterialTheme.typography.bodyLarge, color = tint)
+    }
+}
+
+/* ============================================================== */
+/* 标签编辑对话框                                                    */
+/* ============================================================== */
+@Composable
+private fun TagsEditDialog(
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit
+) {
+    var text by remember {
+        mutableStateOf(initial.split(",").filter { it.isNotBlank() }.joinToString(", "))
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑标签") },
+        text = {
+            Column {
+                Text(
+                    "多个标签用英文逗号分隔, 例如: 工作, 重要, 项目",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("输入标签") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val tags = text.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                onConfirm(tags)
+            }) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+/* ============================================================== */
+/* 重要度对话框                                                      */
+/* ============================================================== */
+@Composable
+private fun PriorityDialog(
+    current: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    var selected by remember { mutableStateOf(current) }
+    val options = listOf(
+        Triple(0, Icons.Outlined.Star, "普通"),
+        Triple(1, Icons.Filled.Star, "重要"),
+        Triple(2, Icons.Filled.Grade, "紧急")
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("设置重要度") },
+        text = {
+            Column {
+                options.forEach { (value, icon, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selected = value }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            icon,
+                            contentDescription = label,
+                            tint = if (value == selected) Color(0xFFE6B800)
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                        if (value == current) {
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                "当前",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected) }) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+/* ============================================================== */
+/* 移动到分类对话框                                                  */
+/* ============================================================== */
+@Composable
+private fun MoveCategoryDialog(
+    categories: List<com.example.notes.data.CategoryEntity>,
+    current: Long?,
+    onDismiss: () -> Unit,
+    onConfirm: (Long?) -> Unit
+) {
+    var selected by remember { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("移动到分类") },
+        text = {
+            Column {
+                // "未分类" 选项
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { selected = null }
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text("未分类", style = MaterialTheme.typography.bodyLarge)
+                    if (current == null) {
+                        Spacer(Modifier.weight(1f))
+                        Text("当前", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                categories.forEach { cat ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selected = cat.id }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(Color(cat.color))
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(cat.name, style = MaterialTheme.typography.bodyLarge)
+                        if (cat.id == current) {
+                            Spacer(Modifier.weight(1f))
+                            Text("当前", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected) }) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 @Composable
