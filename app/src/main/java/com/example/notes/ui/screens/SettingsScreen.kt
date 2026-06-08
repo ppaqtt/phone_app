@@ -56,7 +56,6 @@ private const val FEEDBACK_URL =
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var showUpdateDialog by remember { mutableStateOf(false) }
