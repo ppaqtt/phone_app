@@ -1,13 +1,11 @@
 package com.example.notes.ui.screens
 
 import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,30 +19,37 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Undo
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -64,10 +69,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.notes.data.NoteEntity
 import com.example.notes.repository.NotesRepository
@@ -78,6 +86,9 @@ import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+
+/** 底部工具栏当前选中的工具 */
+private enum class BottomTool { AI, COLUMNS, TEXT, LIST, TODO, IMAGE, MORE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,23 +104,20 @@ fun NoteEditScreen(
 
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
-    var tags by remember { mutableStateOf("") }
     var color by remember { mutableStateOf(NoteSwatches.first()) }
     var isPinned by remember { mutableStateOf(false) }
     var categoryId by remember { mutableStateOf<Long?>(null) }
-    // 多图：取代旧的单 coverImageUri
+    // 多图 (取代旧的单 coverImageUri)
     val imageUris: SnapshotStateList<String> = remember { mutableStateListOf() }
     var reminderTime by remember { mutableStateOf<Long?>(null) }
-    var categoryMenuExpanded by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(isNew) }
     var lastSaved by remember { mutableStateOf<NoteEntity?>(null) }
+    var selectedTool by remember { mutableStateOf<BottomTool?>(null) }
 
     // 多图选择器
     val pickMedia = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(
-            maxItems = 9
-        )
+        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9)
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
             uris.forEach { uri ->
@@ -122,6 +130,8 @@ fun NoteEditScreen(
                 imageUris.add(uri.toString())
             }
         }
+        // 选完后收起工具面板
+        selectedTool = null
     }
 
     val calendar = Calendar.getInstance()
@@ -130,7 +140,7 @@ fun NoteEditScreen(
             context,
             { _, year, month, day ->
                 calendar.set(year, month, day)
-                TimePickerDialog(
+                android.app.TimePickerDialog(
                     context,
                     { _, hour, minute ->
                         calendar.set(Calendar.HOUR_OF_DAY, hour)
@@ -151,11 +161,6 @@ fun NoteEditScreen(
         datePicker.show()
     }
 
-    fun formatDateTime(timeMs: Long): String {
-        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-        return sdf.format(timeMs)
-    }
-
     // 加载已有笔记
     LaunchedEffect(noteId) {
         if (noteId > 0L) {
@@ -163,7 +168,6 @@ fun NoteEditScreen(
                 if (!loaded && nwc != null) {
                     title = nwc.note.title
                     content = nwc.note.content
-                    tags = nwc.note.tags
                     color = Color(nwc.note.color)
                     isPinned = nwc.note.isPinned
                     categoryId = nwc.note.categoryId
@@ -175,7 +179,7 @@ fun NoteEditScreen(
         }
     }
 
-    // 加载已有图片 (独立收集, 不会与笔记主流程互相覆盖)
+    // 加载已有图片
     LaunchedEffect(noteId, loaded) {
         if (noteId > 0L && loaded) {
             repository.observeNoteImages(noteId).collectLatest { images ->
@@ -193,7 +197,7 @@ fun NoteEditScreen(
             title = title,
             content = content,
             categoryId = categoryId,
-            tags = tags.split(",", "，").map { it.trim() }.filter { it.isNotEmpty() },
+            tags = emptyList(),
             isPinned = isPinned,
             color = colorArgb,
             reminderTime = reminderTime,
@@ -206,7 +210,7 @@ fun NoteEditScreen(
                 title = title.ifBlank { content.lineSequence().firstOrNull().orEmpty().take(40) },
                 content = content,
                 categoryId = categoryId,
-                tags = tags,
+                tags = "",
                 isPinned = isPinned,
                 color = colorArgb,
                 reminderTime = time
@@ -220,28 +224,24 @@ fun NoteEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isNew) "新建笔记" else "编辑笔记") },
+                title = { },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "返回"
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = { isPinned = !isPinned }) {
-                        Icon(
-                            imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
-                            contentDescription = "置顶",
-                            tint = if (isPinned) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    IconButton(onClick = { /* TODO: 撤销 */ }) {
+                        Icon(Icons.Filled.Undo, contentDescription = "撤销")
                     }
-                    if (!isNew) {
-                        IconButton(onClick = { confirmDelete = true }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "删除")
-                        }
+                    IconButton(onClick = { /* TODO: 重做 */ }) {
+                        Icon(Icons.Filled.Redo, contentDescription = "重做")
                     }
                     IconButton(onClick = { saveNote() }) {
-                        Icon(Icons.Filled.Check, contentDescription = "保存")
+                        Icon(Icons.Filled.Check, contentDescription = "完成")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -254,227 +254,87 @@ fun NoteEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
         ) {
-            // === 多图画廊 ===
-            if (imageUris.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(112.dp)
-                ) {
-                    itemsIndexed(imageUris, key = { _, uri -> uri }) { index, uri ->
-                        Box(
-                            modifier = Modifier
-                                .size(104.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
-                            AsyncImage(
-                                model = uri,
-                                contentDescription = "图片 ${index + 1}",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            // 右上角删除按钮
-                            Surface(
-                                shape = CircleShape,
-                                color = Color.Black.copy(alpha = 0.55f),
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(4.dp)
-                                    .size(24.dp)
-                                    .clickable { imageUris.remove(uri) }
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        Icons.Filled.Close,
-                                        contentDescription = "删除图片",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                            // 左下角序号
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = Color.Black.copy(alpha = 0.45f),
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .padding(4.dp)
-                            ) {
-                                Text(
-                                    text = "${index + 1}/${imageUris.size}",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                    // 末尾 "再加一张" 按钮
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .size(104.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                .border(
-                                    width = 1.dp,
-                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .clickable {
-                                    pickMedia.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Filled.Add,
-                                    contentDescription = "添加图片",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.height(2.dp))
-                                Text(
-                                    "添加",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
+            // === 标题 (带下划线) ===
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+            ) {
+                if (title.isEmpty()) {
+                    Text(
+                        text = "标题",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
-            } else {
-                AssistChip(
-                    onClick = {
+                BasicTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    textStyle = MaterialTheme.typography.headlineSmall.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    singleLine = true,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            // 下划线
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(0.5.dp)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            )
+
+            // === 元信息行 ===
+            MetaInfoRow(
+                dateMs = lastSaved?.createdAt ?: System.currentTimeMillis(),
+                charCount = content.length,
+                categoryName = state.categories.firstOrNull { it.id == categoryId }?.name
+                    ?: "未分类",
+                isPinned = isPinned,
+                reminderTime = reminderTime,
+                onCategoryClick = { /* TODO: 分类选择 */ },
+                onReminderClick = { showDateTimePicker() },
+                onPinClick = { isPinned = !isPinned; selectedTool = null }
+            )
+
+            // === 主体: 文字 + 内联图片 ===
+            NoteBody(
+                content = content,
+                onContentChange = { content = it },
+                imageUris = imageUris,
+                onRemoveImage = { imageUris.remove(it) },
+                modifier = Modifier
+                    .weight(1f, fill = true)
+                    .fillMaxWidth()
+            )
+
+            // === 工具面板 (选中工具时显示) ===
+            if (selectedTool != null) {
+                ToolPanel(
+                    tool = selectedTool!!,
+                    onPickImages = {
                         pickMedia.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
                     },
-                    leadingIcon = { Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null) },
-                    label = { Text("添加图片 (可多选)") }
+                    onAddTodo = {
+                        content = if (content.isEmpty()) "☐ " else "$content\n☐ "
+                        selectedTool = null
+                    },
+                    onClose = { selectedTool = null }
                 )
-                Spacer(Modifier.height(12.dp))
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Filled.Notifications,
-                    contentDescription = "提醒",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(8.dp))
-                if (reminderTime != null) {
-                    Text(
-                        text = formatDateTime(reminderTime!!),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = { reminderTime = null }) {
-                        Text("取消")
-                    }
-                } else {
-                    TextButton(onClick = { showDateTimePicker() }) {
-                        Text("设置提醒")
-                    }
+            // === 底部 7 图标工具栏 ===
+            BottomToolbar(
+                selected = selectedTool,
+                onSelect = { tool ->
+                    selectedTool = if (selectedTool == tool) null else tool
                 }
-            }
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("标题") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
             )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = content,
-                onValueChange = { content = it },
-                label = { Text("内容") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = true),
-                maxLines = Int.MAX_VALUE
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = tags,
-                onValueChange = { tags = it },
-                label = { Text("标签 (英文逗号分隔)") },
-                placeholder = { Text("例如: 工作,灵感") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            Spacer(Modifier.height(12.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "分类:",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(Modifier.width(8.dp))
-                Box {
-                    AssistChip(
-                        onClick = { categoryMenuExpanded = true },
-                        label = {
-                            Text(
-                                state.categories.firstOrNull { it.id == categoryId }?.name ?: "未分类"
-                            )
-                        }
-                    )
-                    DropdownMenu(
-                        expanded = categoryMenuExpanded,
-                        onDismissRequest = { categoryMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("未分类") },
-                            onClick = { categoryId = null; categoryMenuExpanded = false }
-                        )
-                        state.categories.forEach { c ->
-                            DropdownMenuItem(
-                                text = { Text(c.name) },
-                                onClick = { categoryId = c.id; categoryMenuExpanded = false }
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Text("颜色", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                items(NoteSwatches) { swatch ->
-                    val selected = swatch.toArgb() == color.toArgb()
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(swatch)
-                            .border(
-                                width = if (selected) 2.dp else 1.dp,
-                                color = if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                shape = CircleShape
-                            )
-                            .clickable { color = swatch }
-                    )
-                }
-            }
-            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -499,5 +359,392 @@ fun NoteEditScreen(
                 TextButton(onClick = { confirmDelete = false }) { Text("取消") }
             }
         )
+    }
+}
+
+/* ============================================================== */
+/* 元信息行                                                          */
+/* ============================================================== */
+@Composable
+private fun MetaInfoRow(
+    dateMs: Long,
+    charCount: Int,
+    categoryName: String,
+    isPinned: Boolean,
+    reminderTime: Long?,
+    onCategoryClick: () -> Unit,
+    onReminderClick: () -> Unit,
+    onPinClick: () -> Unit
+) {
+    val sdf = remember { SimpleDateFormat("yyyy/M/d HH:mm", Locale.getDefault()) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = sdf.format(dateMs),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "  |  ",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Text(
+            text = "$charCount 字",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "  |  ",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.outline
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.clickable { onCategoryClick() }
+        ) {
+            Text(
+                text = categoryName,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onPinClick, modifier = Modifier.size(28.dp)) {
+            Icon(
+                imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                contentDescription = if (isPinned) "已置顶" else "置顶",
+                modifier = Modifier.size(16.dp),
+                tint = if (isPinned) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+        IconButton(onClick = onReminderClick, modifier = Modifier.size(28.dp)) {
+            Icon(
+                Icons.Filled.Notifications,
+                contentDescription = "提醒",
+                modifier = Modifier.size(16.dp),
+                tint = if (reminderTime != null) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/* ============================================================== */
+/* 主体: 内容 + 内联多图                                             */
+/* ============================================================== */
+@Composable
+private fun NoteBody(
+    content: String,
+    onContentChange: (String) -> Unit,
+    imageUris: List<String>,
+    onRemoveImage: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        if (imageUris.isNotEmpty()) {
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    items(imageUris, key = { it }) { uri ->
+                        ImageThumb(
+                            uri = uri,
+                            index = imageUris.indexOf(uri),
+                            total = imageUris.size,
+                            onRemove = { onRemoveImage(uri) }
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            BasicTextField(
+                value = content,
+                onValueChange = onContentChange,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 24.sp
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { inner ->
+                    if (content.isEmpty()) {
+                        Text(
+                            text = "记录此刻的想法...",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.outline,
+                                lineHeight = 24.sp
+                            )
+                        )
+                    }
+                    inner()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ImageThumb(
+    uri: String,
+    index: Int,
+    total: Int,
+    onRemove: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(96.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        AsyncImage(
+            model = uri,
+            contentDescription = "图片 ${index + 1}",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
+        Surface(
+            shape = CircleShape,
+            color = Color.Black.copy(alpha = 0.55f),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(4.dp)
+                .size(22.dp)
+                .clickable { onRemove() }
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Filled.Close,
+                    contentDescription = "删除图片",
+                    tint = Color.White,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+        Surface(
+            shape = RoundedCornerShape(4.dp),
+            color = Color.Black.copy(alpha = 0.45f),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(4.dp)
+        ) {
+            Text(
+                text = "${index + 1}/$total",
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+            )
+        }
+    }
+}
+
+/* ============================================================== */
+/* 工具面板 (位于工具栏上方, 选中工具时显示)                         */
+/* ============================================================== */
+@Composable
+private fun ToolPanel(
+    tool: BottomTool,
+    onPickImages: () -> Unit,
+    onAddTodo: () -> Unit,
+    onClose: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(14.dp))
+    ) {
+        when (tool) {
+            BottomTool.IMAGE -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    ToolSubItem(
+                        icon = Icons.Filled.PhotoLibrary,
+                        label = "图片或视频",
+                        onClick = onPickImages
+                    )
+                    ToolSubItem(
+                        icon = Icons.Filled.CameraAlt,
+                        label = "拍照",
+                        onClick = { /* TODO: 拍照 */ }
+                    )
+                    ToolSubItem(
+                        icon = Icons.Filled.DocumentScanner,
+                        label = "文档扫描",
+                        onClick = { /* TODO: 文档扫描 */ }
+                    )
+                }
+            }
+            BottomTool.TODO -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    ToolSubItem(
+                        icon = Icons.Filled.CheckBoxOutlineBlank,
+                        label = "待办",
+                        onClick = onAddTodo
+                    )
+                }
+            }
+            BottomTool.AI -> {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    ToolSubItem(
+                        icon = Icons.Outlined.AutoAwesome,
+                        label = "AI 助手",
+                        onClick = { /* TODO: AI */ }
+                    )
+                }
+            }
+            BottomTool.COLUMNS -> {
+                Text(
+                    text = "分栏模板 (开发中)",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            BottomTool.TEXT -> {
+                Text(
+                    text = "文字样式 (开发中)",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            BottomTool.LIST -> {
+                Text(
+                    text = "列表样式 (开发中)",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            BottomTool.MORE -> {
+                Text(
+                    text = "更多 (开发中)",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolSubItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/* ============================================================== */
+/* 底部 7 图标工具栏                                                */
+/* ============================================================== */
+@Composable
+private fun BottomToolbar(
+    selected: BottomTool?,
+    onSelect: (BottomTool) -> Unit
+) {
+    val toolbarItems = listOf(
+        BottomTool.AI to (Icons.Outlined.AutoAwesome to "AI"),
+        BottomTool.COLUMNS to (Icons.Filled.Layers to "分栏"),
+        BottomTool.TEXT to (Icons.Filled.TextFields to "Aa"),
+        BottomTool.LIST to (Icons.Filled.FormatListBulleted to "列表"),
+        BottomTool.TODO to (Icons.Filled.CheckBoxOutlineBlank to "待办"),
+        BottomTool.IMAGE to (Icons.Filled.Image to "图片"),
+        BottomTool.MORE to (Icons.Filled.Add to "⊕")
+    )
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            toolbarItems.forEach { (tool, iconAndLabel) ->
+                val (icon, label) = iconAndLabel
+                val isSelected = tool == selected
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onSelect(tool) }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = label,
+                        tint = if (isSelected) Color(0xFFE6B800)
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSelected) Color(0xFFE6B800)
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }
