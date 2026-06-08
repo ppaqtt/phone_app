@@ -1,5 +1,6 @@
 package com.example.notes.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -144,7 +145,10 @@ fun NotesListScreen(
 
 @Composable
 private fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier.clickable { onAdd() },
+        contentAlignment = Alignment.Center
+    ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(Modifier.height(48.dp))
             Text("✎", style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary)

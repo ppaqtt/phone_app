@@ -97,7 +97,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                         // 模拟网络检查耗时
                         delay(800)
                         isChecking = false
-                        if (AppUpdateChecker.isUpdateAvailable(context)) {
+                        if (AppUpdateChecker.isUpdateAvailable()) {
                             showUpdateDialog = true
                         } else {
                             showNoUpdateTip = true

@@ -28,7 +28,7 @@ object ImageUtils {
         )
     }
 
-    fun deleteImageFile(context: Context, uri: String?) {
+    fun deleteImageFile(uri: String?) {
         uri?.let {
             try {
                 val file = File(Uri.parse(uri).path ?: return)

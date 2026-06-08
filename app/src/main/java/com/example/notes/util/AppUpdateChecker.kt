@@ -1,7 +1,5 @@
 package com.example.notes.util
 
-import android.content.Context
-import android.content.pm.PackageManager
 import com.example.notes.BuildConfig
 
 /**
@@ -14,14 +12,14 @@ object AppUpdateChecker {
     const val LATEST_VERSION = "1.0.1"
 
     /** 当前包版本号 */
-    fun currentVersion(context: Context): String = BuildConfig.VERSION_NAME
+    fun currentVersion(): String = BuildConfig.VERSION_NAME
 
     /**
      * 比较 BuildConfig.VERSION_NAME 与 LATEST_VERSION, 返回是否有新版本。
      * 当本地版本 >= 远端版本时, 返回 false (无更新)。
      */
-    fun isUpdateAvailable(context: Context): Boolean {
-        val local = currentVersion(context)
+    fun isUpdateAvailable(): Boolean {
+        val local = currentVersion()
         return compareVersions(local, LATEST_VERSION) < 0
     }
 

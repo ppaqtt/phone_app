@@ -323,8 +323,7 @@ fun NoteEditScreen(
                     onAddTodo = {
                         content = if (content.isEmpty()) "☐ " else "$content\n☐ "
                         selectedTool = null
-                    },
-                    onClose = { selectedTool = null }
+                    }
                 )
             }
 
@@ -564,8 +563,7 @@ private fun ImageThumb(
 private fun ToolPanel(
     tool: BottomTool,
     onPickImages: () -> Unit,
-    onAddTodo: () -> Unit,
-    onClose: () -> Unit
+    onAddTodo: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
