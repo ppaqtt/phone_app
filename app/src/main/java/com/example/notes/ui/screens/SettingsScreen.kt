@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
 import com.example.notes.util.AppUpdateChecker
+import com.example.notes.util.UpdateDialog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
