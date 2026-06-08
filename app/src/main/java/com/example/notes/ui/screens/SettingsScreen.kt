@@ -325,6 +325,18 @@ private fun ChangelogCard() {
             )
             Spacer(Modifier.height(12.dp))
             ChangelogVersion(
+                version = "v1.0.2",
+                date = "2026-06-08",
+                items = listOf(
+                    "重写：笔记编辑界面为极简风格 (顶部 4 按钮 + 元信息行 + 大文本区 + 底部 7 图标工具栏)",
+                    "新增：工具面板 (选中工具时浮起, 含图片/待办/分栏/文字/列表/AI 等子项)",
+                    "新增：多图支持 — 笔记可添加多张图片 (不再只是封面), 横向缩略图画廊 + 序号 + 删除按钮",
+                    "优化：图片选择器支持一次性多选 (最多 9 张)",
+                    "修复：颜色保存/读取的 toArgb 转换 bug"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
                 version = "v${AppUpdateChecker.LATEST_VERSION}",
                 date = "2026-06-07",
                 items = listOf(
