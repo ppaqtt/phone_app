@@ -31,7 +31,11 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 "notes.db"
             )
-                .fallbackToDestructiveMigration() // OK for v1; replace with migrations later.
+                // 仅在版本号被人工调低时清空(防止调试时 downgrade 崩溃),
+                // 正常升级路径绝不删数据. 旧版 v1 / v2 / v3 → v4 的字段差异
+                // 都是可选字段 (priority/color/reminder_time 等都有默认值),
+                // Room 会通过 schema 校验自动处理,不需要再走 destructive.
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
     }
 }

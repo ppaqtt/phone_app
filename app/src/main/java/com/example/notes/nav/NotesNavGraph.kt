@@ -38,11 +38,11 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
         composable(Routes.LIST) {
             NotesListScreen(
                 viewModel = viewModel,
-                onAddNote = { navController.navigate(Routes.edit(0L)) },
-                onOpenNote = { id -> navController.navigate(Routes.edit(id)) },
-                onOpenCategories = { navController.navigate(Routes.CATEGORIES) },
-                onOpenSearch = { navController.navigate(Routes.SEARCH) },
-                onOpenSettings = { navController.navigate(Routes.SETTINGS) }
+                onAddNote = { navController.navigate(Routes.edit(0L)) { launchSingleTop = true } },
+                onOpenNote = { id -> navController.navigate(Routes.edit(id)) { launchSingleTop = true } },
+                onOpenCategories = { navController.navigate(Routes.CATEGORIES) { launchSingleTop = true } },
+                onOpenSearch = { navController.navigate(Routes.SEARCH) { launchSingleTop = true } },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } }
             )
         }
         composable(
@@ -67,7 +67,7 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
             SearchScreen(
                 viewModel = viewModel,
                 onBack = { navController.popBackStack() },
-                onOpenNote = { id -> navController.navigate(Routes.edit(id)) }
+                onOpenNote = { id -> navController.navigate(Routes.edit(id)) { launchSingleTop = true } }
             )
         }
         composable(Routes.SETTINGS) {

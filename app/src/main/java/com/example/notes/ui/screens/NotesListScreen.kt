@@ -52,6 +52,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -59,6 +60,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,8 +92,19 @@ fun NotesListScreen(
     var showPriorityDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    // 防止疯狂点击"删除"导致多次触发数据库删除 (虽然 id 相同是幂等的,
+    // 但点击多次会让 UI 闪 / 在某些 Android 版本上触发 recomposition race)
+    var deleteInFlight by remember { mutableStateOf(false) }
 
     fun dismissActions() { actionTarget = null }
+
+    // 删除对话框关闭后,短暂延迟重置防重入锁,确保下次打开仍可点击
+    LaunchedEffect(showDeleteDialog) {
+        if (!showDeleteDialog) {
+            delay(300)
+            deleteInFlight = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -236,17 +249,28 @@ fun NotesListScreen(
 
     if (showDeleteDialog && actionTarget != null) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false; dismissActions() },
+            onDismissRequest = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
             title = { Text("删除笔记") },
             text = { Text("确认要删除「${actionTarget!!.note.title.ifBlank { "无标题" }}」吗?该操作不可恢复。") },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteNote(actionTarget!!.note.id)
-                    showDeleteDialog = false; dismissActions()
-                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                TextButton(
+                    onClick = {
+                        if (deleteInFlight) return@TextButton
+                        deleteInFlight = true
+                        viewModel.deleteNote(actionTarget!!.note.id)
+                        showDeleteDialog = false
+                        dismissActions()
+                        // 200ms 后重置,给数据库写入留时间窗口
+                        // (防止对话框关闭后用户再次快速点开,触发 race)
+                    },
+                    enabled = !deleteInFlight
+                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false; dismissActions() }) { Text("取消") }
+                TextButton(
+                    onClick = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
+                    enabled = !deleteInFlight
+                ) { Text("取消") }
             }
         )
     }

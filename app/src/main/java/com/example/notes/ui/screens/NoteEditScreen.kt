@@ -149,6 +149,8 @@ fun NoteEditScreen(
     // 退出时未保存确认: null=未触发, "discard"=丢弃, "save"=保存后退出
     var showExitConfirm by remember { mutableStateOf(false) }
     var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    // 防止疯狂点击保存 / 退出导致重复写入数据库
+    var busy by remember { mutableStateOf(false) }
 
     // 初始快照 (用于判断"内容是否被修改过")
     val initialSnapshot = remember(noteId, loaded) {
@@ -331,10 +333,13 @@ fun NoteEditScreen(
 
     /**
      * 智能退出: 有修改则弹"是否保存"对话框, 没修改则直接退出.
-     * @param then 用户最终选择保存/丢弃/取消后要执行的动作 (一般是 onBack)
+     * 同时, 进入 / 退出过程中用 [busy] 锁防重入, 避免疯狂点击导致
+     * 多次执行 onBack / save 引起的内容丢失或数据库写入竞争.
      */
     fun tryExit(then: () -> Unit) {
+        if (busy) return
         if (!isDirty) {
+            busy = true
             then()
             return
         }
@@ -373,7 +378,7 @@ fun NoteEditScreen(
             TopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = { tryExit(onBack) }) {
+                    IconButton(onClick = { tryExit(onBack) }, enabled = !busy) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -400,11 +405,16 @@ fun NoteEditScreen(
                     ) {
                         Icon(Icons.Filled.Redo, contentDescription = "重做")
                     }
-                    IconButton(onClick = {
-                        saveNote()
-                        Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
-                        onBack()
-                    }) {
+                    IconButton(
+                        onClick = {
+                            if (busy) return@IconButton
+                            busy = true
+                            saveNote()
+                            Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                            onBack()
+                        },
+                        enabled = !busy
+                    ) {
                         Icon(Icons.Filled.Check, contentDescription = "保存")
                     }
                 },
@@ -597,47 +607,68 @@ fun NoteEditScreen(
 
     if (confirmDelete) {
         AlertDialog(
-            onDismissRequest = { confirmDelete = false },
+            onDismissRequest = { if (!busy) { confirmDelete = false } },
             title = { Text("删除笔记") },
             text = { Text("确认要删除这条笔记吗?该操作不可恢复。") },
             confirmButton = {
-                TextButton(onClick = {
-                    lastSaved?.let {
-                        viewModel.deleteNote(it.id)
-                        it.reminderTime?.let { _ -> ReminderManager.cancelReminder(context, it.id) }
-                    }
-                    confirmDelete = false
-                    onBack()
-                }) { Text("删除") }
+                TextButton(
+                    onClick = {
+                        if (busy) return@TextButton
+                        busy = true
+                        lastSaved?.let {
+                            viewModel.deleteNote(it.id)
+                            it.reminderTime?.let { _ -> ReminderManager.cancelReminder(context, it.id) }
+                        }
+                        confirmDelete = false
+                        onBack()
+                    },
+                    enabled = !busy
+                ) { Text("删除") }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+                TextButton(
+                    onClick = { if (!busy) confirmDelete = false },
+                    enabled = !busy
+                ) { Text("取消") }
             }
         )
     }
 
     if (showExitConfirm) {
         AlertDialog(
-            onDismissRequest = { showExitConfirm = false },
+            onDismissRequest = { if (!busy) { showExitConfirm = false } },
             title = { Text("未保存的修改") },
             text = { Text("当前笔记有未保存的修改, 是否保存?") },
             confirmButton = {
-                TextButton(onClick = {
-                    saveNote()
-                    showExitConfirm = false
-                    Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
-                    pendingExitAction?.invoke()
-                }) { Text("保存") }
+                TextButton(
+                    onClick = {
+                        if (busy) return@TextButton
+                        busy = true
+                        saveNote()
+                        showExitConfirm = false
+                        Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                        pendingExitAction?.invoke()
+                    },
+                    enabled = !busy
+                ) { Text("保存") }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = {
-                        // 丢弃修改直接退出
-                        showExitConfirm = false
-                        pendingExitAction?.invoke()
-                    }) { Text("丢弃") }
+                    TextButton(
+                        onClick = {
+                            if (busy) return@TextButton
+                            busy = true
+                            // 丢弃修改直接退出
+                            showExitConfirm = false
+                            pendingExitAction?.invoke()
+                        },
+                        enabled = !busy
+                    ) { Text("丢弃") }
                     Spacer(Modifier.width(4.dp))
-                    TextButton(onClick = { showExitConfirm = false }) { Text("取消") }
+                    TextButton(
+                        onClick = { if (!busy) showExitConfirm = false },
+                        enabled = !busy
+                    ) { Text("取消") }
                 }
             }
         )
