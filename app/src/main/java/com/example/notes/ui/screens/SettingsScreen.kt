@@ -562,7 +562,7 @@ private fun LegalEntryRow(
 
 @Composable
 private fun DividerRow() {
-    androidx.compose.material3.HorizontalDivider(
+    androidx.compose.material3.Divider(
         modifier = Modifier.padding(start = 52.dp),
         color = MaterialTheme.colorScheme.outlineVariant
     )
