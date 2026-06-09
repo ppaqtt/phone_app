@@ -255,7 +255,7 @@ private fun TableCell(
     editValue: TextFieldValue,
     onEditValueChange: (TextFieldValue) -> Unit,
     onClick: () -> Unit,
-    onEditDone: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onEditDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val cellBg = if (isHeader)

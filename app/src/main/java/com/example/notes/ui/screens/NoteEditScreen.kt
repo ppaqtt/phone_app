@@ -857,7 +857,7 @@ private fun ToolPanel(
     onPickAudio: () -> Unit,
     onToggleTodo: () -> Unit,
     onInsertText: (String) -> Unit,
-    onInsertAtCursor: (String) -> Unit,
+    @Suppress("UNUSED_PARAMETER") onInsertAtCursor: (String) -> Unit,
     onWrapBold: () -> Unit,
     onWrapItalic: () -> Unit,
     onWrapUnderline: () -> Unit,
