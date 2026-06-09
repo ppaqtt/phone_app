@@ -42,6 +42,22 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- ICP 备案 / 应用商店审核用: app://privacy 深链接 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="app" android:host="privacy" />
+            </intent-filter>
+            <!-- 隐私政策 web 链接: https://qing-jian.ppaqtt.com/privacy -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="qing-jian.ppaqtt.com" />
+                <data android:pathPrefix="/privacy" />
+            </intent-filter>
         </activity>
     </application>
 

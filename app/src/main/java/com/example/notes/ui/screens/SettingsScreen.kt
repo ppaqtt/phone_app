@@ -1,6 +1,10 @@
 package com.example.notes.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -16,10 +20,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -38,18 +50,27 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
+import com.example.notes.R
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.NoUpdateDialog
 import com.example.notes.util.UpdateAvailableDialog
+import com.example.notes.util.readApkMetadata
 import kotlinx.coroutines.launch
 
 private const val FEEDBACK_URL =
     "https://docs.qq.com/form/page/DVk56eEJwc3diVUVZ"
+
+private const val PRIVACY_POLICY_URL =
+    "https://qing-jian.ppaqtt.com/privacy"
+
+/** 内部法律页面枚举 (用于本地切换 AboutLegalScreen) */
+private enum class LegalPage { PRIVACY, TERMS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +81,25 @@ fun SettingsScreen(onBack: () -> Unit) {
     var showNoUpdateTip by remember { mutableStateOf(false) }
     var isChecking by remember { mutableStateOf(false) }
     var lastCheckResult by remember { mutableStateOf<AppUpdateChecker.UpdateCheckResult?>(null) }
+
+    // 法律页面本地切换 (隐私政策 / 使用条款)
+    var legalPage by remember { mutableStateOf<LegalPage?>(null) }
+    // 备案信息 Dialog 开关
+    var showFilingDialog by remember { mutableStateOf(false) }
+
+    if (legalPage != null) {
+        val (title, rawResId) = when (legalPage) {
+            LegalPage.PRIVACY -> "隐私政策" to R.raw.privacy_policy
+            LegalPage.TERMS -> "使用条款" to R.raw.terms_of_service
+            else -> "" to 0
+        }
+        AboutLegalScreen(
+            title = title,
+            rawResId = rawResId,
+            onBack = { legalPage = null }
+        )
+        return
+    }
 
     Scaffold(
         topBar = {
@@ -104,6 +144,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             )
             FeedbackCard()
             ChangelogCard()
+            LegalEntriesCard(
+                onOpenPrivacy = { legalPage = LegalPage.PRIVACY },
+                onOpenTerms = { legalPage = LegalPage.TERMS },
+                onOpenFiling = { showFilingDialog = true }
+            )
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -123,6 +168,10 @@ fun SettingsScreen(onBack: () -> Unit) {
             errorMessage = lastCheckResult!!.errorMessage,
             onDismiss = { showNoUpdateTip = false }
         )
+    }
+
+    if (showFilingDialog) {
+        FilingInfoDialog(onDismiss = { showFilingDialog = false })
     }
 }
 
@@ -430,4 +479,188 @@ private fun ChangelogVersion(version: String, date: String, items: List<String>)
             }
         }
     }
+}
+
+/** 「关于」下方 3 个法律相关入口 (隐私政策 / 使用条款 / 应用备案信息) */
+@Composable
+private fun LegalEntriesCard(
+    onOpenPrivacy: () -> Unit,
+    onOpenTerms: () -> Unit,
+    onOpenFiling: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column {
+            LegalEntryRow(
+                icon = Icons.Filled.PrivacyTip,
+                title = "隐私政策",
+                subtitle = "查看 APP 隐私政策全文",
+                onClick = onOpenPrivacy
+            )
+            DividerRow()
+            LegalEntryRow(
+                icon = Icons.Filled.Gavel,
+                title = "使用条款",
+                subtitle = "查看 APP 使用条款全文",
+                onClick = onOpenTerms
+            )
+            DividerRow()
+            LegalEntryRow(
+                icon = Icons.Filled.Verified,
+                title = "应用备案信息",
+                subtitle = "ICP 备案: 包名 / 版本 / 签名 SHA1 / MD5",
+                onClick = onOpenFiling
+            )
+        }
+    }
+}
+
+@Composable
+private fun LegalEntryRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun DividerRow() {
+    androidx.compose.material3.HorizontalDivider(
+        modifier = Modifier.padding(start = 52.dp),
+        color = MaterialTheme.colorScheme.outlineVariant
+    )
+}
+
+/** 「应用备案信息」Dialog: 显示 6 字段 + 每行复制按钮 */
+@Composable
+private fun FilingInfoDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val meta = remember { readApkMetadata(context) }
+    val signatureSha1 = meta.signature?.sha1 ?: "获取失败"
+    val signatureMd5 = meta.signature?.md5 ?: "获取失败"
+    val applicationId = meta.applicationId
+    val versionName = meta.versionName
+    val versionCode = meta.versionCode
+
+    val rows = listOf(
+        FilingRow("应用包名", applicationId),
+        FilingRow("版本名 (versionName)", versionName),
+        FilingRow("版本号 (versionCode)", versionCode.toString()),
+        FilingRow("签名 SHA1", signatureSha1),
+        FilingRow("签名 MD5", signatureMd5),
+        FilingRow("隐私政策 URL", PRIVACY_POLICY_URL)
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("应用备案信息", fontWeight = FontWeight.SemiBold)
+            }
+        },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "以下信息用于 ICP 备案填写, 点击右侧「复制」可复制单行内容。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                rows.forEachIndexed { index, row ->
+                    FilingInfoRow(row = row, onCopy = { copyToClipboard(context, row.label, row.value) })
+                    if (index != rows.lastIndex) {
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
+            }
+        }
+    )
+}
+
+private data class FilingRow(val label: String, val value: String)
+
+@Composable
+private fun FilingInfoRow(row: FilingRow, onCopy: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = row.label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = row.value,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        TextButton(onClick = onCopy) {
+            Icon(
+                imageVector = Icons.Filled.ContentCopy,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(4.dp))
+            Text("复制")
+        }
+    }
+}
+
+/** 复制文本到系统剪贴板, 弹 Toast 提示 */
+private fun copyToClipboard(context: Context, label: String, value: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText(label, value))
+    Toast.makeText(context, "已复制: $label", Toast.LENGTH_SHORT).show()
 }
