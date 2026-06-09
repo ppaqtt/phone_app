@@ -83,7 +83,6 @@ fun TableInsertDialog(
  */
 fun buildMarkdownTable(rows: Int, cols: Int): String {
     val headers = (1..cols).map { "列$it" }
-    val sep = cols
     val dataRows = (1..rows - 1).map { r -> (1..cols).map { c -> "r${r}c$c" } }
 
     val allRows = listOf(headers) + dataRows

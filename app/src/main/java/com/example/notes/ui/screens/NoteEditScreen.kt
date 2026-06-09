@@ -431,8 +431,7 @@ fun NoteEditScreen(
                         pushHistory()
                     },
                     onDoodleClick = { showDoodle = true; selectedTool = null },
-                    onTableClick = { showTableDialog = true; selectedTool = null },
-                    onClose = { selectedTool = null }
+                    onTableClick = { showTableDialog = true; selectedTool = null }
                 )
             }
 
@@ -690,8 +689,7 @@ private fun ToolPanel(
     onInsertText: (String) -> Unit,
     onInsertAtCursor: (String) -> Unit,
     onDoodleClick: () -> Unit,
-    onTableClick: () -> Unit,
-    onClose: () -> Unit
+    onTableClick: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
