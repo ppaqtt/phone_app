@@ -1,7 +1,12 @@
 package com.example.notes.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,7 +39,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -42,31 +47,32 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.ui.components.NoteCard
 import com.example.notes.ui.viewmodel.NotesViewModel
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotesListScreen(
     viewModel: NotesViewModel,
@@ -247,41 +253,59 @@ fun NotesListScreen(
 }
 
 /* ============================================================== */
-/* 右滑卡片 — 用 SwipeToDismissBox 展示 5 个动作背景                  */
+/* 右滑卡片 — 手写 Draggable 容器 (兼容 material3 1.1.x,            */
+/* SwipeToDismissBox 是 1.2.0+ 才有)                              */
 /* ============================================================== */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableNoteRow(
     noteWithCategory: NoteWithCategory,
     onClick: () -> Unit,
     onActionShown: () -> Unit
 ) {
-    // 阻尼式右滑: 用户左滑/右滑结束时回调; 我们禁止真正 dismiss
-    val swipeState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { target ->
-            if (target == SwipeToDismissBoxValue.EndToStart) {
-                onActionShown()
-            }
-            false // 永远不真正 dismiss, 卡片弹回
-        },
-        positionalThreshold = { totalDistance -> totalDistance * 0.35f }
-    )
-    SwipeToDismissBox(
-        state = swipeState,
-        enableDismissFromStartToEnd = false, // 禁止从左往右滑
-        enableDismissFromEndToStart = true,  // 允许从右往左滑
-        backgroundContent = {
-            // 右滑时显示在卡片右侧的 5 个动作按钮
-            NoteActionsBackground()
-        },
-        content = {
+    val scope = rememberCoroutineScope()
+    val widthPx = remember { mutableFloatStateOf(0f) }
+    val offsetX = remember { Animatable(0f) }
+    val threshold = 0.35f
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .onSizeChanged { size -> widthPx.floatValue = size.width.toFloat() }
+    ) {
+        // 背景层: 5 个动作的彩色条 (卡片右滑时露出)
+        NoteActionsBackground()
+        // 前景层: 卡片 (可水平拖动, 始终跟手)
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offsetX.value.toInt(), 0) }
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        scope.launch {
+                            val target = (offsetX.value + delta)
+                                .coerceIn(-widthPx.floatValue, 0f)
+                            offsetX.snapTo(target)
+                        }
+                    },
+                    onDragStopped = {
+                        scope.launch {
+                            val w = widthPx.floatValue
+                            if (w > 0f && -offsetX.value > w * threshold) {
+                                onActionShown()
+                            }
+                            // 弹回原位
+                            offsetX.animateTo(0f, tween(durationMillis = 220))
+                        }
+                    }
+                )
+        ) {
             NoteCard(
                 noteWithCategory = noteWithCategory,
                 onClick = onClick,
                 onPinClick = null
             )
         }
-    )
+    }
 }
 
 /* 右滑时露出的彩色背景条 */

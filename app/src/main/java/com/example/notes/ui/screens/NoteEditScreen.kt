@@ -44,7 +44,7 @@ import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.FormatListNumbered
-import androidx.compose.material.icons.filled.FormatStrikethroughS
+import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Image
@@ -915,7 +915,7 @@ private fun TextFormatPanel(onInsert: (String) -> Unit) {
             FormatIconBtn(Icons.Filled.FormatBold, "B") { onInsert("**") }
             FormatIconBtn(Icons.Filled.FormatItalic, "I") { onInsert("_") }
             FormatIconBtn(Icons.Filled.FormatUnderlined, "U") { onInsert("<u>") }
-            FormatIconBtn(Icons.Filled.FormatStrikethroughS, "S") { onInsert("~~") }
+            FormatIconBtn(Icons.Filled.FormatStrikethrough, "S") { onInsert("~~") }
             FormatIconBtn(Icons.Filled.Brush, "高亮") { onInsert("==") }
         }
         Spacer(Modifier.height(8.dp))
