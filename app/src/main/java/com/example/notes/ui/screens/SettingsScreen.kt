@@ -355,7 +355,7 @@ private fun ChangelogCard() {
             )
             Spacer(Modifier.height(16.dp))
             ChangelogVersion(
-                version = "v${AppUpdateChecker.FALLBACK_LATEST_VERSION}",
+                version = "v1.0.1",
                 date = "2026-06-07",
                 items = listOf(
                     "新增：应用启动时自动检查更新",
