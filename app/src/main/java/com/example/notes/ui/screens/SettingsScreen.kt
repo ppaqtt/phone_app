@@ -317,6 +317,23 @@ private fun ChangelogCard() {
             )
             Spacer(Modifier.height(12.dp))
             ChangelogVersion(
+                version = "v1.0.4",
+                date = "2026-06-09",
+                items = listOf(
+                    "新增：APP 图标更换为「清笺」卷轴+毛笔 PNG, 5 密度 mipmap 自适配",
+                    "新增：app_name 便签 → 清笺, 与图标命名一致",
+                    "新增：启动画面改用 ic_launcher_source.png 居中 + app_name 紧贴下方, 移除 Lottie",
+                    "新增：富文本对齐作用于当前光标所在段落 (左/中/右)",
+                    "新增：Aa 文字样式 (B/I/U/S/高亮/字号/字色) 作用于当前选区, 选区为空时 Toast 提示",
+                    "新增：富文本样式切换 (再次点击同一样式自动移除 marker)",
+                    "升级：表格插入升级为 Excel 风格可视化渲染, 单元格可点击编辑后回写 markdown",
+                    "升级：编辑器 BasicTextField 改用 TextFieldValue, 可追踪光标 / 选区",
+                    "升级：撤销/重做栈接上 TextFieldValue 改动",
+                    "升级：版本号 v1.0.3 → v1.0.4 (versionCode 3 → 4)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
                 version = "v1.0.3",
                 date = "2026-06-08",
                 items = listOf(
