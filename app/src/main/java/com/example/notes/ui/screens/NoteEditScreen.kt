@@ -5,6 +5,7 @@ import android.app.DatePickerDialog
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -145,6 +146,20 @@ fun NoteEditScreen(
     var selectedTool by remember { mutableStateOf<BottomTool?>(null) }
     var showDoodle by remember { mutableStateOf(false) }
     var showTableDialog by remember { mutableStateOf(false) }
+    // 退出时未保存确认: null=未触发, "discard"=丢弃, "save"=保存后退出
+    var showExitConfirm by remember { mutableStateOf(false) }
+    var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    // 初始快照 (用于判断"内容是否被修改过")
+    val initialSnapshot = remember(noteId, loaded) {
+        if (loaded) NoteSnapshot(
+            title = lastSaved?.title.orEmpty(),
+            content = lastSaved?.content.orEmpty()
+        ) else NoteSnapshot("", "")
+    }
+    val isDirty = remember(title, content, initialSnapshot) {
+        title != initialSnapshot.title || content.text != initialSnapshot.content
+    }
 
     // === 撤销/重做 ===
     val undoRedo = remember { UndoRedoState<NoteSnapshot>(maxDepth = 80) }
@@ -312,8 +327,19 @@ fun NoteEditScreen(
             )
             ReminderManager.scheduleReminder(context, note, time)
         }
+    }
 
-        onBack()
+    /**
+     * 智能退出: 有修改则弹"是否保存"对话框, 没修改则直接退出.
+     * @param then 用户最终选择保存/丢弃/取消后要执行的动作 (一般是 onBack)
+     */
+    fun tryExit(then: () -> Unit) {
+        if (!isDirty) {
+            then()
+            return
+        }
+        pendingExitAction = then
+        showExitConfirm = true
     }
 
     // === 内容更新 + 表格块替换回写 ===
@@ -337,12 +363,17 @@ fun NoteEditScreen(
         pushHistory()
     }
 
+    // === 系统返回键 / 手势返回: 同样走 tryExit ===
+    BackHandler(enabled = true) {
+        tryExit(onBack)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { tryExit(onBack) }) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
@@ -369,8 +400,12 @@ fun NoteEditScreen(
                     ) {
                         Icon(Icons.Filled.Redo, contentDescription = "重做")
                     }
-                    IconButton(onClick = { saveNote() }) {
-                        Icon(Icons.Filled.Check, contentDescription = "完成")
+                    IconButton(onClick = {
+                        saveNote()
+                        Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                        onBack()
+                    }) {
+                        Icon(Icons.Filled.Check, contentDescription = "保存")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -577,6 +612,33 @@ fun NoteEditScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("取消") }
+            }
+        )
+    }
+
+    if (showExitConfirm) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirm = false },
+            title = { Text("未保存的修改") },
+            text = { Text("当前笔记有未保存的修改, 是否保存?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    saveNote()
+                    showExitConfirm = false
+                    Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                    pendingExitAction?.invoke()
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        // 丢弃修改直接退出
+                        showExitConfirm = false
+                        pendingExitAction?.invoke()
+                    }) { Text("丢弃") }
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(onClick = { showExitConfirm = false }) { Text("取消") }
+                }
             }
         )
     }
