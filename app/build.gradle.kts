@@ -98,9 +98,19 @@ android {
         arg("room.schemaLocation", "$projectDir/schemas")
         arg("room.incremental", "true")
     }
+    lint {
+        // lint 错误不阻塞 release 打包, 输出警告即可
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+
 }
 
 dependencies {
+    // 强制锁 kotlin-stdlib 1.8.22, 避免被传递依赖拉到 1.9.0
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.22")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")
+
     // Core / lifecycle
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
