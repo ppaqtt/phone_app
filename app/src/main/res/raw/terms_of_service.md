@@ -154,9 +154,9 @@
 
 | 联系方式 | 详情 |
 |---|---|
-| 📧 **邮箱** | `2474922840#qq.com` (请将 `#` 替换为 `@`) |
+| 📧 **邮箱** | `2474922840@qq.com` |
 | 🐙 **项目主页** | [github.com/ppaqtt/phone_app](https://github.com/ppaqtt/phone_app) |
-| 📝 **问题反馈** | [腾讯文档反馈表](https://docs.qq.com/form/page/DVk56eEJwc3diVUVZ) |
+| 💬 **问题反馈** | 点击「关于 - 问题反馈」进行反馈 |
 
 > ⏱️ 我们将在收到反馈后 **15 个工作日内** 回复。
 
