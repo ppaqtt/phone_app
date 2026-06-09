@@ -1,4 +1,4 @@
-// Top-level build file
+// Top-level build file: 走 buildscript classpath 注入, 避免与 plugins{} 块冲突
 buildscript {
     repositories {
         maven { url = uri("https://maven.aliyun.com/repository/google") }

@@ -1,20 +1,11 @@
-buildscript {
-    repositories {
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
-        maven { url = uri("https://maven.aliyun.com/repository/central") }
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:8.0.2")
-    }
-}
-
+// 注意: 根 build.gradle.kts 的 buildscript classpath 已注入 AGP / Kotlin / KSP / Hilt,
+// 这里直接用 id(...) 引用, 不要 alias(libs.plugins...) — 否则会报
+// "plugin is already on the classpath with an unknown version" 冲突.
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
+    id("dagger.hilt.android.plugin")
 }
 
 android {
