@@ -346,6 +346,22 @@ private fun ChangelogCard() {
             )
             Spacer(Modifier.height(12.dp))
             ChangelogVersion(
+                version = "v1.0.5",
+                date = "2026-06-09",
+                items = listOf(
+                    "新增：隐私政策 / 使用条款 Markdown 文档 (res/raw/privacy_policy.md + terms_of_service.md), 含 SDK 清单 / 权限说明 / 数据存储 / 第三方服务 / 联系方式 / 生效日期",
+                    "新增：AboutLegalScreen 通用法律文本展示页 (极简 Markdown 渲染: ## 标题 / > 引用 / - 列表 / ** 粗体)",
+                    "新增：设置 → 关于 加 2 入口 (隐私政策 / 使用条款), 点击跳转 AboutLegalScreen",
+                    "新增：AndroidManifest.xml MainActivity 注册 DeepLink: app://privacy + https://qing-jian.ppaqtt.com/privacy (后者 autoVerify)",
+                    "新增：MainActivity 解析 intent.data, 深链接直达隐私政策页 (覆盖启动流程)",
+                    "新增：PackageSignatureReader.kt 工具类, 运行时读取 APK 签名 SHA1 / MD5 (兼容 API 24+: API 28+ 走 SigningInfo, API < 28 走 Signature[])",
+                    "美化：隐私政策 / 使用条款加 TL;DR 一分钟速览 + emoji 视觉锚点 (📌 / 💾 / 🔐 / ⚖️ / 📬) + 表格化布局 + 联系方式条目化",
+                    "优化：隐私政策 / 使用条款「联系我们」对齐 (邮箱 2474922840@qq.com + 项目主页 + 点击「关于 - 问题反馈」)",
+                    "升级：版本号 v1.0.4 → v1.0.5 (versionCode 4 → 5)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
                 version = "v1.0.4",
                 date = "2026-06-09",
                 items = listOf(
