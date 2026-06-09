@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.DatePickerDialog
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,7 +59,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -84,15 +84,25 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.notes.data.NoteEntity
 import com.example.notes.repository.NotesRepository
+import com.example.notes.ui.components.MarkdownTable
+import com.example.notes.ui.components.parseMarkdownTable
 import com.example.notes.ui.theme.NoteSwatches
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.ImageUtils
 import com.example.notes.util.ReminderManager
+import com.example.notes.util.insertAtCursor
+import com.example.notes.util.selectionIsEmpty
+import com.example.notes.util.toggleWrap
+import com.example.notes.util.wrapParagraphWithAlign
+import com.example.notes.util.wrapSelectionWithMarker
+import com.example.notes.util.wrapSelectionWithTag
 import kotlinx.coroutines.flow.collectLatest
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -119,7 +129,8 @@ fun NoteEditScreen(
     val isNew = noteId <= 0L
 
     var title by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
+    // 内容改用 TextFieldValue 追踪选区
+    var content by remember { mutableStateOf(TextFieldValue("")) }
     var color by remember { mutableStateOf(NoteSwatches.first()) }
     var isPinned by remember { mutableStateOf(false) }
     var categoryId by remember { mutableStateOf<Long?>(null) }
@@ -138,10 +149,15 @@ fun NoteEditScreen(
     // === 撤销/重做 ===
     val undoRedo = remember { UndoRedoState<NoteSnapshot>(maxDepth = 80) }
     // 启动时记一次基线
-    LaunchedEffect(Unit) { undoRedo.record(NoteSnapshot(title, content)) }
+    LaunchedEffect(Unit) { undoRedo.record(NoteSnapshot(title, content.text)) }
     val canUndo by remember { derivedStateOf { undoRedo.canUndo } }
     val canRedo by remember { derivedStateOf { undoRedo.canRedo } }
-    fun pushHistory() { undoRedo.record(NoteSnapshot(title, content)) }
+    fun pushHistory() { undoRedo.record(NoteSnapshot(title, content.text)) }
+
+    // === Toast: 选区为空时给提示 ===
+    fun showSelectFirstHint() {
+        Toast.makeText(context, "请先选中要修改的文字", Toast.LENGTH_SHORT).show()
+    }
 
     // === 多图选择器 ===
     val pickMedia = rememberLauncherForActivityResult(
@@ -201,7 +217,11 @@ fun NoteEditScreen(
             }
             audioUris.add(uri.toString())
             val marker = "\n🎵 [音频](${uri})\n"
-            content = if (content.isEmpty()) marker.trimStart() else content + marker
+            content = if (content.text.isEmpty()) {
+                content.copy(text = marker.trimStart())
+            } else {
+                content.copy(text = content.text + marker)
+            }
             pushHistory()
         }
         selectedTool = null
@@ -240,7 +260,7 @@ fun NoteEditScreen(
             repository.observeNote(noteId).collectLatest { nwc ->
                 if (!loaded && nwc != null) {
                     title = nwc.note.title
-                    content = nwc.note.content
+                    content = TextFieldValue(nwc.note.content, TextRange(nwc.note.content.length))
                     color = Color(nwc.note.color)
                     isPinned = nwc.note.isPinned
                     categoryId = nwc.note.categoryId
@@ -248,7 +268,7 @@ fun NoteEditScreen(
                     lastSaved = nwc.note
                     loaded = true
                     undoRedo.clear()
-                    undoRedo.record(NoteSnapshot(title, content))
+                    undoRedo.record(NoteSnapshot(title, content.text))
                 }
             }
         }
@@ -270,7 +290,7 @@ fun NoteEditScreen(
         viewModel.saveNote(
             id = noteIdToSave,
             title = title,
-            content = content,
+            content = content.text,
             categoryId = categoryId,
             tags = emptyList(),
             isPinned = isPinned,
@@ -282,8 +302,8 @@ fun NoteEditScreen(
         reminderTime?.let { time ->
             val note = NoteEntity(
                 id = noteIdToSave,
-                title = title.ifBlank { content.lineSequence().firstOrNull().orEmpty().take(40) },
-                content = content,
+                title = title.ifBlank { content.text.lineSequence().firstOrNull().orEmpty().take(40) },
+                content = content.text,
                 categoryId = categoryId,
                 tags = "",
                 isPinned = isPinned,
@@ -294,6 +314,27 @@ fun NoteEditScreen(
         }
 
         onBack()
+    }
+
+    // === 内容更新 + 表格块替换回写 ===
+    fun updateContent(newValue: TextFieldValue) {
+        content = newValue
+        pushHistory()
+    }
+
+    /**
+     * 把 [oldBlock] (markdown 表格) 替换为 [newBlock] (新 markdown 字符串)。
+     * 用来支持单元格编辑回写: 在原文本里找到旧表格块, 替换为新表格块。
+     */
+    fun replaceTableBlock(oldBlock: String, newBlock: String) {
+        if (oldBlock == newBlock) return
+        val idx = content.text.indexOf(oldBlock)
+        if (idx < 0) return
+        val newText = content.text.replaceFirst(oldBlock, newBlock)
+        // 选区落在新块之后
+        val newCaret = idx + newBlock.length
+        content = content.copy(text = newText, selection = TextRange(newCaret))
+        pushHistory()
     }
 
     Scaffold(
@@ -308,8 +349,9 @@ fun NoteEditScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            undoRedo.undo(NoteSnapshot(title, content))?.let { snap ->
-                                title = snap.title; content = snap.content
+                            undoRedo.undo(NoteSnapshot(title, content.text))?.let { snap ->
+                                title = snap.title
+                                content = TextFieldValue(snap.content, TextRange(snap.content.length))
                             }
                         },
                         enabled = canUndo
@@ -318,8 +360,9 @@ fun NoteEditScreen(
                     }
                     IconButton(
                         onClick = {
-                            undoRedo.redo(NoteSnapshot(title, content))?.let { snap ->
-                                title = snap.title; content = snap.content
+                            undoRedo.redo(NoteSnapshot(title, content.text))?.let { snap ->
+                                title = snap.title
+                                content = TextFieldValue(snap.content, TextRange(snap.content.length))
                             }
                         },
                         enabled = canRedo
@@ -375,19 +418,20 @@ fun NoteEditScreen(
             // === 元信息行 (置顶/提醒小图标已移除) ===
             MetaInfoRow(
                 dateMs = lastSaved?.createdAt ?: System.currentTimeMillis(),
-                charCount = content.length,
+                charCount = content.text.length,
                 categoryName = state.categories.firstOrNull { it.id == categoryId }?.name
                     ?: "未分类",
                 onCategoryClick = { /* TODO: 分类选择 */ }
             )
 
-            // === 主体: 文字 + 内联图片 + 内联音频 ===
+            // === 主体: 文字 + 内联图片 + 内联音频 + 表格 ===
             NoteBody(
                 content = content,
-                onContentChange = { content = it; pushHistory() },
+                onContentChange = { updateContent(it) },
                 imageUris = imageUris,
                 audioUris = audioUris,
                 onRemoveImage = { imageUris.remove(it) },
+                onTableEdit = { oldBlock, newBlock -> replaceTableBlock(oldBlock, newBlock) },
                 modifier = Modifier
                     .weight(1f, fill = true)
                     .fillMaxWidth()
@@ -411,24 +455,72 @@ fun NoteEditScreen(
                     onToggleTodo = {
                         // 切换: 若内容末尾是 ☐, 去掉它; 否则加上
                         val marker = "☐ "
-                        if (content.endsWith(marker)) {
-                            content = content.dropLast(marker.length)
-                        } else if (content.isEmpty()) {
-                            content = marker
+                        val newText = if (content.text.endsWith(marker)) {
+                            content.text.dropLast(marker.length)
+                        } else if (content.text.isEmpty()) {
+                            marker
                         } else {
-                            content = content.trimEnd('\n') + "\n" + marker
+                            content.text.trimEnd('\n') + "\n" + marker
                         }
+                        content = content.copy(text = newText)
                         pushHistory()
                         selectedTool = null
                     },
                     onInsertText = { snippet ->
-                        content = if (content.isEmpty()) snippet else content + "\n" + snippet
+                        // 在末尾 append 一行
+                        val newText = if (content.text.isEmpty()) snippet else content.text + "\n" + snippet
+                        content = content.copy(text = newText)
                         pushHistory()
                     },
                     onInsertAtCursor = { snippet ->
-                        // 简化: 总是 append
-                        content = if (content.isEmpty()) snippet else content + snippet
+                        content = insertAtCursor(content, snippet)
                         pushHistory()
+                    },
+                    // 文字样式: 作用于选区, 选区空则 Toast
+                    onWrapBold = {
+                        if (content.selectionIsEmpty()) showSelectFirstHint()
+                        else content = toggleWrap(content, "**")
+                        pushHistory()
+                    },
+                    onWrapItalic = {
+                        if (content.selectionIsEmpty()) showSelectFirstHint()
+                        else content = toggleWrap(content, "_")
+                        pushHistory()
+                    },
+                    onWrapUnderline = {
+                        if (content.selectionIsEmpty()) showSelectFirstHint()
+                        else content = wrapSelectionWithTag(content, "<u>", "</u>")
+                        pushHistory()
+                    },
+                    onWrapStrike = {
+                        if (content.selectionIsEmpty()) showSelectFirstHint()
+                        else content = toggleWrap(content, "~~")
+                        pushHistory()
+                    },
+                    onWrapHighlight = {
+                        if (content.selectionIsEmpty()) showSelectFirstHint()
+                        else content = wrapSelectionWithMarker(content, "==")
+                        pushHistory()
+                    },
+                    onWrapSize = { size ->
+                        if (content.selectionIsEmpty()) showSelectFirstHint()
+                        else content = wrapSelectionWithTag(content, "<size=$size>", "</size>")
+                        pushHistory()
+                    },
+                    onWrapColor = { hex ->
+                        if (content.selectionIsEmpty()) showSelectFirstHint()
+                        else content = wrapSelectionWithTag(content, "<color=$hex>", "</color>")
+                        pushHistory()
+                    },
+                    // 对齐: 作用于光标所在段落
+                    onAlignLeft = {
+                        content = wrapParagraphWithAlign(content, "left"); pushHistory()
+                    },
+                    onAlignCenter = {
+                        content = wrapParagraphWithAlign(content, "center"); pushHistory()
+                    },
+                    onAlignRight = {
+                        content = wrapParagraphWithAlign(content, "right"); pushHistory()
                     },
                     onDoodleClick = { showDoodle = true; selectedTool = null },
                     onTableClick = { showTableDialog = true; selectedTool = null }
@@ -461,7 +553,8 @@ fun NoteEditScreen(
             onDismiss = { showTableDialog = false },
             onInsert = { rows, cols ->
                 val table = buildMarkdownTable(rows, cols)
-                content = if (content.isEmpty()) table else content + "\n" + table
+                val newText = if (content.text.isEmpty()) table else content.text + "\n" + table
+                content = content.copy(text = newText)
                 pushHistory()
             }
         )
@@ -538,17 +631,21 @@ private fun MetaInfoRow(
 }
 
 /* ============================================================== */
-/* 主体: 内容 + 内联多图 + 内联音频                                  */
+/* 主体: 内容 + 内联多图 + 内联音频 + 表格                            */
 /* ============================================================== */
 @Composable
 private fun NoteBody(
-    content: String,
-    onContentChange: (String) -> Unit,
+    content: TextFieldValue,
+    onContentChange: (TextFieldValue) -> Unit,
     imageUris: List<String>,
     audioUris: List<String>,
     onRemoveImage: (String) -> Unit,
+    onTableEdit: (oldBlock: String, newBlock: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 解析整段内容, 找出所有表格块的 (startIndex, endIndex) 和 TableData
+    val tableBlocks = remember(content.text) { findTableBlocks(content.text) }
+
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
@@ -595,6 +692,7 @@ private fun NoteBody(
                 }
             }
         }
+        // 主文本编辑区: 渲染全部文本 (含 markdown 表格原始字符)
         item {
             BasicTextField(
                 value = content,
@@ -606,7 +704,7 @@ private fun NoteBody(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 modifier = Modifier.fillMaxWidth(),
                 decorationBox = { inner ->
-                    if (content.isEmpty()) {
+                    if (content.text.isEmpty()) {
                         Text(
                             text = "记录此刻的想法...",
                             style = MaterialTheme.typography.bodyLarge.copy(
@@ -619,7 +717,79 @@ private fun NoteBody(
                 }
             )
         }
+        // 每个表格块渲染为可视化 Excel 风格组件
+        tableBlocks.forEach { (block, data) ->
+            item(key = "tbl_${block.startIdx}_${block.endIdx}") {
+                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                    MarkdownTable(
+                        data = data,
+                        onCellEdit = { newMarkdown ->
+                            onTableEdit(block.text, newMarkdown)
+                        }
+                    )
+                }
+            }
+        }
     }
+}
+
+/** 找到的所有表格块 (text, startIdx, endIdx) 及其 [TableData] */
+private data class TableBlock(
+    val text: String,
+    val startIdx: Int,
+    val endIdx: Int
+)
+
+/** 找正文中所有 markdown 表格块, 按出现顺序返回 */
+private fun findTableBlocks(text: String): List<Pair<TableBlock, com.example.notes.ui.components.TableData>> {
+    if (text.isEmpty()) return emptyList()
+    val lines = text.split('\n')
+    val blocks = mutableListOf<Pair<TableBlock, com.example.notes.ui.components.TableData>>()
+    var i = 0
+    var runningOffset = 0
+    while (i < lines.size) {
+        val line = lines[i]
+        val next = lines.getOrNull(i + 1) ?: ""
+        val trimmedLine = line.trim()
+        val trimmedNext = next.trim()
+        val isHeader = trimmedLine.startsWith("|") && trimmedLine.endsWith("|") &&
+            trimmedLine.count { it == '|' } >= 2
+        val isSep = trimmedNext.startsWith("|") && trimmedNext.endsWith("|") &&
+            trimmedNext.removePrefix("|").removeSuffix("|")
+                .split("|").all { it.trim().matches(Regex(""":?-+:?""")) }
+        if (isHeader && isSep) {
+            val startOffset = runningOffset
+            val tableLines = mutableListOf(line, next)
+            var j = i + 2
+            while (j < lines.size) {
+                val l = lines[j]
+                val tl = l.trim()
+                if (tl.startsWith("|") && tl.endsWith("|") && tl.count { it == '|' } >= 2) {
+                    tableLines.add(l)
+                    j++
+                } else {
+                    break
+                }
+            }
+            val blockText = tableLines.joinToString("\n")
+            // 计算 trailing \n 长度: 如果原文本在 blockText 之后紧跟一个 \n, 算入 endOffset
+            val afterBlock = startOffset + blockText.length
+            val trailingNewline = if (afterBlock < text.length && text[afterBlock] == '\n') 1 else 0
+            val endOffset = startOffset + blockText.length + trailingNewline
+            val data = parseMarkdownTable(blockText)
+            if (data != null) {
+                blocks.add(TableBlock(blockText, startOffset, endOffset) to data)
+            }
+            runningOffset = endOffset
+            i = j
+        } else {
+            val afterLine = runningOffset + line.length
+            val trailingNewline = if (afterLine < text.length && text[afterLine] == '\n') 1 else 0
+            runningOffset += line.length + trailingNewline
+            i++
+        }
+    }
+    return blocks
 }
 
 @Composable
@@ -688,6 +858,16 @@ private fun ToolPanel(
     onToggleTodo: () -> Unit,
     onInsertText: (String) -> Unit,
     onInsertAtCursor: (String) -> Unit,
+    onWrapBold: () -> Unit,
+    onWrapItalic: () -> Unit,
+    onWrapUnderline: () -> Unit,
+    onWrapStrike: () -> Unit,
+    onWrapHighlight: () -> Unit,
+    onWrapSize: (Int) -> Unit,
+    onWrapColor: (String) -> Unit,
+    onAlignLeft: () -> Unit,
+    onAlignCenter: () -> Unit,
+    onAlignRight: () -> Unit,
     onDoodleClick: () -> Unit,
     onTableClick: () -> Unit
 ) {
@@ -703,9 +883,18 @@ private fun ToolPanel(
                 onInsert = onInsertText
             )
             BottomTool.TEXT -> TextFormatPanel(
-                onInsert = onInsertAtCursor
+                onBold = onWrapBold,
+                onItalic = onWrapItalic,
+                onUnderline = onWrapUnderline,
+                onStrike = onWrapStrike,
+                onHighlight = onWrapHighlight,
+                onSize = onWrapSize,
+                onColor = onWrapColor
             )
             BottomTool.LIST -> ListPanel(
+                onAlignLeft = onAlignLeft,
+                onAlignCenter = onAlignCenter,
+                onAlignRight = onAlignRight,
                 onInsert = onInsertText
             )
             BottomTool.TODO -> TodoPanel(
@@ -901,23 +1090,31 @@ private fun SymbolGrid(symbols: List<String>, onInsert: (String) -> Unit) {
     }
 }
 
-/* ---------- Aa 文字格式面板 ---------- */
+/* ---------- Aa 文字格式面板 (选区作用版) ---------- */
 @Composable
-private fun TextFormatPanel(onInsert: (String) -> Unit) {
+private fun TextFormatPanel(
+    onBold: () -> Unit,
+    onItalic: () -> Unit,
+    onUnderline: () -> Unit,
+    onStrike: () -> Unit,
+    onHighlight: () -> Unit,
+    onSize: (Int) -> Unit,
+    onColor: (String) -> Unit
+) {
     Column(modifier = Modifier.padding(8.dp)) {
-        // 第 1 行: B I U S 高亮
+        // 第 1 行: B I U S 高亮 — 全部作用于选区
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            FormatIconBtn(Icons.Filled.FormatBold, "B") { onInsert("**") }
-            FormatIconBtn(Icons.Filled.FormatItalic, "I") { onInsert("_") }
-            FormatIconBtn(Icons.Filled.FormatUnderlined, "U") { onInsert("<u>") }
-            FormatIconBtn(Icons.Filled.FormatStrikethrough, "S") { onInsert("~~") }
-            FormatIconBtn(Icons.Filled.Brush, "高亮") { onInsert("==") }
+            FormatIconBtn(Icons.Filled.FormatBold, "B", onBold)
+            FormatIconBtn(Icons.Filled.FormatItalic, "I", onItalic)
+            FormatIconBtn(Icons.Filled.FormatUnderline, "U", onUnderline)
+            FormatIconBtn(Icons.Filled.FormatStrikethrough, "S", onStrike)
+            FormatIconBtn(Icons.Filled.Brush, "高亮", onHighlight)
         }
         Spacer(Modifier.height(8.dp))
-        // 第 2 行: 字号
+        // 第 2 行: 字号 — 作用于选区
         Text("字号", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -928,7 +1125,7 @@ private fun TextFormatPanel(onInsert: (String) -> Unit) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .clickable { onInsert("[size=$size]") }
+                            .clickable { onSize(size) }
                             .padding(horizontal = 8.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -944,7 +1141,7 @@ private fun TextFormatPanel(onInsert: (String) -> Unit) {
                 }
         }
         Spacer(Modifier.height(4.dp))
-        // 第 3 行: 字体颜色
+        // 第 3 行: 字体颜色 — 作用于选区
         Text("字体颜色", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(start = 8.dp))
         Row(
             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -970,7 +1167,7 @@ private fun TextFormatPanel(onInsert: (String) -> Unit) {
                             color = if (hex == "#000") Color(0xFFE6B800) else Color.LightGray,
                             shape = CircleShape
                         )
-                        .clickable { onInsert("[color=$hex]") }
+                        .clickable { onColor(hex) }
                 )
             }
         }
@@ -992,9 +1189,14 @@ private fun FormatIconBtn(icon: ImageVector, label: String, onClick: () -> Unit)
     }
 }
 
-/* ---------- 列表: 6 按钮 ---------- */
+/* ---------- 列表: 6 按钮 (对齐作用于段落) ---------- */
 @Composable
-private fun ListPanel(onInsert: (String) -> Unit) {
+private fun ListPanel(
+    onAlignLeft: () -> Unit,
+    onAlignCenter: () -> Unit,
+    onAlignRight: () -> Unit,
+    onInsert: (String) -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(12.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
@@ -1003,17 +1205,17 @@ private fun ListPanel(onInsert: (String) -> Unit) {
         ToolSubItem(
             icon = Icons.Filled.FormatAlignLeft,
             label = "左对齐",
-            onClick = { onInsert("\n[align=left]") }
+            onClick = onAlignLeft
         )
         ToolSubItem(
             icon = Icons.Filled.FormatAlignCenter,
             label = "居中",
-            onClick = { onInsert("\n[align=center]") }
+            onClick = onAlignCenter
         )
         ToolSubItem(
             icon = Icons.Filled.FormatAlignRight,
             label = "右对齐",
-            onClick = { onInsert("\n[align=right]") }
+            onClick = onAlignRight
         )
         ToolSubItem(
             icon = Icons.Filled.FormatListBulleted,
