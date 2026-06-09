@@ -1,9 +1,7 @@
 buildscript {
     repositories {
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
-        maven { url = uri("https://maven.aliyun.com/repository/central") }
+        google()
+        mavenCentral()
     }
     dependencies {
         classpath("com.android.tools.build:gradle:8.0.2")
@@ -11,10 +9,10 @@ buildscript {
 }
 
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
+    id("dagger.hilt.android.plugin")
 }
 
 android {
@@ -31,7 +29,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
-    
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
