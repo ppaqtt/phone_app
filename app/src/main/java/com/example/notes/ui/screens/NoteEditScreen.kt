@@ -646,10 +646,14 @@ private fun NoteBody(
     // 解析整段内容, 找出所有表格块的 (startIndex, endIndex) 和 TableData
     val tableBlocks = remember(content.text) { findTableBlocks(content.text) }
 
-    LazyColumn(
-        modifier = modifier,
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
-    ) {
+    // 全屏图片查看器状态 (uri 非空时显示)
+    var viewerUri by remember { mutableStateOf<String?>(null) }
+
+    Box(modifier = modifier) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+        ) {
         if (imageUris.isNotEmpty()) {
             item {
                 LazyRow(
@@ -661,6 +665,7 @@ private fun NoteBody(
                             uri = uri,
                             index = imageUris.indexOf(uri),
                             total = imageUris.size,
+                            onClick = { viewerUri = uri },
                             onRemove = { onRemoveImage(uri) }
                         )
                     }
@@ -731,6 +736,15 @@ private fun NoteBody(
             }
         }
     }
+
+        // 全屏图片查看器覆盖层 (置顶)
+        viewerUri?.let { uri ->
+            PhotoViewer(
+                uri = uri,
+                onDismiss = { viewerUri = null }
+            )
+        }
+    }
 }
 
 /** 找到的所有表格块 (text, startIdx, endIdx) 及其 [TableData] */
@@ -797,6 +811,7 @@ private fun ImageThumb(
     uri: String,
     index: Int,
     total: Int,
+    onClick: () -> Unit,
     onRemove: () -> Unit
 ) {
     Box(
@@ -804,6 +819,7 @@ private fun ImageThumb(
             .size(96.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick() }
     ) {
         AsyncImage(
             model = uri,
