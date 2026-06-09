@@ -1109,7 +1109,7 @@ private fun TextFormatPanel(
         ) {
             FormatIconBtn(Icons.Filled.FormatBold, "B", onBold)
             FormatIconBtn(Icons.Filled.FormatItalic, "I", onItalic)
-            FormatIconBtn(Icons.Filled.FormatUnderline, "U", onUnderline)
+            FormatIconBtn(Icons.Filled.FormatUnderlined, "U", onUnderline)
             FormatIconBtn(Icons.Filled.FormatStrikethrough, "S", onStrike)
             FormatIconBtn(Icons.Filled.Brush, "高亮", onHighlight)
         }

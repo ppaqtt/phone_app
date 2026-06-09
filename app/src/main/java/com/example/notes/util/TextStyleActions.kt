@@ -21,9 +21,12 @@ import androidx.compose.ui.text.input.TextFieldValue
 /** 当前是否有非空选区 (用户至少选中一个字符) */
 fun TextFieldValue.selectionIsEmpty(): Boolean = selection.collapsed
 
-/** 规范化选区: 确保 start <= end */
-private fun TextRange.normalized(): TextRange =
-    TextRange(min(start, end), max(start, end))
+/** 规范化选区: 返回 (start, end), 其中 start <= end */
+private fun TextRange.normalized(): Pair<Int, Int> {
+    val a = minOf(start, end)
+    val b = maxOf(start, end)
+    return a to b
+}
 
 /**
  * 把 markdown 段落 (以 \n 为分隔) 中的某段起止 offset 找出来。
@@ -45,6 +48,11 @@ fun findParagraphRange(text: String, offset: Int): Pair<Int, Int> {
     return pStart to pEnd
 }
 
+/** 从 Pair (start, end) 取 start */
+private fun Pair<Int, Int>.start(): Int = first
+/** 从 Pair (start, end) 取 end */
+private fun Pair<Int, Int>.end(): Int = second
+
 /**
  * 用 [marker] 把当前选区包裹起来。
  *
@@ -56,7 +64,9 @@ fun findParagraphRange(text: String, offset: Int): Pair<Int, Int> {
 fun wrapSelectionWithMarker(value: TextFieldValue, marker: String): TextFieldValue {
     if (value.selectionIsEmpty()) return value
     val text = value.text
-    val (s, e) = value.selection.normalized()
+    val norm = value.selection.normalized()
+    val s = norm.start()
+    val e = norm.end()
     val newText = text.substring(0, s) + marker + text.substring(s, e) + marker + text.substring(e)
     val newCaret = s + marker.length + (e - s) + marker.length
     return value.copy(
@@ -74,7 +84,9 @@ fun wrapSelectionWithMarker(value: TextFieldValue, marker: String): TextFieldVal
 fun toggleWrap(value: TextFieldValue, marker: String): TextFieldValue {
     if (value.selectionIsEmpty()) return value
     val text = value.text
-    val (s, e) = value.selection.normalized()
+    val norm = value.selection.normalized()
+    val s = norm.start()
+    val e = norm.end()
     val ml = marker.length
     val hasPrefix = s >= ml && text.substring(s - ml, s) == marker
     val hasSuffix = e + ml <= text.length && text.substring(e, e + ml) == marker
@@ -97,7 +109,9 @@ fun toggleWrap(value: TextFieldValue, marker: String): TextFieldValue {
 fun wrapSelectionWithTag(value: TextFieldValue, openTag: String, closeTag: String): TextFieldValue {
     if (value.selectionIsEmpty()) return value
     val text = value.text
-    val (s, e) = value.selection.normalized()
+    val norm = value.selection.normalized()
+    val s = norm.start()
+    val e = norm.end()
     val newText = text.substring(0, s) + openTag + text.substring(s, e) + closeTag + text.substring(e)
     val newCaret = s + openTag.length + (e - s) + closeTag.length
     return value.copy(
@@ -117,9 +131,13 @@ fun wrapSelectionWithTag(value: TextFieldValue, openTag: String, closeTag: Strin
 fun wrapParagraphWithAlign(value: TextFieldValue, align: String): TextFieldValue {
     val text = value.text
     if (text.isEmpty()) return value
-    val (s, e) = value.selection.normalized()
-    val (firstStart, _) = findParagraphRange(text, s)
-    val (_, lastEnd) = findParagraphRange(text, (e - 1).coerceAtLeast(s))
+    val norm = value.selection.normalized()
+    val s = norm.start()
+    val e = norm.end()
+    val rangeFirst = findParagraphRange(text, s)
+    val firstStart = rangeFirst.first
+    val rangeLast = findParagraphRange(text, (e - 1).coerceAtLeast(s))
+    val lastEnd = rangeLast.second
     // 逐段处理: 把 from..to 切分为若干段, 分别包绕
     val slices = collectParagraphs(text, firstStart, lastEnd)
     var newText = text
@@ -170,7 +188,10 @@ private fun applyAlignToRange(value: TextFieldValue, from: Int, to: Int, align: 
     if (from >= to) return value
     // 抽取段落内容
     val paragraph = text.substring(from, to)
-    val (stripped, leading, trailing) = stripAlign(paragraph)
+    val strippedTriple = stripAlign(paragraph)
+    val stripped = strippedTriple.first
+    val leading = strippedTriple.second
+    val trailing = strippedTriple.third
     val wrapped = "[align=$align]$stripped[/align]"
     val newText = text.substring(0, from) + leading + wrapped + trailing + text.substring(to)
     // 选区定位: 重新落在 [align=...] 之后, 段落内
