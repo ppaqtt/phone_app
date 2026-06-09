@@ -4,18 +4,58 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Inset 18dp on every side to stay inside the safe zone. -->
-    <group
-        android:scaleX="2.0"
-        android:scaleY="2.0"
-        android:translateX="36"
-        android:translateY="36">
-        <!-- Stylised "N" + a small dot to evoke a notebook. -->
-        <path
-            android:fillColor="#FF6750A4"
-            android:pathData="M2,18 L2,6 L5,6 L13,14 L13,6 L16,6 L16,18 L13,18 L5,10 L5,18 Z" />
-        <path
-            android:fillColor="#FF6750A4"
-            android:pathData="M16.5,18 m-1.5,0 a1.5,1.5 0 1,0 3,0 a1.5,1.5 0 1,0 -3,0" />
-    </group>
+    
+    <!-- Background circle -->
+    <circle
+        android:cx="54"
+        android:cy="54"
+        android:r="52"
+        android:fillColor="#FFFAF5E6" />
+    
+    <!-- Scroll body -->
+    <path
+        android:fillColor="#FF7BA69A"
+        android:pathData="M25,30 L25,78 Q18,78 18,85 Q18,92 25,92 L70,92 L70,30 Z" />
+    
+    <!-- Scroll rolled part -->
+    <path
+        android:fillColor="#FF6B9A8F"
+        android:pathData="M25,30 Q18,30 18,37 Q18,44 25,44 L25,30 Z" />
+    
+    <!-- Scroll rolled bottom -->
+    <path
+        android:fillColor="#FF6B9A8F"
+        android:pathData="M25,78 Q18,78 18,85 Q18,92 25,92 L25,78 Z" />
+    
+    <!-- Inner paper area -->
+    <path
+        android:fillColor="#FFFEF9F0"
+        android:pathData="M35,35 L65,35 L65,75 L35,75 Z" />
+    
+    <!-- Brush stroke -->
+    <path
+        android:fillColor="#FF7BA69A"
+        android:strokeWidth="2"
+        android:strokeColor="#FF6B9A8F"
+        android:pathData="M55,45 Q60,50 55,55 Q50,60 45,55"
+        android:fillType="evenOdd" />
+    
+    <!-- Brush handle -->
+    <path
+        android:fillColor="#FFB8A088"
+        android:pathData="M42,52 L38,65 L44,65 Z" />
+    
+    <!-- Brush bristle -->
+    <path
+        android:fillColor="#FF5A8A7E"
+        android:pathData="M44,52 Q48,50 52,52 L48,56 Q46,54 44,56 Z" />
+    
+    <!-- Title text area -->
+    <rect
+        android:left="38"
+        android:top="58"
+        android:width="28"
+        android:height="12"
+        android:fillColor="#FFFEF9F0" />
+    
 </vector>
