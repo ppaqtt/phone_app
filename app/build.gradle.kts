@@ -1,7 +1,9 @@
 buildscript {
     repositories {
-        google()
-        mavenCentral()
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+        maven { url = uri("https://maven.aliyun.com/repository/central") }
     }
     dependencies {
         classpath("com.android.tools.build:gradle:8.0.2")
@@ -9,10 +11,10 @@ buildscript {
 }
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("com.google.devtools.ksp")
-    id("dagger.hilt.android.plugin")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -36,6 +38,20 @@ android {
         }
     }
 
+    // 注意: signingConfigs 必须在 buildTypes 之前, 否则 buildTypes 里的
+    // signingConfig = signingConfigs.getByName("release") 会报 "not found"
+    signingConfigs {
+        create("release") {
+            storeFile = file("qingjian-release.jks")
+            storePassword = "Qingjian2026"
+            keyAlias = "qingjian"
+            keyPassword = "Qingjian2026"
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
         debug {
             isMinifyEnabled = false
@@ -50,18 +66,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-        }
-    }
-
-    signingConfigs {
-        create("release") {
-            storeFile = file("qingjian-release.jks")
-            storePassword = "Qingjian2026"
-            keyAlias = "qingjian"
-            keyPassword = "Qingjian2026"
-            enableV1Signing = true
-            enableV2Signing = true
-            enableV3Signing = true
         }
     }
 
