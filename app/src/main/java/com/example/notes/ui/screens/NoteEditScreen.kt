@@ -108,9 +108,11 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.notes.data.NoteEntity
 import com.example.notes.repository.NotesRepository
+import com.example.notes.ui.components.CodeBlock
 import com.example.notes.ui.components.FindBar
 import com.example.notes.ui.components.MarkdownTable
 import com.example.notes.ui.components.findAllMatches
+import com.example.notes.ui.components.findCodeBlocks
 import com.example.notes.ui.components.parseMarkdownTable
 import com.example.notes.ui.theme.NoteSwatches
 import com.example.notes.ui.viewmodel.NotesViewModel
@@ -1366,6 +1368,16 @@ private fun NoteBody(
                     inner()
                 }
             )
+        }
+        // F14: 代码块检测 + 高亮渲染
+        // 解析整段内容, 找出所有 ```lang ... ``` 块
+        val codeBlocks = remember(content.text) { findCodeBlocks(content.text) }
+        codeBlocks.forEach { span ->
+            if (span.code.isNotEmpty()) {
+                item(key = "code_${span.text.hashCode()}_${span.code.hashCode()}") {
+                    CodeBlock(code = span.code, language = span.language)
+                }
+            }
         }
         // 每个表格块渲染为可视化 Excel 风格组件
         // P43: key 用 block.text 的 hashCode 替代 startIdx, 避免表格内容变更后 key 残留
