@@ -16,11 +16,21 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class NoteSortOrder {
+    UPDATED_DESC,    // 更新时间降序 (默认)
+    UPDATED_ASC,     // 更新时间升序
+    CREATED_DESC,    // 创建时间降序
+    CREATED_ASC,     // 创建时间升序
+    TITLE_ASC,       // 标题升序
+    PRIORITY_DESC    // 重要度降序
+}
+
 data class NotesUiState(
     val notes: List<NoteWithCategory> = emptyList(),
     val categories: List<CategoryEntity> = emptyList(),
     val activeCategoryId: Long? = null,
-    val query: String = ""
+    val query: String = "",
+    val sortOrder: NoteSortOrder = NoteSortOrder.UPDATED_DESC
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -30,13 +40,14 @@ class NotesViewModel(
 
     private val activeCategoryId = MutableStateFlow<Long?>(null)
     private val query = MutableStateFlow("")
+    private val sortOrder = MutableStateFlow(NoteSortOrder.UPDATED_DESC)
 
     private val notes = activeCategoryId.flatMapLatest { categoryId ->
         if (categoryId == null) repository.observeNotes() else repository.observeNotesByCategory(categoryId)
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query) { notesList, categories, activeId, q ->
+        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder) { notesList, categories, activeId, q, sort ->
             val filtered = if (q.isBlank()) notesList else {
                 val needle = q.trim()
                 notesList.filter { n ->
@@ -45,11 +56,20 @@ class NotesViewModel(
                         n.note.tags.contains(needle, ignoreCase = true)
                 }
             }
+            val sorted = when (sort) {
+                NoteSortOrder.UPDATED_DESC -> filtered.sortedByDescending { it.note.updatedAt }
+                NoteSortOrder.UPDATED_ASC -> filtered.sortedBy { it.note.updatedAt }
+                NoteSortOrder.CREATED_DESC -> filtered.sortedByDescending { it.note.createdAt }
+                NoteSortOrder.CREATED_ASC -> filtered.sortedBy { it.note.createdAt }
+                NoteSortOrder.TITLE_ASC -> filtered.sortedBy { it.note.title }
+                NoteSortOrder.PRIORITY_DESC -> filtered.sortedByDescending { it.note.priority }
+            }
             NotesUiState(
-                notes = filtered,
+                notes = sorted,
                 categories = categories,
                 activeCategoryId = activeId,
-                query = q
+                query = q,
+                sortOrder = sort
             )
         }.stateIn(
             scope = viewModelScope,
@@ -61,6 +81,7 @@ class NotesViewModel(
 
     fun setQuery(value: String) { query.value = value }
     fun setCategoryFilter(id: Long?) { activeCategoryId.value = id }
+    fun setSortOrder(order: NoteSortOrder) { sortOrder.value = order }
 
     /**
      * 保存笔记并替换其全部图片。

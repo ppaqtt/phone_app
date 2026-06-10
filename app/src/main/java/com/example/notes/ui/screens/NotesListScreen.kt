@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Star
@@ -71,11 +73,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.ui.components.NoteCard
+import com.example.notes.ui.viewmodel.NoteSortOrder
 import com.example.notes.ui.viewmodel.NotesViewModel
+import com.example.notes.util.NoteShareUtil
 import kotlinx.coroutines.launch
 
 @Composable
@@ -84,9 +89,11 @@ fun NotesListScreen(
     onAddNote: () -> Unit,
     onOpenNote: (Long) -> Unit,
     onOpenCategories: () -> Unit,
+    onOpenTags: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
+    val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
 
     // 当前选中要做动作的笔记 (任意动作菜单弹出时)
@@ -95,6 +102,7 @@ fun NotesListScreen(
     var showPriorityDialog by remember { mutableStateOf(false) }
     var showMoveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
     // 防止疯狂点击"删除"导致多次触发数据库删除 (虽然 id 相同是幂等的,
     // 但点击多次会让 UI 闪 / 在某些 Android 版本上触发 recomposition race)
     var deleteInFlight by remember { mutableStateOf(false) }
@@ -128,6 +136,12 @@ fun NotesListScreen(
                     }
                     IconButton(onClick = onOpenCategories) {
                         Icon(Icons.Filled.Category, contentDescription = "分类")
+                    }
+                    IconButton(onClick = onOpenTags) {
+                        Icon(Icons.Filled.Label, contentDescription = "标签")
+                    }
+                    IconButton(onClick = { showSortDialog = true }) {
+                        Icon(Icons.Filled.Sort, contentDescription = "排序")
                     }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "设置")
@@ -226,7 +240,11 @@ fun NotesListScreen(
                 onTags = { showTagsDialog = true },
                 onDelete = { showDeleteDialog = true },
                 onMove = { showMoveDialog = true },
-                onPriority = { showPriorityDialog = true }
+                onPriority = { showPriorityDialog = true },
+                onShare = {
+                    NoteShareUtil.shareAsText(context, target.note)
+                    dismissActions()
+                }
             )
         }
     }
@@ -289,6 +307,18 @@ fun NotesListScreen(
                     onClick = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
                     enabled = !deleteInFlight
                 ) { Text("取消") }
+            }
+        )
+    }
+
+    // 排序对话框
+    if (showSortDialog) {
+        SortOrderDialog(
+            current = state.sortOrder,
+            onDismiss = { showSortDialog = false },
+            onConfirm = { order ->
+                viewModel.setSortOrder(order)
+                showSortDialog = false
             }
         )
     }
@@ -396,7 +426,8 @@ private fun NoteActionsRow(
     onTags: () -> Unit,
     onDelete: () -> Unit,
     onMove: () -> Unit,
-    onPriority: () -> Unit
+    onPriority: () -> Unit,
+    onShare: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -428,6 +459,11 @@ private fun NoteActionsRow(
                     icon = if (target.note.priority > 0) Icons.Filled.Star else Icons.Outlined.Star,
                     label = "重要度",
                     onClick = onPriority
+                )
+                ActionMenuItem(
+                    icon = Icons.Filled.Share,
+                    label = "分享",
+                    onClick = onShare
                 )
             }
         },
@@ -615,6 +651,54 @@ private fun MoveCategoryDialog(
                         Text(cat.name, style = MaterialTheme.typography.bodyLarge)
                         if (cat.id == current) {
                             Spacer(Modifier.weight(1f))
+                            Text("当前", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected) }) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+/* ============================================================== */
+/* 排序对话框                                                        */
+/* ============================================================== */
+@Composable
+private fun SortOrderDialog(
+    current: NoteSortOrder,
+    onDismiss: () -> Unit,
+    onConfirm: (NoteSortOrder) -> Unit
+) {
+    val options = listOf(
+        NoteSortOrder.UPDATED_DESC to "更新时间 (新→旧)",
+        NoteSortOrder.UPDATED_ASC to "更新时间 (旧→新)",
+        NoteSortOrder.CREATED_DESC to "创建时间 (新→旧)",
+        NoteSortOrder.CREATED_ASC to "创建时间 (旧→新)",
+        NoteSortOrder.TITLE_ASC to "标题 (A→Z)",
+        NoteSortOrder.PRIORITY_DESC to "重要度 (高→低)"
+    )
+    var selected by remember { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("排序方式") },
+        text = {
+            Column {
+                options.forEach { (order, label) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selected = order }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        if (order == current) {
                             Text("当前", style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary)
                         }

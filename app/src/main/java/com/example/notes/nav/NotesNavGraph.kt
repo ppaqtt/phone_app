@@ -14,12 +14,14 @@ import com.example.notes.ui.screens.NoteEditScreen
 import com.example.notes.ui.screens.NotesListScreen
 import com.example.notes.ui.screens.SearchScreen
 import com.example.notes.ui.screens.SettingsScreen
+import com.example.notes.ui.screens.TagsScreen
 import com.example.notes.ui.viewmodel.NotesViewModel
 
 object Routes {
     const val LIST = "list"
     const val EDIT = "edit/{noteId}"
     const val CATEGORIES = "categories"
+    const val TAGS = "tags"
     const val SEARCH = "search"
     const val SETTINGS = "settings"
 
@@ -41,6 +43,7 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
                 onAddNote = { navController.navigate(Routes.edit(0L)) { launchSingleTop = true } },
                 onOpenNote = { id -> navController.navigate(Routes.edit(id)) { launchSingleTop = true } },
                 onOpenCategories = { navController.navigate(Routes.CATEGORIES) { launchSingleTop = true } },
+                onOpenTags = { navController.navigate(Routes.TAGS) { launchSingleTop = true } },
                 onOpenSearch = { navController.navigate(Routes.SEARCH) { launchSingleTop = true } },
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } }
             )
@@ -72,6 +75,12 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Routes.TAGS) {
+            TagsScreen(
+                viewModel = viewModel,
                 onBack = { navController.popBackStack() }
             )
         }
