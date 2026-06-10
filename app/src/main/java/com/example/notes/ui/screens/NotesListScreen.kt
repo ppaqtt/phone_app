@@ -8,8 +8,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -115,9 +113,10 @@ fun NotesListScreen(
     fun dismissActions() { actionTarget = null }
 
     // 删除对话框关闭后,短暂延迟重置防重入锁,确保下次打开仍可点击
+    // P66: 改 100ms, 300ms 偏慢导致快速操作时按钮意外置灰
     LaunchedEffect(showDeleteDialog) {
         if (!showDeleteDialog) {
-            delay(300)
+            delay(100)
             deleteInFlight = false
         }
     }
@@ -420,12 +419,13 @@ private fun NoteActionsBackground() {
             .background(MaterialTheme.colorScheme.surfaceVariant),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 5 个动作小图标 (背景示意, 真正点击通过菜单执行)
+        // P70: 背景补 Share 图标, 与 NoteActionsRow 的 6 项一致
         ActionBgIcon(Icons.Filled.PushPin, "置顶", MaterialTheme.colorScheme.primary)
         ActionBgIcon(Icons.Filled.Label, "标签", Color(0xFF6750A4))
         ActionBgIcon(Icons.Filled.Delete, "删除", MaterialTheme.colorScheme.error)
         ActionBgIcon(Icons.Filled.DriveFileMove, "移动", Color(0xFF2196F3))
         ActionBgIcon(Icons.Filled.Grade, "重要", Color(0xFFFF9800))
+        ActionBgIcon(Icons.Filled.Share, "分享", Color(0xFF4CAF50))
     }
 }
 

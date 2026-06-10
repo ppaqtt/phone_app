@@ -29,9 +29,8 @@ class MainActivity : ComponentActivity() {
         // 不调用 enableEdgeToEdge (它在 activity-ktx 1.8+ 才有)。
         val app = application as NotesApplication
         val factory = ViewModelFactory(app.repository)
-        val viewModel: NotesViewModel by lazy {
-            ViewModelProvider(this, factory)[NotesViewModel::class.java]
-        }
+        // P80: 去掉 by lazy, 直接在 onCreate 中初始化, 生命周期更清晰
+        val viewModel: NotesViewModel = ViewModelProvider(this, factory)[NotesViewModel::class.java]
 
         setContent {
             NotesAppTheme {

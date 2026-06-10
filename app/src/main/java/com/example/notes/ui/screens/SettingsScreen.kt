@@ -1,6 +1,7 @@
 package com.example.notes.ui.screens
 
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -288,9 +289,11 @@ private fun FeedbackCard() {
             .fillMaxWidth()
             .clickable {
                 val intent = Intent(Intent.ACTION_VIEW, FEEDBACK_URL.toUri())
-                runCatching {
-                    context.startActivity(intent)
-                }
+                // P75: runCatching 空 catch 静默吞异常 → 加 Toast 反馈
+                runCatching { context.startActivity(intent) }
+                    .onFailure { e ->
+                        Toast.makeText(context, "无法打开链接: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
             },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant

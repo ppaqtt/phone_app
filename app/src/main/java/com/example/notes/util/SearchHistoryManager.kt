@@ -33,19 +33,19 @@ class SearchHistoryManager(context: Context) {
 
     /**
      * 添加搜索记录到历史 (大小写不敏感去重)
+     * P63: 状态更新和 JSON 序列化都移到协程, 避免主线程 JSON 写操作
      */
     fun addSearch(query: String) {
         if (query.isBlank()) return
-        val current = _history.value.toMutableList()
-        // 大小写不敏感去重,保留最新输入的大小写格式
-        val lowerQuery = query.lowercase()
-        current.removeAll { it.lowercase() == lowerQuery }
-        // 添加到开头
-        current.add(0, query)
-        // 限制数量
-        val trimmed = current.take(MAX_HISTORY_SIZE)
-        _history.value = trimmed
-        saveHistory(trimmed)
+        scope.launch {
+            val current = _history.value.toMutableList()
+            val lowerQuery = query.lowercase()
+            current.removeAll { it.lowercase() == lowerQuery }
+            current.add(0, query)
+            val trimmed = current.take(MAX_HISTORY_SIZE)
+            _history.value = trimmed
+            saveHistory(trimmed)
+        }
     }
 
     /**
@@ -58,13 +58,16 @@ class SearchHistoryManager(context: Context) {
 
     /**
      * 删除单条搜索记录 (大小写不敏感匹配)
+     * P63: 同上, 切协程避免主线程 IO
      */
     fun removeSearch(query: String) {
-        val lowerQuery = query.lowercase()
-        val current = _history.value.toMutableList()
-        current.removeAll { it.lowercase() == lowerQuery }
-        _history.value = current
-        saveHistory(current)
+        scope.launch {
+            val lowerQuery = query.lowercase()
+            val current = _history.value.toMutableList()
+            current.removeAll { it.lowercase() == lowerQuery }
+            _history.value = current
+            saveHistory(current)
+        }
     }
 
     private fun loadHistory() {

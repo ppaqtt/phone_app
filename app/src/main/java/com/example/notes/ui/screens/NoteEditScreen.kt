@@ -113,6 +113,7 @@ import com.example.notes.util.toggleWrap
 import com.example.notes.util.wrapParagraphWithAlign
 import com.example.notes.util.wrapSelectionWithMarker
 import com.example.notes.util.wrapSelectionWithTag
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -332,14 +333,14 @@ fun NoteEditScreen(
         }
     }
 
-    // 从内容中提取音频URI
+    // 从内容中提取音频URI (P62: 加 500ms debounce 避免长文输入卡顿)
     LaunchedEffect(loaded, content.text) {
-        if (loaded && content.text.isNotEmpty()) {
-            val audioPattern = Regex("\\[音频\\]\\(([^)]+)\\)")
-            val foundUris = audioPattern.findAll(content.text).map { it.groupValues[1] }.toList()
-            audioUris.clear()
-            audioUris.addAll(foundUris)
-        }
+        if (!loaded || content.text.isEmpty()) return@LaunchedEffect
+        delay(500L)
+        val audioPattern = Regex("\\[音频\\]\\(([^)]+)\\)")
+        val foundUris = audioPattern.findAll(content.text).map { it.groupValues[1] }.toList()
+        audioUris.clear()
+        audioUris.addAll(foundUris)
     }
 
     /**
@@ -731,12 +732,15 @@ fun NoteEditScreen(
                     onClick = {
                         if (busy) return@TextButton
                         busy = true
-                        lastSaved?.let {
-                            viewModel.deleteNote(it.id)
-                            it.reminderTime?.let { _ -> ReminderManager.cancelReminder(context, it.id) }
+                        // P57: viewModelScope.launch 异步执行, onBack 立即触发 → 改用 scope.launch 等待完成后退出
+                        scope.launch {
+                            lastSaved?.let {
+                                viewModel.deleteNote(it.id)
+                                it.reminderTime?.let { _ -> ReminderManager.cancelReminder(context, it.id) }
+                            }
+                            confirmDelete = false
+                            onBack()
                         }
-                        confirmDelete = false
-                        onBack()
                     },
                     enabled = !busy
                 ) { Text("删除") }

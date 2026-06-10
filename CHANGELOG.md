@@ -5,6 +5,46 @@
 
 ---
 
+## [1.0.9] - 2026-06-10
+
+### 修复 (P75-P81 新增 + P57/P62/P64/P66/P70/P72/P80 补漏)
+
+#### 严重
+- **P75 修复**: `SettingsScreen.FeedbackCard` / `UpdateDialog` 的 `startActivity`
+  原本被 `runCatching` 静默吞掉, 用户点"问题反馈"/"立即更新"无任何反馈。
+  改为 `runCatching(...).onFailure { Toast.makeText(...) }` 给用户提示。
+
+#### 中等
+- **P57 修复**: 删除确认对话框原本 `viewModelScope.launch` 异步后立即 `onBack()`,
+  改为 `scope.launch { ...; onBack() }` 等删除完成后才退出, 与 P52/P53 保持一致。
+- **P62 修复**: 音频 URI 提取 `LaunchedEffect(content.text)` 每次按键触发 O(n) 正则,
+  无 debounce → 加 `delay(500L)` 节流。
+- **P63 补漏**: `SearchHistoryManager.addSearch/removeSearch` 内部 JSON 序列化
+  仍在调用线程 → 改为 `scope.launch { ... }`, JSON 写移 IO 线程。
+- **P64 修复**: `TimeFormat.formatTimestampShort/formatRelativeTime` 每次
+  `new SimpleDateFormat()` → 新增 `fmtShort/fmtTime/fmtDate` 三个 ThreadLocal,
+  与 `formatTimestamp` 统一。
+- **P70 修复**: `NoteActionsBackground` 背景只画 5 个图标, 但 `NoteActionsRow`
+  有 6 项 (Pin/Tag/Delete/Move/Priority/Share) → 背景补 Share 图标。
+
+#### 轻微
+- **P66 修复**: `deleteInFlight` 锁重置延迟 `delay(300)` → `delay(100)`,
+  300ms 在快速操作时按钮意外置灰感明显。
+- **P72 修复**: `MarkdownTableRenderer` 的 `@Suppress("UNUSED_PARAMETER") onEditDone`
+  是误导注释 → 删除, 加注释说明通过 `KeyboardActions.onDone` 实际被调用。
+- **P80 修复**: `MainActivity.ViewModel` 用 `by lazy` 模糊生命周期 →
+  去掉 lazy, 在 `onCreate` 中直接初始化。
+- **P81 修复**: P58 改用 `pointerInput` 后, `draggable/rememberDraggableState`
+  的两个 import 永不引用 → 删除。
+
+### 跳过 (权衡后保留)
+- P65 通知图标需要新增 drawable 资源, 涉及美术资产, 暂用系统默认。
+- P71 `coverImageUri` 参数删除影响面待评估, 暂保留。
+- P73 表格多行与 Text 截断统一问题, 涉及复杂 UX 重设计, 暂缓。
+- P76 DAO 搜索排序, 需要重新设计 DAO @Query, 暂缓。
+
+---
+
 ## [1.0.8] - 2026-06-10
 
 ### 修复 (P51-P74 新一轮 11 项潜在问题)

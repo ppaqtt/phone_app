@@ -2,6 +2,7 @@ package com.example.notes.util
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -88,10 +89,17 @@ fun UpdateAvailableDialog(
         },
         confirmButton = {
             TextButton(onClick = {
+                // P75: runCatching 空 catch → 加 Toast 反馈 ActivityNotFoundException
                 runCatching {
                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(release.htmlUrl))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     context.startActivity(intent)
+                }.onFailure { e ->
+                    Toast.makeText(
+                        context,
+                        "无法打开应用商店: ${e.message}",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
                 onDismiss()
             }) { Text("立即更新") }
