@@ -105,10 +105,18 @@ fun CategoriesScreen(
     }
 
     pendingDelete?.let { c ->
+        val noteCount = state.notes.count { it.note.categoryId == c.id }
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text("删除分类") },
-            text = { Text("删除后,该分类下的笔记将变为「未分类」。") },
+            text = {
+                Text(
+                    if (noteCount > 0)
+                        "删除后, 该分类下的 $noteCount 条笔记将变为「未分类」。"
+                    else
+                        "确定删除分类「${c.name}」吗?"
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteCategory(c); pendingDelete = null

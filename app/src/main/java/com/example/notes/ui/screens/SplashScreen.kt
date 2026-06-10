@@ -42,9 +42,10 @@ fun SplashScreen(onAnimationComplete: () -> Unit) {
     LaunchedEffect(Unit) {
         alpha.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 500)
+            animationSpec = tween(durationMillis = 400)
         )
-        delay(1500L)
+        // 总启动时长约 800ms (400ms 淡入 + 400ms 停留), 比之前的 1.5s 短
+        delay(400L)
         onAnimationComplete()
     }
 

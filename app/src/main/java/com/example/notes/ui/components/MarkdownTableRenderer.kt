@@ -5,7 +5,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -165,8 +167,8 @@ fun MarkdownTable(
             .clip(RoundedCornerShape(6.dp))
             .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
     ) {
-        // 表头行
-        Row(modifier = Modifier.fillMaxWidth().height(36.dp)) {
+        // 表头行 — 用 IntrinsicSize.Max 让列高跟随最长内容
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
             data.headers.forEachIndexed { idx, header ->
                 val pos = CellPos(0, idx)
                 TableCell(
@@ -195,7 +197,7 @@ fun MarkdownTable(
         }
         // 数据行
         data.rows.forEachIndexed { rowIdx, row ->
-            Row(modifier = Modifier.fillMaxWidth().height(36.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
                 row.forEachIndexed { colIdx, cell ->
                     val pos = CellPos(rowIdx + 1, colIdx)
                     TableCell(
@@ -265,7 +267,7 @@ private fun TableCell(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .defaultMinSize(minHeight = 36.dp)
             .background(cellBg)
             .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
             .clickable(onClick = onClick),
@@ -284,7 +286,7 @@ private fun TableCell(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
             )
         } else {
             Text(
@@ -294,9 +296,8 @@ private fun TableCell(
                 else
                     MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 8.dp)
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
             )
         }
     }

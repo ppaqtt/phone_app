@@ -34,7 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.notes.data.NoteWithCategory
-import com.example.notes.util.formatTimestamp
+import com.example.notes.util.formatRelativeTime
 
 @Composable
 fun NoteCard(
@@ -140,7 +140,7 @@ fun NoteCard(
                     }
                     Spacer(Modifier.weight(1f))
                     Text(
-                        text = formatTimestamp(note.updatedAt),
+                        text = formatRelativeTime(note.updatedAt),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

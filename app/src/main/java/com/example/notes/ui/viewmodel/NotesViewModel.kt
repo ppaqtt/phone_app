@@ -141,7 +141,7 @@ class NotesViewModel(
     }
 
     fun deleteCategory(category: CategoryEntity) {
-        viewModelScope.launch { repository.deleteCategory(category) }
+        viewModelScope.launch { repository.deleteCategorySafely(category) }
     }
 
     fun removeTagFromAllNotes(tag: String) {

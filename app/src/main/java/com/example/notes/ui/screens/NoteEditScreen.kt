@@ -365,7 +365,9 @@ fun NoteEditScreen(
                 color = colorArgb,
                 reminderTime = time
             )
-            ReminderManager.scheduleReminder(context, note, time)
+            // 显示调度结果 (成功/时间已过/失败)
+            val result = ReminderManager.scheduleReminder(context, note, time)
+            ReminderManager.showScheduleResult(context, result)
         }
     }
 

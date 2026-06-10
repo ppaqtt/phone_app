@@ -49,7 +49,11 @@ fun TableInsertDialog(
                 ) {
                     OutlinedTextField(
                         value = rowsStr,
-                        onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) rowsStr = it },
+                        onValueChange = { input ->
+                            // 只接受数字串,长度上限放宽到 3 位 (支持 100 行),
+                            // 实际范围限制在 canConfirm (1..20) 里再次校验
+                            if (input.all(Char::isDigit) && input.length <= 3) rowsStr = input
+                        },
                         label = { Text("行数") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -57,7 +61,9 @@ fun TableInsertDialog(
                     )
                     OutlinedTextField(
                         value = colsStr,
-                        onValueChange = { if (it.length <= 2 && it.all(Char::isDigit)) colsStr = it },
+                        onValueChange = { input ->
+                            if (input.all(Char::isDigit) && input.length <= 3) colsStr = input
+                        },
                         label = { Text("列数") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

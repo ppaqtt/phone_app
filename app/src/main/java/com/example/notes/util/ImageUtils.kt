@@ -28,12 +28,30 @@ object ImageUtils {
         )
     }
 
+    /**
+     * 删除外部存储的临时图片文件 (只处理 file:// 协议, content:// 走 ContentResolver)。
+     * 对拍照产生的本地文件有效, 对相册选择的 content URI 无效 (会安全忽略)。
+     */
     fun deleteImageFile(uri: String?) {
-        uri?.let {
-            try {
-                val file = File(Uri.parse(uri).path ?: return)
-                if (file.exists()) file.delete()
-            } catch (_: Exception) {}
+        if (uri.isNullOrBlank()) return
+        try {
+            val parsed = Uri.parse(uri)
+            when (parsed.scheme) {
+                "file" -> {
+                    parsed.path?.let { path ->
+                        val file = File(path)
+                        if (file.exists()) file.delete()
+                    }
+                }
+                "content" -> {
+                    // 系统拍照临时文件用 file:// 协议, 不在 content:// 上做删除尝试
+                }
+                else -> {
+                    // 未知协议忽略
+                }
+            }
+        } catch (_: Exception) {
+            // 安全忽略删除失败
         }
     }
 }

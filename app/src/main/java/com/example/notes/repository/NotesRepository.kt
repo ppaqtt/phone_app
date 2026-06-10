@@ -67,6 +67,16 @@ class NotesRepository(
 
     suspend fun deleteCategory(category: CategoryEntity) = categoryDao.delete(category)
 
+    /**
+     * 删除分类前先清理笔记的 category_id, 避免外键约束失败。
+     * 用 @Transaction 包裹保证两步原子性, 全部成功或全部回滚。
+     */
+    @androidx.room.Transaction
+    suspend fun deleteCategorySafely(category: CategoryEntity) {
+        categoryDao.clearCategoryForNotes(category.id)
+        categoryDao.delete(category)
+    }
+
     suspend fun noteCountForCategory(id: Long): Int = categoryDao.noteCountForCategory(id)
 
     // --- Note Images -----------------------------------------------------
