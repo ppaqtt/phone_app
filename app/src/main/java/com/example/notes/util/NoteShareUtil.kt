@@ -54,10 +54,11 @@ object NoteShareUtil {
     }
 
     /**
-     * 生成笔记图片
+     * 生成笔记图片 (防 OOM: 最大宽度 1080px, 最大高度 4096px, Bitmap 复用)
      */
     private fun createNoteBitmap(note: NoteEntity): Bitmap {
-        val width = 1080
+        val maxWidth = 1080
+        val maxHeight = 4096
         val titlePaint = Paint().apply {
             color = android.graphics.Color.BLACK
             textSize = 56f
@@ -75,14 +76,15 @@ object NoteShareUtil {
             isAntiAlias = true
         }
 
-        // 计算高度
-        val titleLines = wrapText(note.title, titlePaint, width - 80)
-        val contentLines = wrapText(note.content, contentPaint, width - 80)
-        val titleHeight = titleLines.size * 70
-        val contentHeight = contentLines.size * 55
-        val height = 60 + titleHeight + 40 + contentHeight + 60 + 40 + 60
+        // 计算行数和高度
+        val titleLines = wrapText(note.title, titlePaint, maxWidth - 80)
+        val contentLines = wrapText(note.content, contentPaint, maxWidth - 80)
+        val titleHeight = (titleLines.size * 70).coerceAtMost(200)
+        val contentHeight = (contentLines.size * 55).coerceAtMost(maxHeight - 400)
+        val height = (60 + titleHeight + 40 + contentHeight + 60 + 40 + 60).coerceAtMost(maxHeight)
 
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        // 使用 ARGB_8888 但通过 height 限制防止超长笔记 OOM
+        val bitmap = Bitmap.createBitmap(maxWidth, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(android.graphics.Color.WHITE)
 

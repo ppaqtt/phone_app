@@ -37,9 +37,12 @@ import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Star
@@ -103,6 +106,7 @@ fun NotesListScreen(
     var showMoveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
     // 防止疯狂点击"删除"导致多次触发数据库删除 (虽然 id 相同是幂等的,
     // 但点击多次会让 UI 闪 / 在某些 Android 版本上触发 recomposition race)
     var deleteInFlight by remember { mutableStateOf(false) }
@@ -131,20 +135,42 @@ fun NotesListScreen(
                     }
                 },
                 actions = {
+                    // 3 个最常用入口始终可见
                     IconButton(onClick = onOpenSearch) {
                         Icon(Icons.Filled.Search, contentDescription = "搜索")
                     }
                     IconButton(onClick = onOpenCategories) {
                         Icon(Icons.Filled.Category, contentDescription = "分类")
                     }
-                    IconButton(onClick = onOpenTags) {
-                        Icon(Icons.Filled.Label, contentDescription = "标签")
-                    }
-                    IconButton(onClick = { showSortDialog = true }) {
-                        Icon(Icons.Filled.Sort, contentDescription = "排序")
-                    }
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Settings, contentDescription = "设置")
+                    }
+                    // 标签和排序放入更多菜单,避免窄屏溢出
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "更多")
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("标签管理") },
+                                leadingIcon = { Icon(Icons.Filled.Label, contentDescription = null) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenTags()
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("排序方式") },
+                                leadingIcon = { Icon(Icons.Filled.Sort, contentDescription = null) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    showSortDialog = true
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

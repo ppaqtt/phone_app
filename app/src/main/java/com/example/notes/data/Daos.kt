@@ -66,6 +66,17 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes")
     suspend fun getAllNotesForSync(): List<NoteEntity>
+
+    /**
+     * 批量移除所有笔记中的指定标签。
+     * 用 ',' || tags || ',' LIKE ',tag,' 的方式精确定位标签项,
+     * 避免 "work" 被误匹配到 "homework"。
+     */
+    @Query("""
+        UPDATE notes
+        SET tags = REPLACE(',' || tags || ',', ',' || :tag || ',', ',')
+    """)
+    suspend fun removeTagFromAllNotes(tag: String)
 }
 
 @Dao

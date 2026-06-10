@@ -136,14 +136,8 @@ fun TagsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        // 从所有包含该标签的笔记中移除
-                        state.notes.forEach { nwc ->
-                            val tags = nwc.note.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                            if (tag in tags) {
-                                val newTags = tags - tag
-                                viewModel.setTags(nwc.note.id, newTags)
-                            }
-                        }
+                        // 一次 SQL 完成所有笔记的标签移除, 避免 N+1 写入
+                        viewModel.removeTagFromAllNotes(tag)
                         showDeleteConfirm = null
                     }
                 ) { Text("删除", color = MaterialTheme.colorScheme.error) }

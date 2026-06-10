@@ -55,6 +55,9 @@ class NotesRepository(
 
     suspend fun getAllNotesForSync(): List<NoteEntity> = noteDao.getAllNotesForSync()
 
+    /** 批量移除所有笔记中的指定标签 (一次 SQL 完成) */
+    suspend fun removeTagFromAllNotes(tag: String) = noteDao.removeTagFromAllNotes(tag)
+
     // --- Categories ------------------------------------------------------
 
     fun observeCategories(): Flow<List<CategoryEntity>> = categoryDao.observeAll()

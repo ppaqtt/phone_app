@@ -143,6 +143,10 @@ class NotesViewModel(
     fun deleteCategory(category: CategoryEntity) {
         viewModelScope.launch { repository.deleteCategory(category) }
     }
+
+    fun removeTagFromAllNotes(tag: String) {
+        viewModelScope.launch { repository.removeTagFromAllNotes(tag) }
+    }
 }
 
 class ViewModelFactory(

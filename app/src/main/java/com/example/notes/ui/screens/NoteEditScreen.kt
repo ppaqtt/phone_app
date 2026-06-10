@@ -203,7 +203,8 @@ fun NoteEditScreen(
     }
 
     // === 拍照 ===
-    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    // 使用 rememberSaveable 防止 Activity 重建时残留旧 URI
+    var pendingCameraUri: Uri? by rememberSaveable { mutableStateOf(null) }
     val takePicture = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
@@ -217,6 +218,7 @@ fun NoteEditScreen(
                 imageUris.add(uri.toString())
             }
         }
+        // 无论成功/失败/Activity 重建都清理,避免残留
         pendingCameraUri = null
         selectedTool = null
     }
@@ -804,6 +806,89 @@ private fun MetaInfoRow(
             )
         }
     }
+}
+
+/* ============================================================== */
+/* 标签行 (点击弹出编辑)                                            */
+/* ============================================================== */
+@Composable
+private fun TagsRow(
+    tags: List<String>,
+    onClick: () -> Unit
+) {
+    if (tags.isEmpty()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Filled.Label,
+            contentDescription = "标签",
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            text = tags.joinToString("  ") { "#$it" },
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onClick)
+        )
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = "编辑标签",
+            modifier = Modifier
+                .size(16.dp)
+                .clickable(onClick = onClick),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/* ============================================================== */
+/* 标签编辑对话框                                                    */
+/* ============================================================== */
+@Composable
+private fun TagsEditDialog(
+    initial: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<String>) -> Unit
+) {
+    var text by remember {
+        mutableStateOf(initial.joinToString(", "))
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑标签") },
+        text = {
+            Column {
+                Text(
+                    "多个标签用英文逗号分隔，例如：工作，重要，项目",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("输入标签") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val tags = text.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                onConfirm(tags)
+            }) { Text("保存") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }
 
 /* ============================================================== */
