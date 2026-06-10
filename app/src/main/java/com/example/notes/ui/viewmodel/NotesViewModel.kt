@@ -89,6 +89,33 @@ class NotesViewModel(
             initialValue = NotesUiState()
         )
 
+    // --- F13: 统计 --------------------------------------------------------
+
+    /** 4 个基础计数 (combine 一次发射, 避免 UI 多次重组) */
+    val statsTotals: StateFlow<com.example.notes.repository.StatsTotals> =
+        repository.observeStatsTotals().stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = com.example.notes.repository.StatsTotals(0, 0, 0, 0)
+        )
+
+    /** 分类列表, StatsScreen 用 */
+    val categories: StateFlow<List<CategoryEntity>> = repository.observeCategories()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    /**
+     * F13: 一次性拉全量笔记内容, 客户端做字数 / 月度统计。
+     * 不放在 Flow 里是因为这种"全量快照 + 客户端计算"的方式, 重新发射
+     * 整张大表的开销不必要; 改由 UI 在 totals.totalNotes 变化时
+     * 重新拉一次, 频率极低。
+     */
+    suspend fun getStatsRowsOnce(): List<com.example.notes.data.NoteStatsRow> =
+        repository.getStatsRows()
+
     // --- Intents ---------------------------------------------------------
 
     fun setQuery(value: String) { query.value = value }

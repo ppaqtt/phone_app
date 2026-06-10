@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -98,7 +99,8 @@ fun NotesListScreen(
     onOpenTags: () -> Unit,
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
-    onOpenTrash: () -> Unit
+    onOpenTrash: () -> Unit,
+    onOpenStats: () -> Unit
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
@@ -191,6 +193,15 @@ fun NotesListScreen(
                                 onClick = {
                                     showMoreMenu = false
                                     showSortDialog = true
+                                }
+                            )
+                            // F13: 统计入口
+                            DropdownMenuItem(
+                                text = { Text("统计") },
+                                leadingIcon = { Icon(Icons.Filled.QueryStats, contentDescription = null) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenStats()
                                 }
                             )
                         }
