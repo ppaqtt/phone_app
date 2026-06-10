@@ -5,6 +5,122 @@
 
 ---
 
+## [1.11.0] - 2026-06-10
+
+### 新增
+- **F12 嵌套分类**: CategoryEntity 加 `parentId` 字段, 单层缩进 (0=顶级, 1=子级)。
+  分类管理列表按父→子顺序渲染, 子分类缩进 20dp + ↳ 箭头图标; 新增分类时
+  可选父分类, 父分类候选自动排除自身和所有 descendants 防止循环引用;
+  删除父分类时自动把子分类提升为顶级; 笔记编辑分类选择 / 列表过滤
+  chip 同步缩进显示。Room v7→v8 AutoMigration; 备份导出/导入同步
+  维护 parentOldId 映射, 老备份 (无 parentOldId 字段) 默认顶级。
+
+### 升级
+- 升级：版本号 v1.10.0 → v1.11.0 (versionCode 20 → 21)
+
+---
+
+## [1.10.0] - 2026-06-10
+
+### 新增
+- **F15 每日重复提醒**: NoteEntity 加 `reminderRepeat` 字段
+  (NONE / DAILY / WEEKLY / MONTHLY / YEARLY), 默认 NONE。
+  ReminderWorker 触发后若 repeat != NONE, 自动用 Calendar.add 排
+  下次触发; 笔记编辑页加 ReminderCard 卡片, 设置提醒后显示
+  5 段重复模式选择条; Room v6→v7 AutoMigration。
+
+### 升级
+- 升级：版本号 v1.9.0 → v1.10.0 (versionCode 19 → 20)
+
+---
+
+## [1.9.0] - 2026-06-10
+
+### 新增
+- **F10 PDF / 长图导出**: 笔记编辑页顶部 MoreVert 下拉新增"导出为 PDF"
+  和"导出为长图 (PNG)"两项, 走 SAF CreateDocument 选目标文件。
+  PDF: A4 自动分页, 标题 + 元信息 + 正文, 用 android.graphics.pdf.PdfDocument
+  渲染; 长图: 2x 像素密度 PNG, 用 StaticLayout + Bitmap 拼接。
+  文件名格式 `yyyyMMdd_HHmmss_标题.pdf` / `.png` (非法字符自动替换为下划线)。
+
+### 升级
+- 升级：版本号 v1.8.0 → v1.9.0 (versionCode 18 → 19)
+
+---
+
+## [1.8.0] - 2026-06-10
+
+### 新增
+- **F9 应用锁**: AppLockStore 持久化 PIN 的 SHA-256 哈希 (不存明文);
+  AppLockGate composable 包裹 NavGraph, 启动 / 切回前台时 (DisposableEffect
+  + LifecycleEventObserver) 检测 5 分钟解锁宽限期; AppLockScreen PIN
+  数字键盘 + 圆点指示器, 失败 30s 冷却; 设置 → 应用锁卡片支持
+  启用 / 修改 PIN / 关闭。
+
+### 升级
+- 升级：版本号 v1.7.0 → v1.8.0 (versionCode 17 → 18)
+
+---
+
+## [1.7.0] - 2026-06-10
+
+### 新增
+- **F4 App 快捷方式 (长按桌面图标)**: `res/xml/shortcuts.xml` 注册 3 个
+  动态快捷方式 —— 新建笔记 (直接进编辑页) / 搜索 (跳搜索页) /
+  回收站 (跳 TrashScreen)。AndroidManifest.xml MainActivity meta-data
+  `android.app.shortcuts` 指向 shortcuts.xml, 长按图标即可看到。
+
+### 升级
+- 升级：版本号 v1.6.0 → v1.7.0 (versionCode 16 → 17)
+
+---
+
+## [1.6.0] - 2026-06-10
+
+### 新增
+- **F3 桌面小部件 (AppWidget)**: 4x2 圆角卡片, 显示最近 5 条笔记
+  (按 updated_at 倒序, 仅未删除), 标题 + 内容预览 1 行; 列表项点击
+  通过 setPendingIntentTemplate + setOnClickFillInIntent 打开对应笔记;
+  底部"+"按钮快速新建; saveNote 后调 NotesAppWidget.requestRefresh
+  触发刷新。res/layout/app_widget.xml + widget_note_item.xml +
+  res/xml/app_widget_info.xml + drawable/widget_background.xml。
+
+### 升级
+- 升级：版本号 v1.5.0 → v1.6.0 (versionCode 15 → 16)
+
+---
+
+## [1.5.0] - 2026-06-10
+
+### 新增
+- **F2 回收站**: NoteEntity 加 `deletedAt: Long?` 字段 (null=正常, 非null=已删除);
+  删除按钮改走软删除, 列表 / 搜索 / 按分类观察自动加 `deleted_at IS NULL` 过滤;
+  TrashScreen 显示 30 天内已删笔记, 每条 2 动作: 恢复 (走 restoreNoteFromSnapshot
+  强制 deletedAt=null) / 永久删除; 顶栏"清空"二次确认; TrashJanitorWorker
+  24h 后跑一次, 自动清理 30 天前的回收站条目 (KEEP 策略幂等); Room v5→v6
+  AutoMigration。
+
+### 升级
+- 升级：版本号 v1.4.0 → v1.5.0 (versionCode 14 → 15)
+
+---
+
+## [1.4.0] - 2026-06-10
+
+### 新增
+- **F1 数据备份 / 恢复**: 全部笔记 / 分类 / 图片导出为 JSON (含 schema
+  版本号 / appVersion / 导出时间戳), 走 SAF CreateDocument / OpenDocument;
+  DTO 与 Entity 解耦 (camelCase JSON, snake_case DB), 兼容老备份;
+  AUTO_INCREMENT 冲突通过"老 id → 新 id"映射表解决; 外键约束按
+  "图片→笔记→分类"顺序清空 + 反向顺序插入; 导入前 AlertDialog 二次
+  确认防误操作; 进度通过 Snackbar 反馈, 失败通过 Toast 反馈;
+  设置 → 数据备份卡片放置入口。
+
+### 升级
+- 升级：版本号 v1.3.0 → v1.4.0 (versionCode 13 → 14)
+
+---
+
 ## [1.1.0] - 2026-06-10
 
 ### 修复 (P82-P90 新一轮 9 项潜在问题)
