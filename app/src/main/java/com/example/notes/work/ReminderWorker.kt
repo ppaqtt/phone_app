@@ -10,6 +10,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.notes.NotesApplication
 import com.example.notes.R
+import com.example.notes.util.ReminderRepeat
+import timber.log.Timber
 
 class ReminderWorker(
     private val context: Context,
@@ -55,7 +57,37 @@ class ReminderWorker(
                 notify(noteId.toInt(), notification)
             }
         }.onFailure { e ->
-            android.util.Log.w("ReminderWorker", "notify failed: ${e.message}")
+            Timber.tag("ReminderWorker").w(e, "notify failed")
+        }
+
+        // F15: 重复提醒 - 若 repeat != NONE, 自动排下一次
+        if (noteId > 0L) {
+            runCatching {
+                val app = applicationContext as NotesApplication
+                val note = app.repository.getNoteOnce(noteId)
+                if (note != null) {
+                    val repeat = ReminderRepeat.fromString(note.reminderRepeat)
+                    if (repeat != ReminderRepeat.NONE && note.reminderTime != null) {
+                        val nextTime = repeat.nextTriggerTime(note.reminderTime)
+                        // 防止无限循环 — 若下次时间已过则放弃
+                        if (nextTime > System.currentTimeMillis()) {
+                            app.repository.updateReminder(noteId, nextTime, repeat.name)
+                            com.example.notes.util.ReminderManager.scheduleReminder(
+                                context = applicationContext,
+                                note = note.copy(
+                                    reminderTime = nextTime,
+                                    reminderRepeat = repeat.name
+                                ),
+                                reminderTime = nextTime
+                            )
+                            Timber.tag("ReminderWorker")
+                                .i("rescheduled next reminder for note=$noteId at $nextTime (${repeat.name})")
+                        }
+                    }
+                }
+            }.onFailure { e ->
+                Timber.tag("ReminderWorker").e(e, "reschedule failed")
+            }
         }
 
         return Result.success()

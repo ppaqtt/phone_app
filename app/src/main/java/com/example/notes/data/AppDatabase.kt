@@ -13,12 +13,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class],
-    // F2: v5 → v6 给 notes 加 deleted_at 字段, 自动迁移
-    // P98: v4 → v5 给 notes.category_id 加外键, 自动迁移 (Room 2.5+)
-    version = 6,
+    // F15: v6 → v7 给 notes 加 reminder_repeat 字段
+    // F2: v5 → v6 给 notes 加 deleted_at 字段
+    // P98: v4 → v5 给 notes.category_id 加外键
+    version = 7,
     autoMigrations = [
         AutoMigration(from = 4, to = 5),
-        AutoMigration(from = 5, to = 6)
+        AutoMigration(from = 5, to = 6),
+        AutoMigration(from = 6, to = 7)
     ],
     exportSchema = true
 )

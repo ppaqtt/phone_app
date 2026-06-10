@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.FormatAlignRight
@@ -161,6 +162,8 @@ fun NoteEditScreen(
     // 音频 (作为 URI 列表插入正文, 显示为可点击条目)
     val audioUris: SnapshotStateList<String> = remember { mutableStateListOf() }
     var reminderTime by remember { mutableStateOf<Long?>(null) }
+    // F15: 提醒重复模式, 与 NoteEntity.reminderRepeat 字段一一对应
+    var reminderRepeat by remember { mutableStateOf(com.example.notes.util.ReminderRepeat.NONE) }
     var confirmDelete by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(isNew) }
     var lastSaved by remember { mutableStateOf<NoteEntity?>(null) }
@@ -383,6 +386,10 @@ fun NoteEditScreen(
                     categoryId = nwc.note.categoryId
                     tags = nwc.note.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
                     reminderTime = nwc.note.reminderTime
+                    // F15: 加载重复模式
+                    reminderRepeat = com.example.notes.util.ReminderRepeat.fromString(
+                        nwc.note.reminderRepeat
+                    )
                     lastSaved = nwc.note
                     loaded = true
                     undoRedo.clear()
@@ -433,6 +440,7 @@ fun NoteEditScreen(
             isPinned = isPinned,
             color = colorArgb,
             reminderTime = reminderTime,
+            reminderRepeat = reminderRepeat.name,
             imageUris = imageUris.toList()
         )
 
@@ -460,7 +468,8 @@ fun NoteEditScreen(
                 tags = tags.joinToString(","),
                 isPinned = isPinned,
                 color = colorArgb,
-                reminderTime = time
+                reminderTime = time,
+                reminderRepeat = reminderRepeat.name
             )
             // P3: 调度是挂起函数, Toast 会自动切回主线程
             val result = ReminderManager.scheduleReminder(context, note, time)
@@ -726,6 +735,19 @@ fun NoteEditScreen(
             TagsRow(
                 tags = tags,
                 onClick = { showTagsDialog = true }
+            )
+
+            // F15: 提醒时间 + 重复模式卡片
+            ReminderCard(
+                reminderTime = reminderTime,
+                repeatMode = reminderRepeat,
+                onPickTime = { showDateTimePicker() },
+                onClear = {
+                    lastSaved?.id?.let { ReminderManager.cancelReminder(context, it) }
+                    reminderTime = null
+                    reminderRepeat = com.example.notes.util.ReminderRepeat.NONE
+                },
+                onRepeatChange = { reminderRepeat = it }
             )
 
             // === 主体: 文字 + 内联图片 + 内联音频 + 表格 ===
@@ -1153,6 +1175,104 @@ private fun TagsEditDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
+}
+
+/* ============================================================== */
+/* F15: 提醒时间 + 重复模式选择卡片                                    */
+/* ============================================================== */
+@Composable
+private fun ReminderCard(
+    reminderTime: Long?,
+    repeatMode: com.example.notes.util.ReminderRepeat,
+    onPickTime: () -> Unit,
+    onClear: () -> Unit,
+    onRepeatChange: (com.example.notes.util.ReminderRepeat) -> Unit
+) {
+    val timeText = remember(reminderTime) {
+        if (reminderTime == null) {
+            "未设置"
+        } else {
+            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(reminderTime))
+        }
+    }
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onPickTime() },
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        tonalElevation = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Notifications,
+                    contentDescription = "提醒",
+                    tint = if (reminderTime != null) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "提醒 · $timeText",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (reminderTime != null) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                if (reminderTime != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .clickable { onClear() }
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "清除提醒",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+            // 只有设置提醒后才显示重复模式选择条
+            if (reminderTime != null) {
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    com.example.notes.util.ReminderRepeat.values().forEach { mode ->
+                        val selected = mode == repeatMode
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.surface
+                                )
+                                .clickable { onRepeatChange(mode) }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = mode.displayName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /* ============================================================== */

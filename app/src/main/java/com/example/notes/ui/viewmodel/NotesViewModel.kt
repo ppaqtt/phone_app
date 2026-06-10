@@ -110,6 +110,7 @@ class NotesViewModel(
         isPinned: Boolean,
         color: Int,
         reminderTime: Long? = null,
+        reminderRepeat: String = "NONE",
         imageUris: List<String> = emptyList()
     ): Long {
         val note = NoteEntity(
@@ -120,7 +121,8 @@ class NotesViewModel(
             tags = tags.joinToString(","),
             isPinned = isPinned,
             color = color,
-            reminderTime = reminderTime
+            reminderTime = reminderTime,
+            reminderRepeat = reminderRepeat
         )
         val savedId = repository.saveNote(note)
         // 替换图片 (用于新建和编辑时以最终结果为准)

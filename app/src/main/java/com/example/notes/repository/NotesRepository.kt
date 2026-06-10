@@ -98,6 +98,18 @@ class NotesRepository(
     /** F3: 桌面小部件取最近 N 条笔记 */
     suspend fun getRecentNotes(limit: Int = 5): List<NoteEntity> = noteDao.getRecentNotes(limit)
 
+    /**
+     * F15: 一次性取一条笔记 (按主键), 用于 ReminderWorker 检查 repeat 字段。
+     * 非响应式, 避免 Room 在 Worker 协程里订阅 Flow 持长生命周期。
+     */
+    suspend fun getNoteOnce(id: Long): NoteEntity? = noteDao.getNoteOnce(id)
+
+    /** F15: 一次性更新提醒时间 + 重复模式 (触发后重排) */
+    suspend fun updateReminder(id: Long, reminderTime: Long, repeat: String) {
+        noteDao.updateReminderTime(id, reminderTime)
+        noteDao.setReminderRepeat(id, repeat)
+    }
+
     /** 批量移除所有笔记中的指定标签 (一次 SQL 完成) */
     suspend fun removeTagFromAllNotes(tag: String) = noteDao.removeTagFromAllNotes(tag)
 

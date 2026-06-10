@@ -75,6 +75,14 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT :limit")
     suspend fun getRecentNotes(limit: Int): List<NoteEntity>
 
+    /** F15: 按主键取一条笔记 (非响应式, Worker / 备份导出用) */
+    @Query("SELECT * FROM notes WHERE id = :id")
+    suspend fun getNoteOnce(id: Long): NoteEntity?
+
+    /** F15: 更新提醒时间, 不动 reminder_repeat 字段 */
+    @Query("UPDATE notes SET reminder_time = :reminderTime WHERE id = :id")
+    suspend fun updateReminderTime(id: Long, reminderTime: Long)
+
     /**
      * P97: 一次性 (非响应式) 获取笔记 + 全部图片, 用于删除前的快照保存,
      * 撤销删除时再原样插回。
@@ -149,6 +157,10 @@ interface NoteDao {
     /** F2: 统计回收站条目数 (UI 显示 "回收站 (3)" 角标) */
     @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NOT NULL")
     fun observeTrashCount(): Flow<Int>
+
+    /** F15: 更新提醒重复模式 (NONE / DAILY / WEEKLY / MONTHLY / YEARLY) */
+    @Query("UPDATE notes SET reminder_repeat = :repeat WHERE id = :id")
+    suspend fun setReminderRepeat(id: Long, repeat: String)
 }
 
 @Dao

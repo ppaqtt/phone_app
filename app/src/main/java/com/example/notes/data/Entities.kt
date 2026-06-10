@@ -60,6 +60,13 @@ data class NoteEntity(
     @ColumnInfo(name = "reminder_time")
     val reminderTime: Long? = null,
 
+    /**
+     * F15: 提醒重复模式。"NONE" / "DAILY" / "WEEKLY" / "MONTHLY" / "YEARLY"。
+     * 存字符串而非 enum ordinal 是为了: 1) 备份文件可读; 2) DB schema 演进加新模式不破坏老数据。
+     */
+    @ColumnInfo(name = "reminder_repeat", defaultValue = "'NONE'")
+    val reminderRepeat: String = "NONE",
+
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis(),
 
