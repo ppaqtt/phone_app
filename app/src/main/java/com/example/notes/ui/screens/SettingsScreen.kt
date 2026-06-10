@@ -806,6 +806,42 @@ private fun ChangelogCard() {
             )
             Spacer(Modifier.height(12.dp))
             ChangelogVersion(
+                version = "v1.15.0",
+                date = "2026-06-10",
+                items = listOf(
+                    "新增：OCR 文字识别 — 集成 Google ML Kit 中文文本识别 (on-device, 无需网络)。笔记编辑页 IMAGE 工具面板加「识别文字」按钮, 选图后自动识别并插入到笔记正文; 大图自动缩放到 1920px",
+                    "升级：版本号 v1.14.0 → v1.15.0 (versionCode 24 → 25)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
+                version = "v1.14.0",
+                date = "2026-06-10",
+                items = listOf(
+                    "新增：语音转文字 — 封装 Android SpeechRecognizer (系统内置, 无需 API Key)。笔记编辑页底部工具栏加「语音」按钮, 点击请求录音权限后开始聆听; 识别完成自动插入到笔记正文",
+                    "升级：版本号 v1.13.0 → v1.14.0 (versionCode 23 → 24)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
+                version = "v1.13.0",
+                date = "2026-06-10",
+                items = listOf(
+                    "新增：代码块高亮 — 渲染 ```lang ... ``` 围栏代码块, 深色背景 + 语言标签 + 横向滚动; 自带轻量关键字着色 (Kotlin / Java / Python / JS / Go / Rust / C/C++), 不引入第三方库",
+                    "升级：版本号 v1.12.0 → v1.13.0 (versionCode 22 → 23)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
+                version = "v1.12.0",
+                date = "2026-06-10",
+                items = listOf(
+                    "新增：统计仪表盘 — 4 个计数卡 (笔记 / 置顶 / 提醒 / 图片) + 字数卡 (中文字符 / 英文单词 / 平均每篇) + 分类分布卡 (横向比例条) + 月度趋势卡 (最近 6 个月竖向柱状图)",
+                    "升级：版本号 v1.11.0 → v1.12.0 (versionCode 21 → 22)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
                 version = "v1.11.0",
                 date = "2026-06-10",
                 items = listOf(
