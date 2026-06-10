@@ -155,13 +155,40 @@ interface NoteDao {
     suspend fun purgeOldTrash(before: Long): Int
 
     /** F2: 统计回收站条目数 (UI 显示 "回收站 (3)" 角标) */
-    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NOT NULL")
+    @Query("SELECT * FROM notes WHERE deleted_at IS NOT NULL")
     fun observeTrashCount(): Flow<Int>
+
+    // --- Stats (F13) -----------------------------------------------------
+
+    /** F13: 全部有效笔记数 (deleted_at IS NULL) */
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL")
+    fun observeTotalCount(): Flow<Int>
+
+    /** F13: 置顶数 */
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND is_pinned = 1")
+    fun observePinnedCount(): Flow<Int>
+
+    /** F13: 有提醒的笔记数 */
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND reminder_time IS NOT NULL")
+    fun observeReminderCount(): Flow<Int>
+
+    /** F13: 全部有效笔记的 (id, content, category_id), 用于客户端统计字数 */
+    @Query("SELECT id, content, category_id, created_at FROM notes WHERE deleted_at IS NULL")
+    suspend fun getContentForStats(): List<NoteStatsRow>
 
     /** F15: 更新提醒重复模式 (NONE / DAILY / WEEKLY / MONTHLY / YEARLY) */
     @Query("UPDATE notes SET reminder_repeat = :repeat WHERE id = :id")
     suspend fun setReminderRepeat(id: Long, repeat: String)
 }
+
+/** F13: stats 用的轻量投影, 只取 4 个字段减少 IO */
+data class NoteStatsRow(
+    val id: Long,
+    val content: String,
+    val categoryId: Long?,
+    @androidx.room.ColumnInfo(name = "created_at")
+    val createdAt: Long
+)
 
 @Dao
 interface CategoryDao {
@@ -250,4 +277,11 @@ interface NoteImageDao {
      */
     @Query("DELETE FROM note_images")
     suspend fun clearAll()
+
+    /** F13: 图片总数 (与 notes.deleted_at 联表过滤已删笔记) */
+    @Query("""
+        SELECT COUNT(*) FROM note_images
+        WHERE noteId IN (SELECT id FROM notes WHERE deleted_at IS NULL)
+    """)
+    fun observeImageCount(): Flow<Int>
 }

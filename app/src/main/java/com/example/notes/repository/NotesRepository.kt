@@ -6,12 +6,14 @@ import com.example.notes.data.NoteDao
 import com.example.notes.data.NoteEntity
 import com.example.notes.data.NoteImageDao
 import com.example.notes.data.NoteImageEntity
+import com.example.notes.data.NoteStatsRow
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import timber.log.Timber
 
 /**
@@ -19,6 +21,15 @@ import timber.log.Timber
  * DAOs directly — that keeps test doubles and future data sources (network,
  * sync) easy to plug in.
  */
+
+/** F13: 4 个基础计数, combine 一次发射避免 UI 多次重组 */
+data class StatsTotals(
+    val totalNotes: Int,
+    val pinnedNotes: Int,
+    val notesWithReminder: Int,
+    val totalImages: Int
+)
+
 class NotesRepository(
     private val database: RoomDatabase,
     private val noteDao: NoteDao,
@@ -148,6 +159,21 @@ class NotesRepository(
     }
 
     suspend fun noteCountForCategory(id: Long): Int = categoryDao.noteCountForCategory(id)
+
+    // --- Stats (F13) ------------------------------------------------------
+
+    /** F13: 全部 / 置顶 / 提醒数 (Flow, 增删改自动刷新) */
+    fun observeStatsTotals() = combine(
+        noteDao.observeTotalCount(),
+        noteDao.observePinnedCount(),
+        noteDao.observeReminderCount(),
+        noteImageDao.observeImageCount()
+    ) { total, pinned, reminder, images ->
+        StatsTotals(total, pinned, reminder, images)
+    }
+
+    /** F13: 一次性取全量笔记内容投影, 客户端做字数/分类/月度统计 */
+    suspend fun getStatsRows(): List<NoteStatsRow> = noteDao.getContentForStats()
 
     // --- Note Images -----------------------------------------------------
 
