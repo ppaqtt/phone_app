@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Redo
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
@@ -101,7 +102,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.notes.data.NoteEntity
 import com.example.notes.repository.NotesRepository
+import com.example.notes.ui.components.FindBar
 import com.example.notes.ui.components.MarkdownTable
+import com.example.notes.ui.components.findAllMatches
 import com.example.notes.ui.components.parseMarkdownTable
 import com.example.notes.ui.theme.NoteSwatches
 import com.example.notes.ui.viewmodel.NotesViewModel
@@ -166,6 +169,10 @@ fun NoteEditScreen(
     var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     // 防止疯狂点击保存 / 退出导致重复写入数据库
     var busy by remember { mutableStateOf(false) }
+    // F5: 笔记内查找
+    var showFindBar by remember { mutableStateOf(false) }
+    var findQuery by remember { mutableStateOf("") }
+    var findIndex by remember { mutableStateOf(0) }
     // P51: 协程作用域提到 Composable 级, 供 saveNote 内部 suspend 函数使用
     val scope = rememberCoroutineScope()
 
@@ -479,6 +486,12 @@ fun NoteEditScreen(
                 },
                 actions = {
                     IconButton(
+                        onClick = { showFindBar = !showFindBar; if (!showFindBar) findQuery = "" },
+                        enabled = !busy
+                    ) {
+                        Icon(Icons.Filled.Search, contentDescription = "在笔记中查找")
+                    }
+                    IconButton(
                         onClick = {
                             undoRedo.undo(NoteSnapshot(title, content.text))?.let { snap ->
                                 title = snap.title
@@ -526,6 +539,39 @@ fun NoteEditScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // F5: 笔记内查找条, 展开时插入到顶部
+            if (showFindBar) {
+                val matches = remember(content.text, findQuery) { findAllMatches(content.text, findQuery) }
+                // 调整 findIndex 在查询变化时归零
+                if (findQuery.isNotBlank() && findIndex >= matches.size) {
+                    findIndex = 0
+                }
+                FindBar(
+                    query = findQuery,
+                    matchCount = matches.size,
+                    currentIndex = if (matches.isEmpty()) 0 else findIndex.coerceAtMost(matches.size - 1),
+                    onQueryChange = { findQuery = it; findIndex = 0 },
+                    onNext = {
+                        if (matches.isNotEmpty()) {
+                            val ni = (findIndex + 1) % matches.size
+                            findIndex = ni
+                            content = content.copy(selection = TextRange(matches[ni].first, matches[ni].last + 1))
+                        }
+                    },
+                    onPrev = {
+                        if (matches.isNotEmpty()) {
+                            val pi = (findIndex - 1 + matches.size) % matches.size
+                            findIndex = pi
+                            content = content.copy(selection = TextRange(matches[pi].first, matches[pi].last + 1))
+                        }
+                    },
+                    onClose = {
+                        showFindBar = false
+                        findQuery = ""
+                        findIndex = 0
+                    }
+                )
+            }
             // 加载中遮罩
             if (!loaded && !isNew) {
                 Box(
