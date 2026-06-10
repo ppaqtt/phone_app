@@ -95,6 +95,9 @@ class NotesRepository(
 
     suspend fun getAllNotesForSync(): List<NoteEntity> = noteDao.getAllNotesForSync()
 
+    /** F3: 桌面小部件取最近 N 条笔记 */
+    suspend fun getRecentNotes(limit: Int = 5): List<NoteEntity> = noteDao.getRecentNotes(limit)
+
     /** 批量移除所有笔记中的指定标签 (一次 SQL 完成) */
     suspend fun removeTagFromAllNotes(tag: String) = noteDao.removeTagFromAllNotes(tag)
 

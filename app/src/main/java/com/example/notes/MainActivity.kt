@@ -46,6 +46,9 @@ class MainActivity : ComponentActivity() {
                     val pendingLegalUri = remember { parseLegalUri(intent) }
                     var showLegal by remember { mutableStateOf(pendingLegalUri != null) }
 
+                    // F3: 解析桌面小部件的 "新建笔记" / "打开笔记" intent
+                    val widgetIntent = remember { parseWidgetIntent(intent) }
+
                     // P95: 启动页结束后, 若未授通知权限 (Android 13+) 自动弹申请
                     val permRequest = rememberNotificationPermissionRequest()
                     LaunchedEffect(showSplash) {
@@ -63,7 +66,10 @@ class MainActivity : ComponentActivity() {
                     } else if (showSplash) {
                         SplashScreen(onAnimationComplete = { showSplash = false })
                     } else {
-                        NotesNavGraph(viewModel = viewModel)
+                        NotesNavGraph(
+                            viewModel = viewModel,
+                            widgetIntent = widgetIntent
+                        )
                     }
                 }
             }
@@ -81,4 +87,32 @@ class MainActivity : ComponentActivity() {
             data.path == "/privacy"
         return if (isAppPrivacy || isHttpsPrivacy) data else null
     }
+
+    /**
+     * F3: 解析桌面小部件发来的 intent。
+     * @return WidgetIntent 描述初始目标; null 表示"无特殊要求, 走默认列表"。
+     */
+    private fun parseWidgetIntent(intent: Intent?): WidgetIntent? {
+        if (intent == null) return null
+        return when (intent.action) {
+            ACTION_NEW_NOTE -> WidgetIntent.NewNote
+            ACTION_OPEN_NOTE -> {
+                val id = intent.getLongExtra(NotesAppWidget.EXTRA_NOTE_ID, 0L)
+                if (id > 0L) WidgetIntent.OpenNote(id) else null
+            }
+            else -> null
+        }
+    }
+
+    companion object {
+        // F3: 桌面小部件启动 Activity 的两个 action
+        const val ACTION_NEW_NOTE = "com.example.notes.action.NEW_NOTE"
+        const val ACTION_OPEN_NOTE = "com.example.notes.action.OPEN_NOTE"
+    }
+}
+
+/** F3: 桌面小部件对 MainActivity 启动意图的封装, NotesNavGraph 据此决定初始路由 */
+sealed interface WidgetIntent {
+    data object NewNote : WidgetIntent
+    data class OpenNote(val noteId: Long) : WidgetIntent
 }

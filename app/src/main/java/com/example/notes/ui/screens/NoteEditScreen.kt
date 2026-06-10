@@ -362,6 +362,7 @@ fun NoteEditScreen(
         val now = System.currentTimeMillis()
         // P45: 改用挂起 saveNote, 拿到数据库返回的真实 id (新建时 != 0)
         val savedId = viewModel.saveNote(
+            context = context,
             id = noteIdToSave,
             title = title,
             content = content.text,

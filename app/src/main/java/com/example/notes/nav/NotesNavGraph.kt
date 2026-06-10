@@ -17,6 +17,7 @@ import com.example.notes.ui.screens.SettingsScreen
 import com.example.notes.ui.screens.TagsScreen
 import com.example.notes.ui.screens.TrashScreen
 import com.example.notes.ui.viewmodel.NotesViewModel
+import com.example.notes.WidgetIntent
 
 object Routes {
     const val LIST = "list"
@@ -32,11 +33,27 @@ object Routes {
 }
 
 @Composable
-fun NotesNavGraph(viewModel: NotesViewModel) {
+fun NotesNavGraph(
+    viewModel: NotesViewModel,
+    widgetIntent: WidgetIntent? = null
+) {
     val navController = rememberNavController()
     val context = LocalContext.current
     val repository = remember {
         (context.applicationContext as NotesApplication).repository
+    }
+
+    // F3: 桌面小部件启动时直接跳到新建/打开笔记页
+    androidx.compose.runtime.LaunchedEffect(widgetIntent) {
+        when (widgetIntent) {
+            is WidgetIntent.NewNote -> {
+                navController.navigate(Routes.edit(0L)) { launchSingleTop = true }
+            }
+            is WidgetIntent.OpenNote -> {
+                navController.navigate(Routes.edit(widgetIntent.noteId)) { launchSingleTop = true }
+            }
+            null -> Unit
+        }
     }
 
     NavHost(navController = navController, startDestination = Routes.LIST) {

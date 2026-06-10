@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FCFDF8</color>
+
+    <!-- F3: 桌面小部件颜色 (浅色模式默认值, 深色模式由 values-night/colors.xml 覆盖) -->
+    <color name="widget_background">#FFFFFF</color>
+    <color name="widget_stroke">#1F000000</color>
+    <color name="widget_title">#1A1C1A</color>
+    <color name="widget_subtitle">#5E6360</color>
+    <color name="widget_item_title">#1A1C1A</color>
+    <color name="widget_button_bg">#2E5D5A</color>
+    <color name="widget_button_text">#FFFFFF</color>
 </resources>

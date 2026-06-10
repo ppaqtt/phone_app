@@ -69,6 +69,13 @@ interface NoteDao {
     suspend fun getAllNotesForSync(): List<NoteEntity>
 
     /**
+     * F3: 桌面小部件取最近 N 条笔记 (按 updated_at 倒序, 仅未删除)。
+     * suspend fun 让小部件刷新走 IO, 不阻塞 AppWidgetProvider 回调。
+     */
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT :limit")
+    suspend fun getRecentNotes(limit: Int): List<NoteEntity>
+
+    /**
      * P97: 一次性 (非响应式) 获取笔记 + 全部图片, 用于删除前的快照保存,
      * 撤销删除时再原样插回。
      */

@@ -58,6 +58,26 @@
                 <data android:pathPrefix="/privacy" />
             </intent-filter>
         </activity>
+
+        <!-- F3: 桌面小部件, 系统识别入口 -->
+        <receiver
+            android:name=".widget.NotesAppWidget"
+            android:exported="true"
+            android:label="@string/widget_description">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.notes.widget.ACTION_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/app_widget_info" />
+        </receiver>
+
+        <!-- F3: ListView 数据源, 注意 exported=false 避免被外部唤起 -->
+        <service
+            android:name=".widget.NotesRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
     </application>
 
 </manifest>

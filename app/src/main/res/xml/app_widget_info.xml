@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  F3: 桌面小部件元数据。
+  - minWidth/Height: 4x2 格子
+  - resizeMode: 宽高都可拖
+  - updatePeriodMillis: 0 = 不自动刷新, 只在 onUpdate / 数据变更时刷新 (省电)
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:initialLayout="@layout/app_widget"
+    android:minWidth="220dp"
+    android:minHeight="110dp"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen"
+    android:previewLayout="@layout/app_widget"
+    android:description="@string/widget_description" />

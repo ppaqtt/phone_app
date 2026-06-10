@@ -12,6 +12,7 @@ import com.example.notes.data.NoteWithCategoryAndImages
 import com.example.notes.repository.NotesRepository
 import com.example.notes.util.BackupManager
 import com.example.notes.util.BackupPayload
+import com.example.notes.widget.NotesAppWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -100,6 +101,7 @@ class NotesViewModel(
      * @return 更新后的笔记 id (新建时由数据库生成)
      */
     suspend fun saveNote(
+        context: Context,
         id: Long,
         title: String,
         content: String,
@@ -123,6 +125,8 @@ class NotesViewModel(
         val savedId = repository.saveNote(note)
         // 替换图片 (用于新建和编辑时以最终结果为准)
         repository.replaceNoteImages(savedId, imageUris)
+        // F3: 通知桌面小部件刷新
+        NotesAppWidget.requestRefresh(context)
         return savedId
     }
 
