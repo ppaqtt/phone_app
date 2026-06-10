@@ -147,6 +147,7 @@ fun NoteEditScreen(
     var selectedTool by remember { mutableStateOf<BottomTool?>(null) }
     var showDoodle by remember { mutableStateOf(false) }
     var showTableDialog by remember { mutableStateOf(false) }
+    var showCategoryDialog by remember { mutableStateOf(false) }
     // 退出时未保存确认: null=未触发, "discard"=丢弃, "save"=保存后退出
     var showExitConfirm by remember { mutableStateOf(false) }
     var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -467,7 +468,7 @@ fun NoteEditScreen(
                 charCount = content.text.length,
                 categoryName = state.categories.firstOrNull { it.id == categoryId }?.name
                     ?: "未分类",
-                onCategoryClick = { /* TODO: 分类选择 */ }
+                onCategoryClick = { showCategoryDialog = true }
             )
 
             // === 主体: 文字 + 内联图片 + 内联音频 + 表格 ===
@@ -671,6 +672,19 @@ fun NoteEditScreen(
                         enabled = !busy
                     ) { Text("取消") }
                 }
+            }
+        )
+    }
+
+    // 分类选择对话框
+    if (showCategoryDialog) {
+        CategorySelectDialog(
+            categories = state.categories,
+            current = categoryId,
+            onDismiss = { showCategoryDialog = false },
+            onConfirm = { newCategoryId ->
+                categoryId = newCategoryId
+                showCategoryDialog = false
             }
         )
     }
@@ -1434,4 +1448,75 @@ private fun BottomToolbar(
             }
         }
     }
+}
+
+/* ============================================================== */
+/* 分类选择对话框                                                    */
+/* ============================================================== */
+@Composable
+private fun CategorySelectDialog(
+    categories: List<com.example.notes.data.CategoryEntity>,
+    current: Long?,
+    onDismiss: () -> Unit,
+    onConfirm: (Long?) -> Unit
+) {
+    var selected by remember { mutableStateOf(current) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择分类") },
+        text = {
+            Column {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { selected = null }
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .size(12.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text("未分类", style = MaterialTheme.typography.bodyLarge)
+                    if (current == null) {
+                        Spacer(Modifier.weight(1f))
+                        Text("当前", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                categories.forEach { cat ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { selected = cat.id }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(Color(cat.color))
+                        )
+                        Spacer(Modifier.width(16.dp))
+                        Text(cat.name, style = MaterialTheme.typography.bodyLarge)
+                        if (cat.id == current) {
+                            Spacer(Modifier.weight(1f))
+                            Text("当前", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(selected) }) { Text("确定") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
 }

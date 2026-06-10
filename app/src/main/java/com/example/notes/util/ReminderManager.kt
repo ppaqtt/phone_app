@@ -28,6 +28,7 @@ object ReminderManager {
         val workRequest = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInitialDelay(delay, TimeUnit.MILLISECONDS)
             .setInputData(inputData)
+            .addTag("note_${note.id}")
             .build()
 
         WorkManager.getInstance(context).enqueue(workRequest)

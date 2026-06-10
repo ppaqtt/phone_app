@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Sample backup rules file; uncomment and customize as necessary. See
-     https://developer.android.com/guide/topics/data/autobackup for details.
-     Note: This file is ignored for devices older that API 31.
-     See https://developer.android.com/about/versions/12/backup-restore -->
+<!-- 自动备份配置: 仅备份用户数据, 不备份应用状态 -->
 <full-backup-content>
-    <!--
-   <include domain="sharedpref" path="."/>
-   <exclude domain="sharedpref" path="device.xml"/>
--->
+    <!-- 备份数据库文件 -->
+    <include domain="database" path="notes.db" />
+    
+    <!-- 备份 DataStore 偏好设置 -->
+    <include domain="sharedpref" path="." />
+    
+    <!-- 排除缓存目录 -->
+    <exclude domain="cache" path="." />
+    
+    <!-- 排除图片缓存 -->
+    <exclude domain="files" path="images" />
 </full-backup-content>
