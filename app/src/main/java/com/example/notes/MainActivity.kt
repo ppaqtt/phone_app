@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -20,6 +21,8 @@ import com.example.notes.ui.screens.SplashScreen
 import com.example.notes.ui.theme.NotesAppTheme
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.ui.viewmodel.ViewModelFactory
+import com.example.notes.util.NotificationPermission
+import com.example.notes.util.rememberNotificationPermissionRequest
 
 class MainActivity : ComponentActivity() {
 
@@ -42,6 +45,14 @@ class MainActivity : ComponentActivity() {
                     // 从 intent.data 解析深链接, host == "privacy" 时跳隐私政策页
                     val pendingLegalUri = remember { parseLegalUri(intent) }
                     var showLegal by remember { mutableStateOf(pendingLegalUri != null) }
+
+                    // P95: 启动页结束后, 若未授通知权限 (Android 13+) 自动弹申请
+                    val permRequest = rememberNotificationPermissionRequest()
+                    LaunchedEffect(showSplash) {
+                        if (!showSplash && !NotificationPermission.hasPermission(this@MainActivity)) {
+                            permRequest.value = true
+                        }
+                    }
 
                     if (showLegal && pendingLegalUri != null) {
                         AboutLegalScreen(

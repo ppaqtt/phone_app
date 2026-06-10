@@ -96,8 +96,12 @@ object AppUpdateChecker {
     }
 
     // P31: 当日缓存逻辑, 避免反复点 "检查更新" 重复请求
-    private var cachedRemote: ReleaseInfo? = null
-    private var cachedAt: Long = 0L
+    // P92: 内存缓存, 多协程并发 checkForUpdate 时不会被读到过期值。
+    // @Volatile 保证可见性; 但写入仍非原子 (check-then-set), 不严格防止
+    // 两次网络并发请求 — 这里可以接受, 反正 fetchLatestRelease 内有 mutex
+    // 串行化网络层调用, 重复请求也是幂等的。
+    @Volatile private var cachedRemote: RemoteVersion? = null
+    @Volatile private var cachedAt: Long = 0L
     private val cacheValidMillis = 6 * 60 * 60 * 1000L  // 6 小时
 
     private fun shouldFetchRemote(): Boolean {

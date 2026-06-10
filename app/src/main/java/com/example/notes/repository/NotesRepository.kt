@@ -52,6 +52,26 @@ class NotesRepository(
     suspend fun deleteNote(id: Long) = noteDao.deleteById(id)
     suspend fun togglePin(id: Long, pinned: Boolean) = noteDao.setPinned(id, pinned)
 
+    /**
+     * P97: 获取笔记及其图片的快照, 用于删除-撤销逻辑。
+     * 调用者负责在删除前保存, 撤销时通过 [restoreNoteFromSnapshot] 还原。
+     */
+    suspend fun getNoteSnapshot(id: Long): NoteWithCategoryAndImages? =
+        noteDao.getWithImagesOnce(id)
+
+    /**
+     * P97: 用快照恢复一条笔记 (包括原 id 和全部图片)。
+     * 关联图片必须先恢复, 否则 noteId 外键可能找不到对应笔记。
+     */
+    suspend fun restoreNoteFromSnapshot(snapshot: NoteWithCategoryAndImages) {
+        database.withTransaction {
+            noteDao.insertWithId(snapshot.note)
+            noteImageDao.deleteByNote(snapshot.note.id)
+            val images = snapshot.images.map { it.copy(id = 0) }
+            if (images.isNotEmpty()) noteImageDao.insertAll(images)
+        }
+    }
+
     suspend fun setPriority(id: Long, priority: Int) = noteDao.setPriority(id, priority)
     suspend fun setTags(id: Long, tags: String) = noteDao.setTags(id, tags)
     suspend fun moveToCategory(id: Long, categoryId: Long?) = noteDao.setCategory(id, categoryId)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
@@ -159,6 +160,7 @@ fun SearchScreen(
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 24.dp),
+                    state = rememberLazyListState(),  // P101: 自动 saveable, 旋转后保留滚动位置
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(state.notes, key = { it.note.id }) { nwc ->

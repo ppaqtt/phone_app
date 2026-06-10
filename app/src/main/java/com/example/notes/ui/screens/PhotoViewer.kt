@@ -1,5 +1,6 @@
 package com.example.notes.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -48,6 +49,11 @@ fun PhotoViewer(
     uri: String,
     onDismiss: () -> Unit
 ) {
+    // P104: 系统返回键 / 手势返回时关闭图片查看器。
+    // 旧版没有 BackHandler, 按返回直接关闭整个笔记编辑页 (因为 viewer
+    // 是 Dialog, 但没拦截返回, 上层会一起关闭)。
+    BackHandler(enabled = true) { onDismiss() }
+
     // 缩放与平移状态
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }

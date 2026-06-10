@@ -54,6 +54,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -97,6 +100,9 @@ fun NotesListScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
+    val scope = rememberCoroutineScope()
+    // P97: SnackBar 宿主, 用于显示删除撤销
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // 当前选中要做动作的笔记 (任意动作菜单弹出时)
     var actionTarget by remember { mutableStateOf<NoteWithCategory?>(null) }
@@ -122,6 +128,8 @@ fun NotesListScreen(
     }
 
     Scaffold(
+        // P97: 绑定 SnackbarHost, 让删除撤销提示在屏幕底部显示
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -313,17 +321,28 @@ fun NotesListScreen(
         AlertDialog(
             onDismissRequest = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
             title = { Text("删除笔记") },
-            text = { Text("确认要删除「${actionTarget!!.note.title.ifBlank { "无标题" }}」吗?该操作不可恢复。") },
+            text = { Text("确认要删除「${actionTarget!!.note.title.ifBlank { "无标题" }}」吗?删除后 5 秒内可撤销。") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         if (deleteInFlight) return@TextButton
                         deleteInFlight = true
-                        viewModel.deleteNote(actionTarget!!.note.id)
+                        val title = actionTarget!!.note.title.ifBlank { "无标题" }
+                        // P97: 改用 deleteNoteWithUndo, 删除后弹 Snackbar 提供 5 秒内撤销
+                        viewModel.deleteNoteWithUndo(actionTarget!!.note.id)
                         showDeleteDialog = false
                         dismissActions()
-                        // 200ms 后重置,给数据库写入留时间窗口
-                        // (防止对话框关闭后用户再次快速点开,触发 race)
+                        scope.launch {
+                            val result = snackbarHostState.showSnackbar(
+                                message = "已删除「$title」",
+                                actionLabel = "撤销",
+                                withDismissAction = true,
+                                duration = androidx.compose.material3.SnackbarDuration.Short
+                            )
+                            if (result == SnackbarResult.ActionPerformed) {
+                                viewModel.undoLastDelete()
+                            }
+                        }
                     },
                     enabled = !deleteInFlight
                 ) { Text("删除", color = MaterialTheme.colorScheme.error) }
@@ -373,6 +392,9 @@ private fun SwipeableNoteRow(
         // 背景层: 5 个动作的彩色条 (卡片右滑时露出)
         NoteActionsBackground()
         // 前景层: 卡片 (可水平拖动, 始终跟手)
+        // P96: 优化手势冲突 — 用单个 Job 处理 snapTo, 避免每帧 launch
+        // (虽然 Animatable 内部已协程化, 重复 launch 仍会浪费调度)。
+        val snapJob = remember { kotlinx.coroutines.Job() }
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.value.toInt(), 0) }
@@ -391,7 +413,9 @@ private fun SwipeableNoteRow(
                         }
                     ) { change, dragAmount ->
                         change.consume()
-                        scope.launch {
+                        // P96: 用单一 snapTo 协程, 取消上一次未完成的 snap, 避免积压
+                        snapJob.cancel()
+                        scope.launch(snapJob) {
                             val target = (offsetX.value + dragAmount)
                                 .coerceIn(-widthPx.floatValue, 0f)
                             offsetX.snapTo(target)

@@ -14,7 +14,20 @@ import androidx.room.Relation
  */
 const val DEFAULT_COLOR: Int = 0xFFFFFFFF.toInt()
 
-@Entity(tableName = "notes")
+@Entity(
+    tableName = "notes",
+    // P98: 加外键约束, category_id → categories.id, 删除分类时级联 SET NULL
+    // (旧版依赖 Repository.deleteCategorySafely 手动清, 若有别处绕过
+    // 该方法直接 delete(category) 会留孤儿 category_id; 加 FK 后 SQLite
+    // 在 PRAGMA foreign_keys=ON 时自动 SET NULL, 多一层保护。)
+    foreignKeys = [ForeignKey(
+        entity = CategoryEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["category_id"],
+        onDelete = ForeignKey.SET_NULL
+    )],
+    indices = [Index("category_id")]
+)
 data class NoteEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,

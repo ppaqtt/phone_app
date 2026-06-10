@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.notes.data.CategoryEntity
 import com.example.notes.data.NoteEntity
 import com.example.notes.data.NoteWithCategory
+import com.example.notes.data.NoteWithCategoryAndImages
 import com.example.notes.repository.NotesRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -117,6 +120,51 @@ class NotesViewModel(
 
     fun deleteNote(id: Long) {
         viewModelScope.launchSafe("deleteNote") { repository.deleteNote(id) }
+    }
+
+    /**
+     * P97: 删除笔记并支持 5 秒内撤销。
+     * 流程: 1) 抓取笔记+图片快照; 2) 立即从 DB 删除; 3) 启动 5s 倒计时,
+     * 倒计时结束则放弃快照, 删除永久化; 4) UI 通过 [undoLastDelete] 撤销。
+     *
+     * 返回快照的 noteId (用于 UI 反馈)。同一时间仅支持撤销最近一次删除, 新删除会取消上一次倒计时。
+     */
+    private var pendingUndo: NoteWithCategoryAndImages? = null
+    private var pendingUndoJob: Job? = null
+
+    fun deleteNoteWithUndo(id: Long) {
+        pendingUndoJob?.cancel()
+        viewModelScope.launchSafe("deleteNoteWithUndo") {
+            val snapshot = repository.getNoteSnapshot(id)
+            if (snapshot == null) return@launchSafe
+            pendingUndo = snapshot
+            repository.deleteNote(id)
+            // 5s 倒计时; 若 5s 内用户撤销, 倒计时会被 cancel
+            pendingUndoJob = viewModelScope.launch {
+                delay(5_000L)
+                // 5s 内未撤销, 永久删除
+                if (pendingUndo?.note?.id == id) {
+                    pendingUndo = null
+                }
+            }
+        }
+    }
+
+    /**
+     * P97: 撤销最近一次删除 (必须在 5 秒内调用, 否则快照已清空)。
+     * @return 是否成功撤销
+     */
+    suspend fun undoLastDelete(): Boolean {
+        pendingUndoJob?.cancel()
+        val snapshot = pendingUndo ?: return false
+        pendingUndo = null
+        return runCatching {
+            repository.restoreNoteFromSnapshot(snapshot)
+            true
+        }.getOrElse {
+            android.util.Log.e("NotesViewModel", "undoLastDelete failed: ${it.message}", it)
+            false
+        }
     }
 
     fun togglePin(id: Long, pinned: Boolean) {

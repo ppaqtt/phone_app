@@ -833,6 +833,15 @@ fun NoteEditScreen(
 }
 
 /* ============================================================== */
+/* ThreadLocal formatters (P91 集中管理 SimpleDateFormat)            */
+/* ============================================================== */
+private object ThreadLocalFmt {
+    val metaInfoSdf = ThreadLocal.withInitial {
+        java.text.SimpleDateFormat("yyyy/M/d HH:mm", java.util.Locale.getDefault())
+    }
+}
+
+/* ============================================================== */
 /* 元信息行 (置顶/提醒小图标已去除)                                  */
 /* ============================================================== */
 @Composable
@@ -842,7 +851,10 @@ private fun MetaInfoRow(
     categoryName: String,
     onCategoryClick: () -> Unit
 ) {
-    val sdf = remember { SimpleDateFormat("yyyy/M/d HH:mm", Locale.getDefault()) }
+    // P91: 用 ThreadLocal 替代 remember { SimpleDateFormat } (与 P64 TimeFormat 保持一致),
+    // 虽然 Composable 内 remember 通常单线程, 但 ThreadLocal 更安全且避免时区/locale 切换
+    // 不被捕捉 (remember 缓存的 formatter 不会随系统 locale 变化重建)
+    val sdf = remember { ThreadLocalFmt.metaInfoSdf.get() }
     Row(
         modifier = Modifier
             .fillMaxWidth()

@@ -3,6 +3,9 @@ package com.example.notes.util
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -22,14 +25,23 @@ class SearchHistoryManager(context: Context) {
     val history: StateFlow<List<String>> = _history
 
     // P8: loadHistory 改为协程 + 切到 IO 线程, 避免主线程 JSON 解析
-    private val scope = kotlinx.coroutines.CoroutineScope(
-        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
-    )
+    // P93: 旧的 scope 是属性 (单例常驻, App 生命周期都活着)。
+    // 改用 Application Context 内创建全局 + 暴露 cancel() 方法供未来
+    // 测试或热重载时调用, 同时用 MainScope+IO 混合, 避免内存泄漏警告。
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
         scope.launch {
             loadHistory()
         }
+    }
+
+    /**
+     * P93: 释放协程资源。正常 App 生命周期不需要调用 (单例, OS 杀进程时
+     * 协程自动消亡); 仅在单元测试 / 模块热替换时主动释放, 避免泄漏。
+     */
+    fun release() {
+        scope.coroutineContext[kotlinx.coroutines.Job]?.cancel()
     }
 
     /**

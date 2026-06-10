@@ -4,14 +4,21 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.content.FileProvider
 import java.io.File
-import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 object ImageUtils {
 
+    /**
+     * P91: SimpleDateFormat 非线程安全, 改为 ThreadLocal, 避免
+     * "Expected slash to follow yyyy" / "Unparseable date" 这类并发格式化串扰。
+     * (与 P64 TimeFormat 的 ThreadLocal 保持一致)
+     */
+    private val fmt = ThreadLocal.withInitial {
+        java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.getDefault())
+    }
+
     fun createImageFile(context: Context): File {
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val timeStamp = fmt.get().format(Date())
         val storageDir = context.getExternalFilesDir("images")
         return File.createTempFile(
             "NOTE_${timeStamp}",

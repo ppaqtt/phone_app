@@ -68,6 +68,21 @@ interface NoteDao {
     suspend fun getAllNotesForSync(): List<NoteEntity>
 
     /**
+     * P97: 一次性 (非响应式) 获取笔记 + 全部图片, 用于删除前的快照保存,
+     * 撤销删除时再原样插回。
+     */
+    @Transaction
+    @Query("SELECT * FROM notes WHERE id = :id")
+    suspend fun getWithImagesOnce(id: Long): NoteWithCategoryAndImages?
+
+    /**
+     * P97: 撤销删除时, 强制按指定 id 重新插入笔记 (即使原 id 已空出, 也能保留原 id)。
+     * 用 REPLACE 策略确保 id 被复用, 关联图片 (noteId) 也能正确链接。
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWithId(note: NoteEntity): Long
+
+    /**
      * 批量移除所有笔记中的指定标签。
      * 用 ',' || tags || ',' LIKE ',tag,' 的方式精确定位标签项,
      * 避免 "work" 被误匹配到 "homework"。

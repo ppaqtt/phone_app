@@ -2,6 +2,7 @@ package com.example.notes.util
 
 import android.content.Context
 import android.widget.Toast
+import androidx.work.BackoffPolicy
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -23,6 +24,10 @@ object ReminderManager {
      *  1. 先按 noteId 取消可能存在的旧 Worker (幂等, 防止重复提醒)
      *  2. 计算 delay, 若 <= 0 返回 TIME_PASSED
      *  3. 入队新 Worker, 失败返回 FAILED
+     *
+     * P94: 加重试策略 EXPONENTIAL, 最多 3 次, 初始 30s 退避。
+     * 设备进入 Doze / 系统重启等情况下, WorkManager 会按策略重新拉起,
+     * 避免偶发情况下提醒漏掉。
      *
      * @return [ScheduleResult] 用于调用方给用户反馈
      */
@@ -48,6 +53,8 @@ object ReminderManager {
                 .setInitialDelay(delay, TimeUnit.MILLISECONDS)
                 .setInputData(inputData)
                 .addTag("note_${note.id}")
+                // P94: 指数退避, 最多 3 次, Doze / 资源紧张情况下能补提醒
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .build()
 
             WorkManager.getInstance(context).enqueue(workRequest)
