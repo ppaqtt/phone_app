@@ -24,7 +24,7 @@ object AppUpdateChecker {
     /**
      * 网络不可用时的兜底最新版本号。后续每次正式发版时手动同步。
      */
-    const val FALLBACK_LATEST_VERSION = "1.9.0"
+    const val FALLBACK_LATEST_VERSION = "1.15.0"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME
@@ -100,7 +100,7 @@ object AppUpdateChecker {
     // @Volatile 保证可见性; 但写入仍非原子 (check-then-set), 不严格防止
     // 两次网络并发请求 — 这里可以接受, 反正 fetchLatestRelease 内有 mutex
     // 串行化网络层调用, 重复请求也是幂等的。
-    @Volatile private var cachedRemote: RemoteVersion? = null
+    @Volatile private var cachedRemote: ReleaseInfo? = null
     @Volatile private var cachedAt: Long = 0L
     private val cacheValidMillis = 6 * 60 * 60 * 1000L  // 6 小时
 

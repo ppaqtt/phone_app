@@ -56,7 +56,7 @@ class NotesApplication : Application() {
         // App 启动后异步检查更新, 不阻塞主流程
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         appScope.launch {
-            runCatching { AppUpdateChecker.checkForUpdate(this@NotesApplication) }
+            runCatching { AppUpdateChecker.checkForUpdate() }
                 .onFailure { Log.w("NotesApplication", "update check failed: ${it.message}") }
         }
 
