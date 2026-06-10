@@ -2,6 +2,7 @@ package com.example.notes.ui.screens
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -49,6 +50,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
 import com.example.notes.R
+import com.example.notes.ui.theme.ColorTheme
+import com.example.notes.ui.theme.DarkMode
+import com.example.notes.ui.theme.FontScale
+import com.example.notes.ui.theme.rememberThemePreference
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.NoUpdateDialog
 import com.example.notes.util.UpdateAvailableDialog
@@ -112,6 +117,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         ) {
             AboutHeaderCard()
             AboutInfoCard()
+            // F7/F8/F11: 外观设置 (深色模式 / 字号 / 主题色)
+            AppearanceCard()
             UpdateCheckCard(
                 isChecking = isChecking,
                 onCheck = {
@@ -282,6 +289,163 @@ private fun UpdateCheckCard(
 }
 
 @Composable
+private fun AppearanceCard() {
+    val pref = rememberThemePreference()
+    val current = pref.state.collectAsState().value
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "外观",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(12.dp))
+
+            // F7: 深色模式
+            Text("深色模式", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            SegmentedRow(
+                options = DarkMode.values().toList(),
+                selected = current.darkMode,
+                label = { it.label },
+                onSelect = { pref.setDarkMode(it) }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // F8: 字号
+            Text("字号", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            SegmentedRow(
+                options = FontScale.values().toList(),
+                selected = current.fontScale,
+                label = { it.displayName },
+                onSelect = { pref.setFontScale(it) }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // F11: 主题色
+            Text("主题色", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            ColorSwatchRow(
+                options = ColorTheme.values().toList(),
+                selected = current.colorTheme,
+                onSelect = { pref.setColorTheme(it) }
+            )
+        }
+    }
+}
+
+private val DarkMode.label: String get() = when (this) {
+    DarkMode.SYSTEM -> "跟随系统"
+    DarkMode.LIGHT -> "浅色"
+    DarkMode.DARK -> "深色"
+}
+
+/**
+ * 通用 1 行水平按钮组 (用于 3-4 个互斥单选)。
+ */
+@Composable
+private fun <T> SegmentedRow(
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { opt ->
+            val isSelected = opt == selected
+            androidx.compose.material3.Surface(
+                onClick = { onSelect(opt) },
+                shape = MaterialTheme.shapes.small,
+                color = if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surface,
+                contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurface,
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = label(opt),
+                    style = MaterialTheme.typography.labelLarge,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 10.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * F11: 主题色色板行, 显示圆点 + 名称。
+ */
+@Composable
+private fun ColorSwatchRow(
+    options: List<ColorTheme>,
+    selected: ColorTheme,
+    onSelect: (ColorTheme) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { opt ->
+            val isSelected = opt == selected
+            val swatch = when (opt) {
+                ColorTheme.TEAL -> androidx.compose.ui.graphics.Color(0xFF2E5D5A)
+                ColorTheme.BLUE -> androidx.compose.ui.graphics.Color(0xFF1976D2)
+                ColorTheme.PURPLE -> androidx.compose.ui.graphics.Color(0xFF7B1FA2)
+                ColorTheme.GREEN -> androidx.compose.ui.graphics.Color(0xFF388E3C)
+                ColorTheme.ORANGE -> androidx.compose.ui.graphics.Color(0xFFE65100)
+            }
+            androidx.compose.material3.Surface(
+                onClick = { onSelect(opt) },
+                shape = MaterialTheme.shapes.small,
+                color = if (isSelected) swatch.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surface,
+                border = androidx.compose.foundation.BorderStroke(
+                    width = if (isSelected) 2.dp else 1.dp,
+                    color = if (isSelected) swatch else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier.weight(1f)
+            ) {
+                Column(
+                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp, horizontal = 4.dp)
+                ) {
+                    androidx.compose.foundation.layout.Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(swatch, MaterialTheme.shapes.small)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = opt.displayName,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun FeedbackCard() {
     val context = LocalContext.current
     Card(

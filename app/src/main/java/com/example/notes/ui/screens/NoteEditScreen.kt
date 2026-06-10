@@ -569,7 +569,7 @@ fun NoteEditScreen(
             // === 元信息行 (置顶/提醒小图标已移除) ===
             MetaInfoRow(
                 dateMs = lastSaved?.createdAt ?: System.currentTimeMillis(),
-                charCount = content.text.length,
+                content = content.text,  // F6: 传整段文本, MetaInfoRow 内做中英文分词
                 categoryName = state.categories.firstOrNull { it.id == categoryId }?.name
                     ?: "未分类",
                 onCategoryClick = { showCategoryDialog = true }
@@ -841,13 +841,41 @@ private object ThreadLocalFmt {
     }
 }
 
+/**
+ * F6: 中英文混排字数统计。
+ * @return (cjkChars, englishWords) — 都是非负整数, 各自为 0 表示该类别没有
+ */
+private fun countCharsAndWords(text: String): Pair<Int, Int> {
+    var cjk = 0
+    var words = 0
+    var inWord = false
+    for (ch in text) {
+        val isCjk = (ch in '\u4E00'..'\u9FFF') ||
+            (ch in '\u3400'..'\u4DBF') ||
+            (ch in '\uF900'..'\uFAFF')
+        if (isCjk) {
+            cjk++
+            // 一个汉字结束一个英文词 (e.g. "hello你好" → 1 词 + 2 字)
+            inWord = false
+        } else if (ch.isLetterOrDigit()) {
+            if (!inWord) {
+                words++
+                inWord = true
+            }
+        } else {
+            inWord = false
+        }
+    }
+    return cjk to words
+}
+
 /* ============================================================== */
 /* 元信息行 (置顶/提醒小图标已去除)                                  */
 /* ============================================================== */
 @Composable
 private fun MetaInfoRow(
     dateMs: Long,
-    charCount: Int,
+    content: String,
     categoryName: String,
     onCategoryClick: () -> Unit
 ) {
@@ -867,8 +895,13 @@ private fun MetaInfoRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text("  |  ", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.outline)
+        // F6: 字数统计。中英文混排时, 用 CJK 字符数 + 英文单词数分开统计, 比单纯 charCount 更实用。
+        //  - CJK 范围: U+4E00-U+9FFF, U+3400-U+4DBF, U+F900-U+FAFF (含扩展A / 兼容汉字) → 按 1 字
+        //  - 英文 / 数字段: 连续 [A-Za-z0-9] 为 1 词
+        //  - 其他字符 (标点 / 空格 / 换行) 不计入
+        val (cjkCount, wordCount) = remember(content) { countCharsAndWords(content) }
         Text(
-            text = "$charCount 字",
+            text = if (wordCount == 0) "$cjkCount 字" else "$cjkCount 字 / $wordCount 词",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
