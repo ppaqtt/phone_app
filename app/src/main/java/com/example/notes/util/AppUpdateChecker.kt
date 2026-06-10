@@ -24,7 +24,7 @@ object AppUpdateChecker {
     /**
      * 网络不可用时的兜底最新版本号。后续每次正式发版时手动同步。
      */
-    const val FALLBACK_LATEST_VERSION = "1.1.0"
+    const val FALLBACK_LATEST_VERSION = "1.1.1"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME
