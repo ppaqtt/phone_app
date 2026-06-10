@@ -139,6 +139,8 @@ fun NoteEditScreen(
     var color by remember { mutableStateOf(NoteSwatches.first()) }
     var isPinned by remember { mutableStateOf(false) }
     var categoryId by remember { mutableStateOf<Long?>(null) }
+    // 标签: 从 lastSaved.tags 同步过来, 保存时回写
+    var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     // 多图
     val imageUris: SnapshotStateList<String> = remember { mutableStateListOf() }
     // 音频 (作为 URI 列表插入正文, 显示为可点击条目)
@@ -151,6 +153,7 @@ fun NoteEditScreen(
     var showDoodle by remember { mutableStateOf(false) }
     var showTableDialog by remember { mutableStateOf(false) }
     var showCategoryDialog by remember { mutableStateOf(false) }
+    var showTagsDialog by remember { mutableStateOf(false) }
     // 退出时未保存确认: null=未触发, "discard"=丢弃, "save"=保存后退出
     var showExitConfirm by remember { mutableStateOf(false) }
     var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -287,6 +290,7 @@ fun NoteEditScreen(
                     color = Color(nwc.note.color)
                     isPinned = nwc.note.isPinned
                     categoryId = nwc.note.categoryId
+                    tags = nwc.note.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
                     reminderTime = nwc.note.reminderTime
                     lastSaved = nwc.note
                     loaded = true
@@ -320,25 +324,41 @@ fun NoteEditScreen(
     fun saveNote() {
         val noteIdToSave = lastSaved?.id ?: 0L
         val colorArgb = color.toArgb()
+        val now = System.currentTimeMillis()
         viewModel.saveNote(
             id = noteIdToSave,
             title = title,
             content = content.text,
             categoryId = categoryId,
-            tags = emptyList(),
+            tags = tags,
             isPinned = isPinned,
             color = colorArgb,
             reminderTime = reminderTime,
             imageUris = imageUris.toList()
         )
 
+        // 同步更新 lastSaved, 避免 isDirty 假阳性 / 元信息时间不更新
+        val effectiveTitle = title.ifBlank { content.text.lineSequence().firstOrNull().orEmpty().take(40) }
+        lastSaved = NoteEntity(
+            id = noteIdToSave,
+            title = effectiveTitle,
+            content = content.text,
+            categoryId = categoryId,
+            tags = tags.joinToString(","),
+            isPinned = isPinned,
+            color = colorArgb,
+            reminderTime = reminderTime,
+            createdAt = lastSaved?.createdAt ?: now,
+            updatedAt = now
+        )
+
         reminderTime?.let { time ->
             val note = NoteEntity(
                 id = noteIdToSave,
-                title = title.ifBlank { content.text.lineSequence().firstOrNull().orEmpty().take(40) },
+                title = effectiveTitle,
                 content = content.text,
                 categoryId = categoryId,
-                tags = "",
+                tags = tags.joinToString(","),
                 isPinned = isPinned,
                 color = colorArgb,
                 reminderTime = time
@@ -492,6 +512,12 @@ fun NoteEditScreen(
                 categoryName = state.categories.firstOrNull { it.id == categoryId }?.name
                     ?: "未分类",
                 onCategoryClick = { showCategoryDialog = true }
+            )
+
+            // === 标签 Chip 行 (点击展开编辑) ===
+            TagsRow(
+                tags = tags,
+                onClick = { showTagsDialog = true }
             )
 
             // === 主体: 文字 + 内联图片 + 内联音频 + 表格 ===
@@ -715,6 +741,18 @@ fun NoteEditScreen(
             onConfirm = { newCategoryId ->
                 categoryId = newCategoryId
                 showCategoryDialog = false
+            }
+        )
+    }
+
+    // 标签编辑对话框
+    if (showTagsDialog) {
+        TagsEditDialog(
+            initial = tags,
+            onDismiss = { showTagsDialog = false },
+            onConfirm = { newTags ->
+                tags = newTags
+                showTagsDialog = false
             }
         )
     }
