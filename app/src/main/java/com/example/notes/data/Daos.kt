@@ -94,6 +94,10 @@ interface CategoryDao {
     @Query("SELECT COUNT(*) FROM notes WHERE category_id = :id")
     suspend fun noteCountForCategory(id: Long): Int
 
+    /** P61: 响应式版本, 删除/迁移后自动刷新 */
+    @Query("SELECT COUNT(*) FROM notes WHERE category_id = :id")
+    fun observeNoteCountForCategory(id: Long): Flow<Int>
+
     /** 把某分类下所有笔记的 category_id 置空 (用于删除分类前清理) */
     @Query("UPDATE notes SET category_id = NULL WHERE category_id = :id")
     suspend fun clearCategoryForNotes(id: Long)

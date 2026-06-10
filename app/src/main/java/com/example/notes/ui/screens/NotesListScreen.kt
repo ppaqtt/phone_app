@@ -7,9 +7,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -376,26 +377,28 @@ private fun SwipeableNoteRow(
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.value.toInt(), 0) }
-                .draggable(
-                    orientation = Orientation.Horizontal,
-                    state = rememberDraggableState { delta ->
+                // P58: 直接改 mutableStateOf, 不用 rememberDraggableState + 每帧 launch。
+                // Animatable 在 withFrameNanos 自动驱动, 避免协程风暴。
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            scope.launch {
+                                val w = widthPx.floatValue
+                                if (w > 0f && -offsetX.value > w * threshold) {
+                                    onActionShown()
+                                }
+                                offsetX.animateTo(0f, tween(durationMillis = 220))
+                            }
+                        }
+                    ) { change, dragAmount ->
+                        change.consume()
                         scope.launch {
-                            val target = (offsetX.value + delta)
+                            val target = (offsetX.value + dragAmount)
                                 .coerceIn(-widthPx.floatValue, 0f)
                             offsetX.snapTo(target)
                         }
-                    },
-                    onDragStopped = {
-                        scope.launch {
-                            val w = widthPx.floatValue
-                            if (w > 0f && -offsetX.value > w * threshold) {
-                                onActionShown()
-                            }
-                            // 弹回原位
-                            offsetX.animateTo(0f, tween(durationMillis = 220))
-                        }
                     }
-                )
+                }
         ) {
             NoteCard(
                 noteWithCategory = noteWithCategory,

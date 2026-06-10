@@ -8,6 +8,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import androidx.room.Relation
 
+/**
+ * P69: 笔记"未选色"的哨兵值。所有新笔记 color 默认等于此值, 表示沿用主题色。
+ * 0xFFFFFFFF 不会出现在用户调色板 (调色板从 NoteSwatches 取), 不会撞色。
+ */
+const val DEFAULT_COLOR: Int = 0xFFFFFFFF.toInt()
+
 @Entity(tableName = "notes")
 data class NoteEntity(
     @PrimaryKey(autoGenerate = true)
@@ -34,7 +40,9 @@ data class NoteEntity(
     val priority: Int = 0,
 
     @ColumnInfo(name = "color")
-    val color: Int = 0xFFFFFFFF.toInt(),
+    // P69: 0xFFFFFFFF 当作"未选色"哨兵, 0xFF000000 当作"用户主动选白色"。
+    // 新建/读取时 NoteCard 用 DEFAULT_COLOR 常量判断, 避免撞色。
+    val color: Int = DEFAULT_COLOR,
 
     @ColumnInfo(name = "reminder_time")
     val reminderTime: Long? = null,

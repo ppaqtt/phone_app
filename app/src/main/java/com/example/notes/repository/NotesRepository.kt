@@ -8,6 +8,8 @@ import com.example.notes.data.NoteImageDao
 import com.example.notes.data.NoteImageEntity
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
+import androidx.room.RoomDatabase
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.Flow
  * sync) easy to plug in.
  */
 class NotesRepository(
+    private val database: RoomDatabase,
     private val noteDao: NoteDao,
     private val categoryDao: CategoryDao,
     private val noteImageDao: NoteImageDao
@@ -68,13 +71,21 @@ class NotesRepository(
     suspend fun deleteCategory(category: CategoryEntity) = categoryDao.delete(category)
 
     /**
-     * 删除分类前先清理笔记的 category_id, 避免外键约束失败。
-     * 用 @Transaction 包裹保证两步原子性, 全部成功或全部回滚。
+     * P61: 观察某分类下的笔记数, 用 SQL COUNT 替代内存过滤。
      */
-    @androidx.room.Transaction
+    fun observeNoteCountForCategory(categoryId: Long): Flow<Int> =
+        categoryDao.observeNoteCountForCategory(categoryId)
+
+    /**
+     * 删除分类前先清理笔记的 category_id, 避免外键约束失败。
+     * P54: 用 [RoomDatabase.withTransaction] 包裹两步操作, 保证原子性。
+     * (Room 的 @Transaction 注解只对 DAO 接口方法生效, 在 Repository 上无效。)
+     */
     suspend fun deleteCategorySafely(category: CategoryEntity) {
-        categoryDao.clearCategoryForNotes(category.id)
-        categoryDao.delete(category)
+        database.withTransaction {
+            categoryDao.clearCategoryForNotes(category.id)
+            categoryDao.delete(category)
+        }
     }
 
     suspend fun noteCountForCategory(id: Long): Int = categoryDao.noteCountForCategory(id)

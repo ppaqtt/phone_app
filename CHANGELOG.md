@@ -5,6 +5,63 @@
 
 ---
 
+## [1.0.8] - 2026-06-10
+
+### 修复 (P51-P74 新一轮 11 项潜在问题)
+
+#### 严重 (P0 必崩 / 数据丢失)
+- **P51 修复**: `NoteEditScreen.saveNote()` 内部 `rememberCoroutineScope()` 在非
+  Composable 函数中调用 → 抛 `IllegalStateException` (保存按钮 / 退出保存
+  全部必崩)。将 `rememberCoroutineScope()` 提到 Composable 顶部, `saveNote` 改为
+  纯 `suspend` 函数。
+- **P52 / P53 修复**: 顶部"保存"按钮 + 退出确认"保存"按钮原本 fire-and-forget,
+  协程未完成就 `onBack()` → 列表数据未刷新 + `busy` 锁永不释放 (下次进入
+  同一笔记返回键永久置灰)。新增 `saveNoteThen { ... }` 包装, 协程完成后再
+  执行回调 + finally 重置 busy。
+- **P56 修复**: `MarkdownTableRenderer.CellPos` 是 private data class,
+  `rememberSaveable { mutableStateOf<CellPos?>(null) }` 无 Saver → 配置变更
+  / 进程恢复时崩溃。新增 `CellPosSaver` 自定义 Saver, 编码为 "row,col"。
+- **P54 修复**: `NotesRepository.deleteCategorySafely` 的 `@Transaction` 注解
+  在 Repository 上**不生效** (Room 只对 DAO 接口方法生效), 两次 DAO 调用各
+  自 commit, 异常时出现"分类已删, 笔记 category_id 残留"脏状态。改为
+  `RoomDatabase.withTransaction { ... }`, 并在 `NotesApplication` 构造时注入
+  `database` 参数。
+
+#### 中等
+- **P55 修复**: `ToolPanel.onInsertAtCursor` 参数被 `@Suppress("UNUSED_PARAMETER")`
+  标记, 实际 `ColumnsPanel / StyleGrid / SymbolGrid / TemplatesGrid` 走的都是
+  `onInsertText` (追加到末尾), P14 修复是空壳。贯通到 `ColumnsPanel` 和
+  `ListPanel` 之后, 符号/模板点击插入到光标位置, 行为与用户预期一致。
+- **P58 修复**: `NotesListScreen` 卡片右滑手势原用 `rememberDraggableState`,
+  拖动时每帧 `scope.launch { Animatable.snapTo() }` → 几百协程互抢
+  `Animatable`, 滑动卡顿。改为 `pointerInput + detectHorizontalDragGestures` +
+  `Animatable` (状态变化驱动, 不再每帧起协程)。
+- **P61 修复**: 删分类时 `state.notes.count { it.note.categoryId == c.id }`
+  对每个分类遍历全表, O(n*m)。新增 `CategoryDao.observeNoteCountForCategory(id)`,
+  `CategoriesScreen` 用 `collectAsState` 订阅 SQL COUNT 结果, 分类变更自动刷新。
+
+#### 轻微
+- **P60 修复**: `PhotoViewer` 双击缩放 `* 1.5f` 是 magic number, 巧合等于
+  `scale - 1f`。改为 `targetScale - 1f`, 后续调整缩放系数不会失配。
+- **P67 修复**: `NoteEditScreen.showDateTimePicker` 共享 `remember` 的
+  `Calendar`, 跨日跨月后上次选的日期残留。改为每次 picker 新建 `Calendar`。
+- **P69 修复**: `NoteEntity.color` 默认 `0xFFFFFFFF` 与"用户选白色"撞色,
+  无法区分。引入 `Entities.DEFAULT_COLOR` 常量 + 注释, `NoteCard` 改用常量判断。
+- **P74 修复**: `CategoriesScreen.AddCategoryDialog` 确认按钮 `enabled = false`
+  时仍会触发 `onConfirm` 回调。`onClick` 内加 `if (safe.isBlank()) return@TextButton`
+  防护, 与 `onConfirm(name.trim().take(20), color)` 串联。
+
+### 跳过 (权衡后保留)
+- P57 删除 fire-and-forget: viewModelScope 异步刷新足够快, 不影响可见性。
+- P62 音频正则解析: 长文本下保留, debounce 收益有限。
+- P63 搜索历史 JSON 序列化: SharedPreferences `apply` 异步落盘, JSON 序列化数据量小。
+- P64 SimpleDateFormat: 仅在 4 个调用点, 性能影响可忽略。
+- P65 通知图标: 需要新增 `ic_notification` 资源, 涉及美术资产, 暂用系统默认。
+- P66 deleteInFlight 重置延迟: 300ms 已经在体验阈值内。
+- P70-P80 全部为非关键 UX 微调, 留待后续。
+
+---
+
 ## [1.0.7] - 2026-06-10
 
 ### 修复 (50 项 P1-P50 全面修复)

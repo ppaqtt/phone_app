@@ -165,6 +165,8 @@ fun NoteEditScreen(
     var pendingExitAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     // 防止疯狂点击保存 / 退出导致重复写入数据库
     var busy by remember { mutableStateOf(false) }
+    // P51: 协程作用域提到 Composable 级, 供 saveNote 内部 suspend 函数使用
+    val scope = rememberCoroutineScope()
 
     // 初始快照 (用于判断"内容是否被修改过")
     val initialSnapshot = remember(noteId, loaded) {
@@ -268,28 +270,32 @@ fun NoteEditScreen(
         selectedTool = null
     }
 
-    val calendar = remember { Calendar.getInstance() }
+    // P67: 不再用共享 Calendar 状态, 每次 showDateTimePicker 新建一个实例,
+    // 避免跨日跨月后上次选的日期残留。
     fun showDateTimePicker() {
+        val initialCalendar = Calendar.getInstance()
         val datePicker = DatePickerDialog(
             context,
             { _, year, month, day ->
-                calendar.set(year, month, day)
+                val picked = Calendar.getInstance().apply {
+                    set(year, month, day)
+                }
                 android.app.TimePickerDialog(
                     context,
                     { _, hour, minute ->
-                        calendar.set(Calendar.HOUR_OF_DAY, hour)
-                        calendar.set(Calendar.MINUTE, minute)
-                        calendar.set(Calendar.SECOND, 0)
-                        reminderTime = calendar.timeInMillis
+                        picked.set(Calendar.HOUR_OF_DAY, hour)
+                        picked.set(Calendar.MINUTE, minute)
+                        picked.set(Calendar.SECOND, 0)
+                        reminderTime = picked.timeInMillis
                     },
-                    calendar.get(Calendar.HOUR_OF_DAY),
-                    calendar.get(Calendar.MINUTE),
+                    initialCalendar.get(Calendar.HOUR_OF_DAY),
+                    initialCalendar.get(Calendar.MINUTE),
                     true
                 ).show()
             },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
+            initialCalendar.get(Calendar.YEAR),
+            initialCalendar.get(Calendar.MONTH),
+            initialCalendar.get(Calendar.DAY_OF_MONTH)
         )
         datePicker.datePicker.minDate = System.currentTimeMillis()
         datePicker.show()
@@ -336,28 +342,46 @@ fun NoteEditScreen(
         }
     }
 
-    fun saveNote() {
+    /**
+     * P51: 改为纯 suspend 函数, 不再内部 rememberCoroutineScope() (会崩)。
+     * 由 [saveNoteThen] 在 Composable scope 内启动协程调用。
+     * P52/P53: 协程完成后才执行 [then] 回调, 解决 fire-and-forget 导致
+     * 列表数据未刷新就 popBackStack / busy 锁未释放的问题。
+     */
+    suspend fun saveNote() {
         val noteIdToSave = lastSaved?.id ?: 0L
         val colorArgb = color.toArgb()
         val now = System.currentTimeMillis()
-        val coroutineScope = rememberCoroutineScope()
-        coroutineScope.launch {
-            // P45: 改用挂起 saveNote, 拿到数据库返回的真实 id (新建时 != 0)
-            val savedId = viewModel.saveNote(
-                id = noteIdToSave,
-                title = title,
-                content = content.text,
-                categoryId = categoryId,
-                tags = tags,
-                isPinned = isPinned,
-                color = colorArgb,
-                reminderTime = reminderTime,
-                imageUris = imageUris.toList()
-            )
+        // P45: 改用挂起 saveNote, 拿到数据库返回的真实 id (新建时 != 0)
+        val savedId = viewModel.saveNote(
+            id = noteIdToSave,
+            title = title,
+            content = content.text,
+            categoryId = categoryId,
+            tags = tags,
+            isPinned = isPinned,
+            color = colorArgb,
+            reminderTime = reminderTime,
+            imageUris = imageUris.toList()
+        )
 
-            // 同步更新 lastSaved, 避免 isDirty 假阳性 / 元信息时间不更新
-            val effectiveTitle = title.ifBlank { content.text.lineSequence().firstOrNull().orEmpty().take(40) }
-            lastSaved = NoteEntity(
+        // 同步更新 lastSaved, 避免 isDirty 假阳性 / 元信息时间不更新
+        val effectiveTitle = title.ifBlank { content.text.lineSequence().firstOrNull().orEmpty().take(40) }
+        lastSaved = NoteEntity(
+            id = savedId,
+            title = effectiveTitle,
+            content = content.text,
+            categoryId = categoryId,
+            tags = tags.joinToString(","),
+            isPinned = isPinned,
+            color = colorArgb,
+            reminderTime = reminderTime,
+            createdAt = lastSaved?.createdAt ?: now,
+            updatedAt = now
+        )
+
+        reminderTime?.let { time ->
+            val note = NoteEntity(
                 id = savedId,
                 title = effectiveTitle,
                 content = content.text,
@@ -365,25 +389,28 @@ fun NoteEditScreen(
                 tags = tags.joinToString(","),
                 isPinned = isPinned,
                 color = colorArgb,
-                reminderTime = reminderTime,
-                createdAt = lastSaved?.createdAt ?: now,
-                updatedAt = now
+                reminderTime = time
             )
+            // P3: 调度是挂起函数, Toast 会自动切回主线程
+            val result = ReminderManager.scheduleReminder(context, note, time)
+            ReminderManager.showScheduleResult(context, result)
+        }
+    }
 
-            reminderTime?.let { time ->
-                val note = NoteEntity(
-                    id = savedId,
-                    title = effectiveTitle,
-                    content = content.text,
-                    categoryId = categoryId,
-                    tags = tags.joinToString(","),
-                    isPinned = isPinned,
-                    color = colorArgb,
-                    reminderTime = time
-                )
-                // P3: 调度是挂起函数, Toast 会自动切回主线程
-                val result = ReminderManager.scheduleReminder(context, note, time)
-                ReminderManager.showScheduleResult(context, result)
+    /**
+     * P52: 启动协程保存, 完成后才执行 [then]。
+     * 调用方应在 onClick 内包 busy 锁, 避免重入。
+     */
+    fun saveNoteThen(then: () -> Unit) {
+        scope.launch {
+            try {
+                saveNote()
+                then()
+            } catch (e: Exception) {
+                android.util.Log.e("NoteEditScreen", "saveNote failed", e)
+                Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                busy = false
             }
         }
     }
@@ -473,9 +500,11 @@ fun NoteEditScreen(
                         onClick = {
                             if (busy) return@IconButton
                             busy = true
-                            saveNote()
-                            Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
-                            onBack()
+                            // P52: 协程完成后才 onBack(), 避免 fire-and-forget 数据未入库
+                            saveNoteThen {
+                                Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                                onBack()
+                            }
                         },
                         enabled = !busy
                     ) {
@@ -731,10 +760,12 @@ fun NoteEditScreen(
                     onClick = {
                         if (busy) return@TextButton
                         busy = true
-                        saveNote()
-                        showExitConfirm = false
-                        Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
-                        pendingExitAction?.invoke()
+                        // P53: 协程完成后再 invoke pendingExitAction, 数据先入库再退出
+                        saveNoteThen {
+                            showExitConfirm = false
+                            Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                            pendingExitAction?.invoke()
+                        }
                     },
                     enabled = !busy
                 ) { Text("保存") }
@@ -1163,7 +1194,7 @@ private fun ToolPanel(
     onPickAudio: () -> Unit,
     onToggleTodo: () -> Unit,
     onInsertText: (String) -> Unit,
-    @Suppress("UNUSED_PARAMETER") onInsertAtCursor: (String) -> Unit,
+    onInsertAtCursor: (String) -> Unit,
     onWrapBold: () -> Unit,
     onWrapItalic: () -> Unit,
     onWrapUnderline: () -> Unit,
@@ -1185,8 +1216,9 @@ private fun ToolPanel(
             .clip(RoundedCornerShape(14.dp))
     ) {
         when (tool) {
+            // P55: 分栏面板用 onInsertAtCursor, 符号/模板插入到光标处
             BottomTool.COLUMNS -> ColumnsPanel(
-                onInsert = onInsertText
+                onInsert = onInsertAtCursor
             )
             BottomTool.TEXT -> TextFormatPanel(
                 onBold = onWrapBold,
@@ -1197,11 +1229,12 @@ private fun ToolPanel(
                 onSize = onWrapSize,
                 onColor = onWrapColor
             )
+            // 列表的对齐/前缀也是相对光标操作的, 用 onInsertAtCursor
             BottomTool.LIST -> ListPanel(
                 onAlignLeft = onAlignLeft,
                 onAlignCenter = onAlignCenter,
                 onAlignRight = onAlignRight,
-                onInsert = onInsertText
+                onInsert = onInsertAtCursor
             )
             BottomTool.TODO -> TodoPanel(
                 onToggle = onToggleTodo

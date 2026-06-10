@@ -151,6 +151,17 @@ fun PlainTableText(text: String, modifier: Modifier = Modifier) {
 private data class CellPos(val row: Int, val col: Int)
 
 /**
+ * P56: [CellPos] 是 private data class, 默认无 Saver。
+ * 自定义 Saver 处理可空 CellPos?, 让 rememberSaveable 在配置变更/进程恢复时
+ * 能正常保存编辑中的单元格位置 (row, col 编码为 "r,c" 字符串)。
+ */
+private val CellPosSaver: androidx.compose.runtime.saveable.Saver<CellPos?, String> =
+    androidx.compose.runtime.saveable.Saver(
+        save = { pos -> if (pos == null) "" else "${pos.row},${pos.col}" },
+        restore = { s -> if (s.isBlank()) null else s.split(",").let { CellPos(it[0].toInt(), it[1].toInt()) } }
+    )
+
+/**
  * 可视化表格组件。
  *
  * @param data 解析后的表格
@@ -164,7 +175,7 @@ fun MarkdownTable(
     modifier: Modifier = Modifier,
     readOnly: Boolean = false
 ) {
-    var editing by rememberSaveable { mutableStateOf<CellPos?>(null) }
+    var editing by rememberSaveable(stateSaver = CellPosSaver) { mutableStateOf<CellPos?>(null) }
     var editValue by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
 
     Column(

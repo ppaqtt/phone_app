@@ -143,6 +143,13 @@ class NotesViewModel(
         viewModelScope.launch { repository.deleteCategorySafely(category) }
     }
 
+    /**
+     * P61: 用 DAO 直接统计某分类下的笔记数, 避免 O(n*m) 内存过滤。
+     * 返回异步 Flow, 分类变更时自动刷新。
+     */
+    fun noteCountForCategoryFlow(categoryId: Long) =
+        repository.observeNoteCountForCategory(categoryId)
+
     fun removeTagFromAllNotes(tag: String) {
         viewModelScope.launch { repository.removeTagFromAllNotes(tag) }
     }

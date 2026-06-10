@@ -98,11 +98,13 @@ fun PhotoViewer(
                                 offsetX = 0f
                                 offsetY = 0f
                             } else {
-                                scale = 2.5f
+                                // P60: 用 (scale - 1f) 计算居中系数, 不再写 magic 1.5f
+                                val targetScale = 2.5f
+                                scale = targetScale
                                 val centerX = (size.width / 2f).takeIf { it.isFinite() } ?: 0f
                                 val centerY = (size.height / 2f).takeIf { it.isFinite() } ?: 0f
-                                offsetX = (centerX - tapOffset.x) * 1.5f
-                                offsetY = (centerY - tapOffset.y) * 1.5f
+                                offsetX = (centerX - tapOffset.x) * (targetScale - 1f)
+                                offsetY = (centerY - tapOffset.y) * (targetScale - 1f)
                             }
                         }
                     )

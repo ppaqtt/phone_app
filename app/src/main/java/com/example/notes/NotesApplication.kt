@@ -15,7 +15,9 @@ class NotesApplication : Application() {
     // 避免 Application.onCreate 同步构建拖慢冷启动
     val database: AppDatabase by lazy { AppDatabase.getInstance(this) }
     val repository: NotesRepository by lazy {
+        // P54: 注入 database, 让 Repository 可以用 withTransaction 做跨 DAO 原子操作
         NotesRepository(
+            database = database,
             noteDao = database.noteDao(),
             categoryDao = database.categoryDao(),
             noteImageDao = database.noteImageDao()

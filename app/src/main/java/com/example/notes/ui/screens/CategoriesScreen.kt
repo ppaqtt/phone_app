@@ -107,7 +107,8 @@ fun CategoriesScreen(
     }
 
     pendingDelete?.let { c ->
-        val noteCount = state.notes.count { it.note.categoryId == c.id }
+        // P61: 用 Flow 直接拿 DB 统计, 不再 O(n*m) 内存过滤
+        val noteCount by viewModel.noteCountForCategoryFlow(c.id).collectAsState(initial = 0)
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text("删除分类") },
@@ -210,9 +211,15 @@ private fun AddCategoryDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name, color) }, enabled = name.isNotBlank()) {
-                Text("确定")
-            }
+            // P74: 显式判断空字符串, 避免 AlertDialog disabled 仍触发 onClick
+            TextButton(
+                onClick = {
+                    val safe = name.trim()
+                    if (safe.isBlank()) return@TextButton
+                    onConfirm(safe, color)
+                },
+                enabled = name.isNotBlank()
+            ) { Text("确定") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )

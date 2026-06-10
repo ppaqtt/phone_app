@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.notes.data.DEFAULT_COLOR
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.util.formatRelativeTime
 
@@ -48,7 +49,8 @@ fun NoteCard(
     modifier: Modifier = Modifier
 ) {
     val note = noteWithCategory.note
-    val cardColor = if (note.color == 0xFFFFFFFF.toInt()) {
+    // P69: 用 DEFAULT_COLOR 哨兵判断"未选色", 避免和"用户选白色"撞色
+    val cardColor = if (note.color == DEFAULT_COLOR) {
         MaterialTheme.colorScheme.surface
     } else {
         Color(note.color)
