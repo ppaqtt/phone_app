@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -132,7 +133,7 @@ import java.util.Calendar
 import java.util.Locale
 
 /** 底部工具栏当前选中的工具 (AI 已移除) */
-private enum class BottomTool { COLUMNS, TEXT, LIST, TODO, IMAGE, MORE }
+private enum class BottomTool { COLUMNS, TEXT, LIST, TODO, IMAGE, SPEECH, MORE }
 
 /** 4 个文本样式子页签 */
 private enum class ColumnsTab(val label: String) {
@@ -185,6 +186,54 @@ fun NoteEditScreen(
     var findIndex by remember { mutableStateOf(0) }
     // P51: 协程作用域提到 Composable 级, 供 saveNote 内部 suspend 函数使用
     val scope = rememberCoroutineScope()
+
+    // F16: 语音转文字
+    var speechText by remember { mutableStateOf("") }
+    var isListening by remember { mutableStateOf(false) }
+    val speechHelper = remember { com.example.notes.util.SpeechToTextHelper(context) }
+    // 收集语音识别状态
+    LaunchedEffect(speechHelper) {
+        speechHelper.state.collect { state ->
+            when (state) {
+                is com.example.notes.util.SpeechToTextHelper.State.Listening -> {
+                    isListening = true
+                    speechText = "正在聆听..."
+                }
+                is com.example.notes.util.SpeechToTextHelper.State.Partial -> {
+                    speechText = state.text
+                }
+                is com.example.notes.util.SpeechToTextHelper.State.Result -> {
+                    isListening = false
+                    // 将识别结果插入到内容末尾或光标位置
+                    val snippet = state.text
+                    content = if (content.text.isEmpty()) {
+                        content.copy(text = snippet)
+                    } else {
+                        content.copy(text = content.text + "\n" + snippet)
+                    }
+                    pushHistory()
+                    speechText = ""
+                    selectedTool = null
+                }
+                is com.example.notes.util.SpeechToTextHelper.State.Error -> {
+                    isListening = false
+                    speechText = "错误: ${state.message}"
+                    Toast.makeText(context, state.message, Toast.LENGTH_SHORT).show()
+                }
+                else -> { /* Idle */ }
+            }
+        }
+    }
+    // 录音权限请求
+    val requestRecordAudio = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted: Boolean ->
+        if (granted) {
+            speechHelper.startListening("zh-CN")
+        } else {
+            Toast.makeText(context, "需要录音权限才能使用语音转文字", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // 初始快照 (用于判断"内容是否被修改过")
     val initialSnapshot = remember(noteId, loaded) {
@@ -857,12 +906,23 @@ fun NoteEditScreen(
                         content = wrapParagraphWithAlign(content, "right"); pushHistory()
                     },
                     onDoodleClick = { showDoodle = true; selectedTool = null },
-                    onTableClick = { showTableDialog = true; selectedTool = null }
+                    onTableClick = { showTableDialog = true; selectedTool = null },
+                    // F16: 语音转文字
+                    onSpeechClick = {
+                        if (!speechHelper.isAvailable()) {
+                            Toast.makeText(context, "设备不支持语音识别", Toast.LENGTH_SHORT).show()
+                            selectedTool = null
+                            return@ToolPanel
+                        }
+                        requestRecordAudio.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    speechText = speechText,
+                    isListening = isListening
                 )
                 }
             }
 
-            // === 底部工具栏 (6 项, AI 已移除) ===
+            // === 底部工具栏 (7 项, AI 已移除) ===
             BottomToolbar(
                 selected = selectedTool,
                 onSelect = { tool ->
@@ -1544,7 +1604,11 @@ private fun ToolPanel(
     onAlignCenter: () -> Unit,
     onAlignRight: () -> Unit,
     onDoodleClick: () -> Unit,
-    onTableClick: () -> Unit
+    onTableClick: () -> Unit,
+    // F16: 语音转文字
+    onSpeechClick: () -> Unit,
+    speechText: String,
+    isListening: Boolean
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -1592,6 +1656,11 @@ private fun ToolPanel(
                     onClick = onTakePhoto
                 )
             }
+            BottomTool.SPEECH -> SpeechPanel(
+                onSpeechClick = onSpeechClick,
+                speechText = speechText,
+                isListening = isListening
+            )
             BottomTool.MORE -> Row(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -1946,8 +2015,58 @@ private fun ToolSubItem(
     }
 }
 
+/* ---------- F16: 语音转文字面板 ---------- */
+@Composable
+private fun SpeechPanel(
+    onSpeechClick: () -> Unit,
+    speechText: String,
+    isListening: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // 麦克风大按钮
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isListening) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant
+                )
+                .clickable { onSpeechClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Filled.Mic,
+                contentDescription = "语音输入",
+                tint = if (isListening) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (isListening) "正在聆听... 点击停止" else "点击开始语音输入",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (speechText.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = speechText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
 /* ============================================================== */
-/* 底部 6 图标工具栏 (AI 已去除)                                     */
+/* 底部 7 图标工具栏 (AI 已去除)                                     */
 /* ============================================================== */
 @Composable
 private fun BottomToolbar(
@@ -1960,6 +2079,7 @@ private fun BottomToolbar(
         BottomTool.LIST to (Icons.Filled.FormatListBulleted to "列表"),
         BottomTool.TODO to (Icons.Filled.CheckBoxOutlineBlank to "待办"),
         BottomTool.IMAGE to (Icons.Filled.Image to "图片"),
+        BottomTool.SPEECH to (Icons.Filled.Mic to "语音"),
         BottomTool.MORE to (Icons.Filled.Add to "⊕")
     )
     Surface(
