@@ -66,9 +66,15 @@ class MainActivity : ComponentActivity() {
                     } else if (showSplash) {
                         SplashScreen(onAnimationComplete = { showSplash = false })
                     } else {
-                        NotesNavGraph(
-                            viewModel = viewModel,
-                            widgetIntent = widgetIntent
+                        // F9: 应用锁 gate — 已锁时显示 AppLockScreen, 否则直接进 NavGraph
+                        AppLockGate(
+                            appLockStore = app.appLockStore,
+                            content = {
+                                NotesNavGraph(
+                                    viewModel = viewModel,
+                                    widgetIntent = widgetIntent
+                                )
+                            }
                         )
                     }
                 }
@@ -124,4 +130,47 @@ sealed interface WidgetIntent {
     // F4: 快捷方式新增 2 个
     data object OpenSearch : WidgetIntent
     data object OpenTrash : WidgetIntent
+}
+
+/**
+ * F9: 应用锁 gate composable。
+ *
+ * 行为:
+ * 1) 应用启动 / 切回前台时, 检查 [AppLockStore.shouldShowLock]
+ * 2) 若需要锁: 显示 [AppLockScreen] (Unlock 模式)
+ * 3) 解锁成功后渲染 [content]
+ * 4) 未启用应用锁 / 5 分钟内已解锁: 直接渲染 [content]
+ *
+ * 通过 DisposableEffect 监听 Lifecycle, onPause 切后台超过 5 分钟回前台自动锁;
+ * 简化: 每次 onResume 都让 store.shouldShowLock() 决定, store 内部维护时间窗。
+ */
+@androidx.compose.runtime.Composable
+fun AppLockGate(
+    appLockStore: com.example.notes.util.AppLockStore,
+    content: @androidx.compose.runtime.Composable () -> Unit
+) {
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var locked by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(appLockStore.shouldShowLock())
+    }
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                locked = appLockStore.shouldShowLock()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (locked) {
+        com.example.notes.ui.screens.AppLockScreen(
+            store = appLockStore,
+            mode = com.example.notes.ui.screens.Mode.Unlock,
+            onSuccess = { locked = false }
+        )
+    } else {
+        content()
+    }
 }

@@ -65,6 +65,7 @@ import com.example.notes.ui.theme.DarkMode
 import com.example.notes.ui.theme.FontScale
 import com.example.notes.ui.theme.rememberThemePreference
 import com.example.notes.ui.viewmodel.NotesViewModel
+import com.example.notes.util.AppLockStore
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.NoUpdateDialog
 import com.example.notes.util.UpdateAvailableDialog
@@ -190,6 +191,8 @@ fun SettingsScreen(
                     openDocumentLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                 }
             )
+            // F9: 应用锁
+            AppLockCard()
             UpdateCheckCard(
                 isChecking = isChecking,
                 onCheck = {
@@ -432,6 +435,101 @@ private fun BackupRowButton(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * F9: 应用锁配置卡片。
+ * - 未启用时显示"启用应用锁"按钮, 点击后引导设置 6 位 PIN
+ * - 已启用时显示"已启用 · 修改 PIN / 关闭" 选项
+ */
+@Composable
+private fun AppLockCard() {
+    val context = LocalContext.current
+    val app = context.applicationContext as com.example.notes.NotesApplication
+    val store = remember { app.appLockStore }
+    val isEnabled by store.isEnabled.collectAsState()
+    var showSetup by remember { mutableStateOf(false) }
+    var showDisableConfirm by remember { mutableStateOf(false) }
+
+    if (showSetup) {
+        AppLockScreen(
+            store = store,
+            mode = Mode.SetPin,
+            onSuccess = { showSetup = false }
+        )
+    } else {
+        if (showDisableConfirm) {
+            AlertDialog(
+                onDismissRequest = { showDisableConfirm = false },
+                title = { Text("关闭应用锁?") },
+                text = { Text("关闭后再次打开应用将不再需要输入 PIN") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        store.disable()
+                        showDisableConfirm = false
+                    }) { Text("关闭", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDisableConfirm = false }) { Text("取消") }
+                }
+            )
+        }
+        AppLockCardContent(
+            isEnabled = isEnabled,
+            onSetup = { showSetup = true },
+            onDisable = { showDisableConfirm = true }
+        )
+    }
+}
+
+@Composable
+private fun AppLockCardContent(
+    isEnabled: Boolean,
+    onSetup: () -> Unit,
+    onDisable: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "应用锁",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                if (isEnabled) "已启用, 进入应用时需要输入 6 位 PIN"
+                else "启用后, 进入应用 / 切回前台时需要输入 PIN",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            if (isEnabled) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onSetup, modifier = Modifier.weight(1f)) {
+                        Text("修改 PIN")
+                    }
+                    TextButton(onClick = onDisable, modifier = Modifier.weight(1f)) {
+                        Text("关闭", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            } else {
+                androidx.compose.material3.Button(
+                    onClick = onSetup,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("启用应用锁")
+                }
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import com.example.notes.data.AppDatabase
 import com.example.notes.repository.NotesRepository
+import com.example.notes.util.AppLockStore
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.TrashJanitorWorker
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +36,9 @@ class NotesApplication : Application() {
             noteImageDao = database.noteImageDao()
         )
     }
+
+    /** F9: 应用锁状态 (PIN 哈希 + 启用标志 + 解锁时间) */
+    val appLockStore: AppLockStore by lazy { AppLockStore(this) }
 
     override fun onCreate() {
         super.onCreate()
