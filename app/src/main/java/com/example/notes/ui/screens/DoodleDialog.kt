@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -54,6 +55,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.example.notes.util.ImageUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -74,6 +78,8 @@ fun DoodleDialog(
     var brushColor by remember { mutableStateOf(Color.Black) }
     var brushWidth by remember { mutableStateOf(8f) }
     val context = LocalContext.current
+    // P4: 协程作用域, 用于把导出操作切到 IO 线程
+    val scope = rememberCoroutineScope()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -192,36 +198,48 @@ fun DoodleDialog(
         },
         confirmButton = {
             TextButton(onClick = {
-                // 把画布导出为 PNG
-                if (canvasSize.width > 0 && canvasSize.height > 0 &&
-                    (paths.isNotEmpty() || !currentPath.isEmpty)
-                ) {
-                    val w = canvasSize.width
-                    val h = canvasSize.height
-                    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                    val androidCanvas = Canvas(bmp)
-                    androidCanvas.drawColor(android.graphics.Color.WHITE)
-                    val paint = Paint().apply {
-                        isAntiAlias = true
-                        strokeCap = Paint.Cap.ROUND
-                        strokeWidth = brushWidth
-                        color = brushColor.toArgb()
-                        style = Paint.Style.STROKE
+                val w = canvasSize.width
+                val h = canvasSize.height
+                val allPaths = paths.toList() + listOf(currentPath)
+                val colorArgb = brushColor.toArgb()
+                val strokeWidth = brushWidth
+                // P4: 切到 Dispatchers.IO 异步生成 PNG, 避免主线程 OOM/ANR
+                scope.launch {
+                    val resultUri = withContext(Dispatchers.IO) {
+                        if (w <= 0 || h <= 0 || paths.isEmpty()) {
+                            null
+                        } else {
+                            runCatching {
+                                // 限制最大尺寸 2048x2048, 防止 OOM
+                                val safeW = w.coerceAtMost(2048)
+                                val safeH = h.coerceAtMost(2048)
+                                val bmp = Bitmap.createBitmap(safeW, safeH, Bitmap.Config.ARGB_8888)
+                                val androidCanvas = Canvas(bmp)
+                                androidCanvas.drawColor(android.graphics.Color.WHITE)
+                                val paint = Paint().apply {
+                                    isAntiAlias = true
+                                    strokeCap = Paint.Cap.ROUND
+                                    strokeWidth = strokeWidth
+                                    color = colorArgb
+                                    style = Paint.Style.STROKE
+                                }
+                                allPaths.forEach { p ->
+                                    val androidPath = android.graphics.Path()
+                                    androidPath.set(p.asAndroidPath())
+                                    androidCanvas.drawPath(androidPath, paint)
+                                }
+                                val file = ImageUtils.createImageFile(context)
+                                FileOutputStream(file).use {
+                                    bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
+                                }
+                                bmp.recycle()
+                                ImageUtils.getUriForFile(context, file)
+                            }.getOrNull()
+                        }
                     }
-                    (paths + currentPath).forEach { p ->
-                        val androidPath = android.graphics.Path()
-                        androidPath.set(p.asAndroidPath())
-                        androidCanvas.drawPath(androidPath, paint)
-                    }
-                    val file: File = ImageUtils.createImageFile(context)
-                    FileOutputStream(file).use {
-                        bmp.compress(Bitmap.CompressFormat.PNG, 100, it)
-                    }
-                    bmp.recycle()
-                    val uri = ImageUtils.getUriForFile(context, file)
-                    onDone(uri)
+                    if (resultUri != null) onDone(resultUri)
+                    onDismiss()
                 }
-                onDismiss()
             }) { Text("保存") }
         },
         dismissButton = {

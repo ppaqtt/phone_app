@@ -11,6 +11,8 @@ import com.example.notes.repository.NotesRepository
  */
 class NotesApplication : Application() {
 
+    // P9: 数据库走 by lazy, 首次访问(主屏 onCreate)才构建,
+    // 避免 Application.onCreate 同步构建拖慢冷启动
     val database: AppDatabase by lazy { AppDatabase.getInstance(this) }
     val repository: NotesRepository by lazy {
         NotesRepository(

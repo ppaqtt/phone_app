@@ -141,26 +141,25 @@ fun wrapParagraphWithAlign(value: TextFieldValue, align: String): TextFieldValue
     // 逐段处理: 把 from..to 切分为若干段, 分别包绕
     val slices = collectParagraphs(text, firstStart, lastEnd)
     var newText = text
-    var offsetDelta = 0
     for ((pStart, pEnd) in slices) {
-        val adjustedStart = pStart + offsetDelta
-        val adjustedEnd = pEnd + offsetDelta
-        val before = newText.length
         val updated = applyAlignToRange(
             value.copy(text = newText),
-            adjustedStart,
-            adjustedEnd,
+            pStart,
+            pEnd,
             align
         )
         newText = updated.text
-        offsetDelta += newText.length - before
     }
-    // 选区落在首段包绕后内部
-    val newCaretStart = firstStart + "[align=$align]".length
-    val innerLen = (lastEnd - firstStart) // 粗略, 多段时仅首段可见
+    // P28: 选区定位在新首段包绕后内部
+    val openTag = "[align=$align]"
+    // 选区起点 = 首段起始 + openTag 长度
+    val newCaretStart = firstStart + openTag.length
+    // 跨段时选区只覆盖首段被包裹内容
+    val firstParaLen = if (slices.isNotEmpty()) (slices[0].second - slices[0].first) else 0
+    val newCaretEnd = newCaretStart + firstParaLen
     return value.copy(
         text = newText,
-        selection = TextRange(newCaretStart, newCaretStart + innerLen.coerceAtLeast(0))
+        selection = TextRange(newCaretStart, newCaretEnd)
     )
 }
 
@@ -228,11 +227,20 @@ private fun stripAlign(paragraph: String): Triple<String, String, String> {
  */
 fun insertAtCursor(value: TextFieldValue, snippet: String): TextFieldValue {
     val text = value.text
-    val caret = value.selection.start
-    val newText = text.substring(0, caret) + snippet + text.substring(caret)
-    val newCaret = caret + snippet.length
-    return value.copy(
-        text = newText,
-        selection = TextRange(newCaret)
-    )
+    // P40: 选区有内容时, 替换选区; 选区为空时, 在光标处插入
+    val norm = value.selection.normalized()
+    val s = norm.start()
+    val e = norm.end()
+    return if (s != e) {
+        // 选区不为空: 替换选区内容
+        val newText = text.substring(0, s) + snippet + text.substring(e)
+        val newCaret = s + snippet.length
+        value.copy(text = newText, selection = TextRange(newCaret))
+    } else {
+        // 选区为空: 在光标处插入
+        val caret = s
+        val newText = text.substring(0, caret) + snippet + text.substring(caret)
+        val newCaret = caret + snippet.length
+        value.copy(text = newText, selection = TextRange(newCaret))
+    }
 }

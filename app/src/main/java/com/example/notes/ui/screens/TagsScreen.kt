@@ -52,18 +52,21 @@ fun TagsScreen(
     val state by viewModel.uiState.collectAsState()
 
     // 收集所有标签
+    // P17: trim + 大小写不敏感去重, 避免 "工作" 和 " 工作 " 被视为两个标签
     val allTags = remember(state.notes) {
         state.notes
             .flatMap { it.note.tags.split(",") }
+            .map { it.trim() }
             .filter { it.isNotBlank() }
-            .distinct()
-            .sorted()
+            .distinctBy { it.lowercase() }
+            .sortedBy { it.lowercase() }
     }
 
-    // 标签使用统计
+    // 标签使用统计 (按 trim 后的大写统计)
     val tagCount = remember(state.notes) {
         state.notes
             .flatMap { it.note.tags.split(",") }
+            .map { it.trim() }
             .filter { it.isNotBlank() }
             .groupingBy { it }
             .eachCount()

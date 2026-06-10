@@ -18,13 +18,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -131,12 +134,54 @@ fun NoteCard(
                         )
                     }
                     if (note.tags.isNotBlank()) {
-                        Text(
-                            text = "· " + note.tags.split(",").filter { it.isNotBlank() }
-                                .joinToString(" #") { it.trim() },
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // P13/P41: trim + 加空格避免显示粘连
+                        val tagList = note.tags.split(",")
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() }
+                        if (tagList.isNotEmpty()) {
+                            Text(
+                                text = "· " + tagList.joinToString("  ") { "#$it" },
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    // P33/P34: 音频/图片/表格附件数提示
+                    val audioCount = remember(note.content) { audioCountInContent(note.content) }
+                    val tableCount = remember(note.content) { tableCountInContent(note.content) }
+                    if (audioCount > 0 || tableCount > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (audioCount > 0) {
+                                Icon(
+                                    Icons.Filled.GraphicEq,
+                                    contentDescription = "音频",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(2.dp))
+                                Text(
+                                    text = audioCount.toString(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            if (tableCount > 0) {
+                                Icon(
+                                    Icons.Filled.TableChart,
+                                    contentDescription = "表格",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(2.dp))
+                                Text(
+                                    text = tableCount.toString(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(6.dp))
+                            }
+                        }
                     }
                     Spacer(Modifier.weight(1f))
                     Text(
@@ -148,4 +193,34 @@ fun NoteCard(
             }
         }
     }
+}
+
+/** 统计 [content] 中音频附件数 (匹配 [音频](...) 语法) */
+private fun audioCountInContent(content: String): Int {
+    if (content.isBlank()) return 0
+    val audioPattern = Regex("\\[音频\\]\\(([^)]+)\\)")
+    return audioPattern.findAll(content).count()
+}
+
+/** 统计 [content] 中 markdown 表格块数 */
+private fun tableCountInContent(content: String): Int {
+    if (content.isBlank()) return 0
+    val lines = content.lines()
+    var count = 0
+    var i = 0
+    while (i < lines.size) {
+        val line = lines[i].trim()
+        if (line.startsWith("|") && i + 1 < lines.size) {
+            val next = lines[i + 1].trim()
+            if (next.startsWith("|") && next.contains("---")) {
+                count++
+                // 跳到表格结尾
+                i += 2
+                while (i < lines.size && lines[i].trim().startsWith("|")) i++
+                continue
+            }
+        }
+        i++
+    }
+    return count
 }

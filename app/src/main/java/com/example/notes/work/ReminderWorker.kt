@@ -28,6 +28,16 @@ class ReminderWorker(
         val title = inputData.getString(KEY_NOTE_TITLE) ?: "笔记提醒"
         val content = inputData.getString(KEY_NOTE_CONTENT) ?: ""
 
+        // P6: Android 13+ 需检查 POST_NOTIFICATIONS 运行时权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                // 无权限, 静默跳过 (Settings 里有引导)
+                return Result.success()
+            }
+        }
+
         createNotificationChannel()
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
@@ -39,8 +49,13 @@ class ReminderWorker(
             .setAutoCancel(true)
             .build()
 
-        with(NotificationManagerCompat.from(context)) {
-            notify(noteId.toInt(), notification)
+        // P6: 用 try-catch 包裹, 极端设备上 notify 可能抛 SecurityException
+        runCatching {
+            with(NotificationManagerCompat.from(context)) {
+                notify(noteId.toInt(), notification)
+            }
+        }.onFailure { e ->
+            android.util.Log.w("ReminderWorker", "notify failed: ${e.message}")
         }
 
         return Result.success()

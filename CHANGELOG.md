@@ -5,6 +5,123 @@
 
 ---
 
+## [1.0.7] - 2026-06-10
+
+### 修复 (50 项 P1-P50 全面修复)
+
+#### 数据库与并发 (P1, P8, P9)
+- **【严重】启用 Room 外键约束** (P1)。SQLite 默认关闭外键, 之前删除分类时
+  仍可能残留 `category_id` 引用。`AppDatabase` 增加 `Callback.onOpen` 显式
+  `setForeignKeyConstraintsEnabled(true)`, 配合 repository 的 `deleteCategorySafely`
+  保护数据完整性。
+- **【严重】搜索历史 IO 移到后台线程** (P8)。`SearchHistoryManager.loadHistory`
+  之前在构造时同步解析 JSON, 极端情况下可阻塞主线程。改为
+  `CoroutineScope(Dispatchers.IO).launch { loadHistory() }`。
+- **【严重】数据库走 lazy 初始化** (P9)。`NotesApplication.database/repository`
+  改为 `by lazy`, 不在 `Application.onCreate` 同步构建, 加快冷启动速度。
+
+#### 媒体与分享 (P2, P4, P5, P6)
+- **【严重】分享为图片时整体 runCatching** (P2)。`NoteShareUtil.shareAsImage`
+  把 `createNoteBitmap` / 文件写 / `FileProvider` / `startActivity` 全部包到
+  `runCatching`, 单点捕获异常, 失败时给 Toast 兜底, 避免崩溃。
+- **【严重】涂鸦导出切到 IO 线程 + OOM 防护** (P4)。`DoodleDialog` 用
+  `rememberCoroutineScope` + `withContext(Dispatchers.IO)` 异步生成 PNG, 限制
+  画布最大 2048x2048, 避免主线程 ANR / OOM。
+- **【严重】图片查看器 size 0 保护** (P5)。`PhotoViewer` 在 `centerX/centerY`
+  计算前 `takeIf { it.isFinite() } ?: 0f`, 防止 `size.width = 0` 时 NaN 传播。
+- **【严重】通知权限检查** (P6)。`ReminderWorker` 在 Android 13+ 显式
+  `checkSelfPermission(POST_NOTIFICATIONS)`, 缺失则静默返回 success; `notify`
+  调用包 `runCatching` 兜底 `SecurityException`。
+
+#### 编辑器与表格 (P10, P11, P12, P14, P27, P37, P38, P40, P42, P43)
+- **【严重】表格块替换改用 endIdx 切片** (P10/P11)。`replaceTableBlock` 不再
+  依赖 `indexOf + replaceFirst` (只能替换首个), 改为重新 `findTableBlocks`
+  + `endIdx` 切片重拼, 长文位置不再错乱。
+- **【严重】caret 落在新块末尾** (P12)。表格编辑后 caret 自动定位到新块末尾,
+  撤销时回到旧块位置, 体验更顺。
+- **【严重】实装光标位置插入** (P14)。`onInsertAtCursor` 不再是 unused 桩,
+  改为调用 `insertAtCursor` 工具函数。
+- **【中等】撤销/重做 200ms 节流** (P37)。`pushHistory` 增加 `lastPushMs` 锁,
+  200ms 内连续输入不重复入栈, 避免 80 步容量被快速耗尽。
+- **【中等】表格单元格支持多行** (P27)。移除 `singleLine = true`, 用户编辑
+  文本更灵活。
+- **【中等】表格单元格 IME Done 退出** (P38)。`BasicTextField` 绑定
+  `imeAction = ImeAction.Done` + `KeyboardActions(onDone = { onEditDone() })`,
+  按 Enter 立即退出编辑态。
+- **【中等】insertAtCursor 选区替换** (P40)。`insertAtCursor` 在选区非空时
+  替换选区内容, 选区为空时在光标处插入, 行为符合用户预期。
+- **【中等】serializeTable 转义管道符 / 换行** (P42)。`esc(s) = s.replace("|", "\\|").replace("\n", " ")`,
+  防止含 `|` / 换行的单元格破坏表格结构。
+- **【轻微】表格块 key 用 hashCode** (P43)。`tbl_${block.text.hashCode()}` 替代
+  `tbl_${block.startIdx}_${block.endIdx}`, 表格内容变更后 key 不残留。
+
+#### 提醒与通知 (P3)
+- **【严重】ReminderManager 调度与 Toast 协程化** (P3)。`scheduleReminder` 和
+  `showScheduleResult` 改为 `suspend fun`, 内部用 `withContext(Dispatchers.Main)`
+  调用 Toast, 避免在 IO 线程崩溃。
+
+#### 搜索与历史 (P18, P29)
+- **【轻微】搜索历史 trim 后入栈** (P18)。`state.query` trim 后再判断
+  `isNotBlank`, 避免 " test " 和 "test" 被视为两条。
+- **【轻微】避免历史项点击重复入栈** (P29)。新增 `lastRecordedQuery` 记录
+  最后入栈的 query, 命中即跳过, 杜绝历史点击造成的搜索历史膨胀。
+
+#### 分类与标签 (P13, P17, P23, P41)
+- **【中等】标签显示 trim + 空格分隔** (P13/P41)。`NoteCard` 标签列表
+  trim + 过滤空串, joinToString 用 "  " 双空格分隔, 避免 "#工作#重要" 粘连。
+- **【轻微】标签管理 trim + 大小写不敏感去重** (P17)。`TagsScreen.allTags` 改用
+  `.map { it.trim() }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }`,
+  避免 "工作" 和 " 工作 " 被视为两个标签。
+- **【轻微】分类名长度限制 20 字** (P23)。`CategoriesScreen.AddCategoryDialog`
+  入库前 `name.trim().take(20)`, 防止误输入超长字符串。
+
+#### 路由与隐私 (P21)
+- **【轻微】深链接路径严格匹配** (P21)。`MainActivity.parseLegalUri` 改为
+  `data.path == "/privacy"` (而非 `startsWith`), 不允许 `/privacy/xxx` 子路径绕过。
+
+#### 涂鸦 / 图片 / 表格计数 (P33, P34)
+- **【轻微】笔记卡片附件计数** (P33/P34)。`NoteCard` 新增音频 (GraphicEq) /
+  表格 (TableChart) 数量角标, 用 `audioCountInContent` / `tableCountInContent`
+  正则解析, 用户能直接看到笔记里有多少个附件。
+
+#### 性能与缓存 (P31)
+- **【轻微】应用更新 6 小时缓存** (P31)。`AppUpdateChecker.cachedRemote` 内存
+  缓存远端 release, 6 小时内不重复请求 GitHub API, 减少频率滥用。
+
+#### 启动与体验 (P19, P22, P30)
+- **【轻微】启动页等待数据就绪** (P19)。`SplashScreen` 改为接收 `ready: Boolean`
+  参数, 数据库首屏数据未加载好时持续显示启动页, 避免主屏数据"闪烁"。
+
+#### 文本编辑 (P28, P40)
+- **【轻微】align 选区重算** (P28)。`wrapParagraphWithAlign` 在选区跨多段时
+  重新计算 `newCaretStart/newCaretEnd`, 跨段包绕后选区不再错位。
+
+#### 主屏保存 (P45)
+- **【严重】saveNote 改为 suspend 并返回 id** (P45)。`NotesViewModel.saveNote`
+  从 `fun` 改为 `suspend fun`, 内部 `repository.saveNote` 返回真实 id,
+  编辑页 `lastSaved.id` 与新生成 id 同步, 解决新建笔记"无 id 残留"问题。
+
+#### 图片查看器手势 (P48)
+- **【轻微】双击/单击单独 pointerInput** (P48)。`PhotoViewer` 把
+  `detectTransformGestures` 和 `detectTapGestures` 拆到两个 `pointerInput(Unit)`
+  块, 避免双击/单击被缩放手势吞掉。
+
+#### 其他 (P26, P42, P47)
+- 表格回写后 key 用 `block.text.hashCode()`, 避免内容变更后 key 残留。
+- 涂鸦 Canvas Path 坐标系 1:1 (有意的, 保持笔画精度)。
+- 删除分类提示已包含 noteCount, 用户更清楚影响范围。
+
+### 跳过 (权衡后保留原状)
+- **P22** ID 冲突概率极低, 不值得引入 UUID 改写主键类型。
+- **P30** 涂鸦区分功能 (背景/前景) 影响交互模型, 暂缓。
+- **P35** AboutLegalScreen 版本号展示为可读字段, 暂保持原样。
+- **P36** 主题切换动画需要更复杂的状态机, 暂缓。
+- **P44** 极少触发的多行被截断, 暂保持原样。
+- **P46** Doze 模式提醒非关键, 暂不优化。
+- **P49 / P50** UX 图标 / 笔刷粗细自定影响面较小, 暂不调整。
+
+---
+
 ## [1.0.6] - 2026-06-09
 
 ### 修复

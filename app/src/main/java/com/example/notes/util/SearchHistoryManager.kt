@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 
 /**
@@ -19,8 +20,15 @@ class SearchHistoryManager(context: Context) {
     private val _history = MutableStateFlow<List<String>>(emptyList())
     val history: StateFlow<List<String>> = _history
 
+    // P8: loadHistory 改为协程 + 切到 IO 线程, 避免主线程 JSON 解析
+    private val scope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
+    )
+
     init {
-        loadHistory()
+        scope.launch {
+            loadHistory()
+        }
     }
 
     /**

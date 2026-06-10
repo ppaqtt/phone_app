@@ -65,9 +65,10 @@ class MainActivity : ComponentActivity() {
         val data: Uri = intent?.data ?: return null
         // app://privacy  或  https://qing-jian.ppaqtt.com/privacy
         val isAppPrivacy = data.scheme == "app" && data.host == "privacy"
+        // P21: 严格只匹配 /privacy 路径, 不允许 /privacy/xxx
         val isHttpsPrivacy = data.scheme == "https" &&
             data.host == "qing-jian.ppaqtt.com" &&
-            data.path?.startsWith("/privacy") == true
+            data.path == "/privacy"
         return if (isAppPrivacy || isHttpsPrivacy) data else null
     }
 }

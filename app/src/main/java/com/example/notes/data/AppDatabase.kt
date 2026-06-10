@@ -4,7 +4,12 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 
+/**
+ * 数据库初始化。
+ * 启用外键约束 (SQLite 默认关闭), 防止删除分类时存在孤儿 category_id。
+ */
 @Database(
     entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class],
     version = 4,
@@ -36,6 +41,13 @@ abstract class AppDatabase : RoomDatabase() {
                 // 都是可选字段 (priority/color/reminder_time 等都有默认值),
                 // Room 会通过 schema 校验自动处理,不需要再走 destructive.
                 .fallbackToDestructiveMigrationOnDowngrade()
+                // 启用 SQLite 外键约束, 保护 category_id 引用完整性
+                .addCallback(object : Callback() {
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        db.setForeignKeyConstraintsEnabled(true)
+                    }
+                })
                 .build()
     }
 }

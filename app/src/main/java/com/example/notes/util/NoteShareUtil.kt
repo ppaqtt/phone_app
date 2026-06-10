@@ -38,19 +38,28 @@ object NoteShareUtil {
      * 分享笔记为图片 (长截图样式)
      */
     fun shareAsImage(context: Context, note: NoteEntity) {
-        val bitmap = createNoteBitmap(note)
-        val file = File(context.cacheDir, "share_note_${note.id}.png")
-        FileOutputStream(file).use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        // P2: 提前用 runCatching 包裹整个 IO 流程, 单点捕获异常
+        runCatching {
+            val bitmap = createNoteBitmap(note)
+            val file = File(context.cacheDir, "share_note_${note.id}.png")
+            FileOutputStream(file).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            }
+            bitmap.recycle()
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "image/png"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, note.title)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(Intent.createChooser(intent, "分享笔记图片"))
+        }.onFailure { e ->
+            android.util.Log.e("NoteShareUtil", "shareAsImage failed", e)
+            android.widget.Toast.makeText(
+                context, "生成分享图片失败: ${e.message}", android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "image/png"
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, note.title)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(intent, "分享笔记图片"))
     }
 
     /**
@@ -76,15 +85,18 @@ object NoteShareUtil {
             isAntiAlias = true
         }
 
-        // 计算行数和高度
-        val titleLines = wrapText(note.title, titlePaint, maxWidth - 80)
-        val contentLines = wrapText(note.content, contentPaint, maxWidth - 80)
+        // 计算行数和高度 (空内容兜底, 防 P2 报除零)
+        val titleText = note.title.ifBlank { "无标题" }
+        val contentText = note.content.ifBlank { "(无内容)" }
+        val titleLines = wrapText(titleText, titlePaint, maxWidth - 80)
+        val contentLines = wrapText(contentText, contentPaint, maxWidth - 80)
         val titleHeight = (titleLines.size * 70).coerceAtMost(200)
         val contentHeight = (contentLines.size * 55).coerceAtMost(maxHeight - 400)
-        val height = (60 + titleHeight + 40 + contentHeight + 60 + 40 + 60).coerceAtMost(maxHeight)
+        val safeHeight = (60 + titleHeight + 40 + contentHeight + 60 + 40 + 60)
+            .coerceAtLeast(120)        // 最低 120px 防 0 高度
+            .coerceAtMost(maxHeight)
 
-        // 使用 ARGB_8888 但通过 height 限制防止超长笔记 OOM
-        val bitmap = Bitmap.createBitmap(maxWidth, height, Bitmap.Config.ARGB_8888)
+        val bitmap = Bitmap.createBitmap(maxWidth, safeHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(android.graphics.Color.WHITE)
 
@@ -97,7 +109,7 @@ object NoteShareUtil {
 
         // 绘制分隔线
         y += 20f
-        canvas.drawLine(40f, y, width - 40f, y, Paint().apply {
+        canvas.drawLine(40f, y, (maxWidth - 40).toFloat(), y, Paint().apply {
             color = android.graphics.Color.LTGRAY
             strokeWidth = 2f
         })
@@ -116,7 +128,7 @@ object NoteShareUtil {
 
         // 绘制底部标识
         y += 50f
-        canvas.drawText("—— 清笺笔记", width - 250f, y, timePaint)
+        canvas.drawText("—— 清笺笔记", (maxWidth - 250).toFloat(), y, timePaint)
 
         return bitmap
     }

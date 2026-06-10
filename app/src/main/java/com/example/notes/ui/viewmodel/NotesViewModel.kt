@@ -88,7 +88,7 @@ class NotesViewModel(
      * @param imageUris 图片 URI 列表，按顺序保存
      * @return 更新后的笔记 id (新建时由数据库生成)
      */
-    fun saveNote(
+    suspend fun saveNote(
         id: Long,
         title: String,
         content: String,
@@ -98,22 +98,21 @@ class NotesViewModel(
         color: Int,
         reminderTime: Long? = null,
         imageUris: List<String> = emptyList()
-    ) {
-        viewModelScope.launch {
-            val note = NoteEntity(
-                id = id,
-                title = title.ifBlank { content.lineSequence().firstOrNull().orEmpty().take(40) },
-                content = content,
-                categoryId = categoryId,
-                tags = tags.joinToString(","),
-                isPinned = isPinned,
-                color = color,
-                reminderTime = reminderTime
-            )
-            val savedId = repository.saveNote(note)
-            // 替换图片 (用于新建和编辑时以最终结果为准)
-            repository.replaceNoteImages(savedId, imageUris)
-        }
+    ): Long {
+        val note = NoteEntity(
+            id = id,
+            title = title.ifBlank { content.lineSequence().firstOrNull().orEmpty().take(40) },
+            content = content,
+            categoryId = categoryId,
+            tags = tags.joinToString(","),
+            isPinned = isPinned,
+            color = color,
+            reminderTime = reminderTime
+        )
+        val savedId = repository.saveNote(note)
+        // 替换图片 (用于新建和编辑时以最终结果为准)
+        repository.replaceNoteImages(savedId, imageUris)
+        return savedId
     }
 
     fun deleteNote(id: Long) {

@@ -33,10 +33,14 @@ import kotlinx.coroutines.delay
  * 启动画面: 居中显示 ic_launcher_source.png (清笺卷轴图标),
  * 紧贴下方显示 app_name (清笺)。
  *
- * 整体淡入, 1.5s 后回调, MainActivity 切换到主界面。
+ * 整体淡入, 等待 [ready] = true 后再回调 onAnimationComplete。
+ * 这样首屏数据未加载好时, 启动页会一直显示, 避免数据"闪烁"。
  */
 @Composable
-fun SplashScreen(onAnimationComplete: () -> Unit) {
+fun SplashScreen(
+    ready: Boolean = true,
+    onAnimationComplete: () -> Unit
+) {
     val alpha = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
@@ -44,9 +48,14 @@ fun SplashScreen(onAnimationComplete: () -> Unit) {
             targetValue = 1f,
             animationSpec = tween(durationMillis = 400)
         )
-        // 总启动时长约 800ms (400ms 淡入 + 400ms 停留), 比之前的 1.5s 短
-        delay(400L)
-        onAnimationComplete()
+    }
+
+    // 数据就绪时再回调, 但最少显示 600ms 防闪
+    LaunchedEffect(ready) {
+        if (ready) {
+            delay(600L)
+            onAnimationComplete()
+        }
     }
 
     Box(

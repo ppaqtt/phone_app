@@ -13,12 +13,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +31,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -109,11 +113,13 @@ fun parseMarkdownTable(block: String): TableData? {
  * 渲染时统一调用, 与编辑态回写共用。
  */
 fun serializeTable(data: TableData): String {
+    // P42: 把单元格内的 | / \n 转义, 防止破坏表格结构
+    fun esc(s: String) = s.replace("|", "\\|").replace("\n", " ")
     val sb = StringBuilder()
-    sb.append("| ").append(data.headers.joinToString(" | ")).append(" |\n")
+    sb.append("| ").append(data.headers.joinToString(" | ") { esc(it) }).append(" |\n")
     sb.append("| ").append((1..data.colCount).joinToString(" | ") { "---" }).append(" |\n")
     data.rows.forEach { row ->
-        sb.append("| ").append(row.joinToString(" | ")).append(" |\n")
+        sb.append("| ").append(row.joinToString(" | ") { esc(it) }).append(" |\n")
     }
     return sb.toString().trimEnd()
 }
@@ -274,6 +280,7 @@ private fun TableCell(
         contentAlignment = Alignment.CenterStart
     ) {
         if (editing) {
+            // P27: 允许单元格内多行, 用户编辑更灵活
             BasicTextField(
                 value = editValue,
                 onValueChange = onEditValueChange,
@@ -282,7 +289,14 @@ private fun TableCell(
                     fontWeight = if (isHeader) FontWeight.Bold else FontWeight.Normal,
                     color = MaterialTheme.colorScheme.onSurface
                 ),
-                singleLine = true,
+                // P38: 绑 imeAction.Done, 改完按 Enter 立即退出编辑态
+                keyboardOptions = KeyboardOptions(
+                    imeAction = ImeAction.Done,
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { onEditDone() }
+                ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 modifier = Modifier
                     .fillMaxWidth()

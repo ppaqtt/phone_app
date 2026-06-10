@@ -98,7 +98,9 @@ fun CategoriesScreen(
         AddCategoryDialog(
             onDismiss = { showAdd = false },
             onConfirm = { name, color ->
-                if (name.isNotBlank()) viewModel.addCategory(name, color)
+                // P23: 长度上限 20 字, 防误输入超长字符串
+                val safeName = name.trim().take(20)
+                if (safeName.isNotBlank()) viewModel.addCategory(safeName, color)
                 showAdd = false
             }
         )

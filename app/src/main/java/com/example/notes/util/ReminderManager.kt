@@ -8,6 +8,8 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.notes.data.NoteEntity
 import com.example.notes.work.ReminderWorker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 object ReminderManager {
@@ -24,7 +26,7 @@ object ReminderManager {
      *
      * @return [ScheduleResult] 用于调用方给用户反馈
      */
-    fun scheduleReminder(context: Context, note: NoteEntity, reminderTime: Long): ScheduleResult {
+    suspend fun scheduleReminder(context: Context, note: NoteEntity, reminderTime: Long): ScheduleResult {
         // 1. 先取消同 note 的旧提醒 (幂等)
         cancelReminder(context, note.id)
 
@@ -60,13 +62,15 @@ object ReminderManager {
         WorkManager.getInstance(context).cancelAllWorkByTag("note_$noteId")
     }
 
-    /** 给用户提示调度结果, 应在主线程调用 */
-    fun showScheduleResult(context: Context, result: ScheduleResult) {
+    /** 给用户提示调度结果, 自动切换到主线程避免 Toast 在 IO 线程崩溃 */
+    suspend fun showScheduleResult(context: Context, result: ScheduleResult) {
         val message = when (result) {
             ScheduleResult.SCHEDULED -> "已设置提醒"
             ScheduleResult.TIME_PASSED -> "提醒时间已过, 请重新选择"
             ScheduleResult.FAILED -> "提醒设置失败, 请稍后重试"
         }
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        withContext(Dispatchers.Main) {
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
     }
 }

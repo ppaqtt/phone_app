@@ -24,7 +24,7 @@ object AppUpdateChecker {
     /**
      * 网络不可用时的兜底最新版本号。后续每次正式发版时手动同步。
      */
-    const val FALLBACK_LATEST_VERSION = "1.0.6"
+    const val FALLBACK_LATEST_VERSION = "1.0.7"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME
@@ -75,11 +75,16 @@ object AppUpdateChecker {
 
     /**
      * 检查是否有更新, 优先用 [fetchLatestRelease], 失败回退到 [FALLBACK_LATEST_VERSION]。
+     * P31: 同一天重复调用 fetchLatestRelease 会命中内存缓存, 减少 GitHub API 频率滥用。
      * @return [UpdateCheckResult] 包含是否需要更新 + 远端版本信息 + 错误原因 (若有)。
      */
-    suspend fun checkForUpdate(): UpdateCheckResult {
+    suspend fun checkForUpdate(forceRefresh: Boolean = false): UpdateCheckResult {
         val current = currentVersion()
-        val remote = fetchLatestRelease().getOrNull()
+        val remote = if (forceRefresh || shouldFetchRemote()) {
+            fetchLatestRelease().getOrNull().also { cacheRemoteResult(it) }
+        } else {
+            cachedRemote
+        }
         val effective = remote?.version ?: FALLBACK_LATEST_VERSION
         return UpdateCheckResult(
             currentVersion = current,
@@ -88,6 +93,23 @@ object AppUpdateChecker {
             hasUpdate = isNewerAvailable(current, effective),
             errorMessage = if (remote == null) "网络异常, 已使用本地版本对比" else null
         )
+    }
+
+    // P31: 当日缓存逻辑, 避免反复点 "检查更新" 重复请求
+    private var cachedRemote: ReleaseInfo? = null
+    private var cachedAt: Long = 0L
+    private val cacheValidMillis = 6 * 60 * 60 * 1000L  // 6 小时
+
+    private fun shouldFetchRemote(): Boolean {
+        val now = System.currentTimeMillis()
+        return cachedRemote == null || (now - cachedAt) > cacheValidMillis
+    }
+
+    private fun cacheRemoteResult(info: ReleaseInfo?) {
+        if (info != null) {
+            cachedRemote = info
+            cachedAt = System.currentTimeMillis()
+        }
     }
 
     /**

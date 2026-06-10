@@ -54,16 +54,19 @@ import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -78,6 +81,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -109,6 +114,7 @@ import com.example.notes.util.wrapParagraphWithAlign
 import com.example.notes.util.wrapSelectionWithMarker
 import com.example.notes.util.wrapSelectionWithTag
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -177,7 +183,14 @@ fun NoteEditScreen(
     LaunchedEffect(Unit) { undoRedo.record(NoteSnapshot(title, content.text)) }
     val canUndo by remember { derivedStateOf { undoRedo.canUndo } }
     val canRedo by remember { derivedStateOf { undoRedo.canRedo } }
-    fun pushHistory() { undoRedo.record(NoteSnapshot(title, content.text)) }
+    // P37: 节流, 200ms 内连续输入不重复入栈 (避免 80 步容量被快速耗尽)
+    var lastPushMs by remember { mutableStateOf(0L) }
+    fun pushHistory() {
+        val now = System.currentTimeMillis()
+        if (now - lastPushMs < 200L) return
+        lastPushMs = now
+        undoRedo.record(NoteSnapshot(title, content.text))
+    }
 
     // === Toast: 选区为空时给提示 ===
     fun showSelectFirstHint() {
@@ -327,47 +340,51 @@ fun NoteEditScreen(
         val noteIdToSave = lastSaved?.id ?: 0L
         val colorArgb = color.toArgb()
         val now = System.currentTimeMillis()
-        viewModel.saveNote(
-            id = noteIdToSave,
-            title = title,
-            content = content.text,
-            categoryId = categoryId,
-            tags = tags,
-            isPinned = isPinned,
-            color = colorArgb,
-            reminderTime = reminderTime,
-            imageUris = imageUris.toList()
-        )
-
-        // 同步更新 lastSaved, 避免 isDirty 假阳性 / 元信息时间不更新
-        val effectiveTitle = title.ifBlank { content.text.lineSequence().firstOrNull().orEmpty().take(40) }
-        lastSaved = NoteEntity(
-            id = noteIdToSave,
-            title = effectiveTitle,
-            content = content.text,
-            categoryId = categoryId,
-            tags = tags.joinToString(","),
-            isPinned = isPinned,
-            color = colorArgb,
-            reminderTime = reminderTime,
-            createdAt = lastSaved?.createdAt ?: now,
-            updatedAt = now
-        )
-
-        reminderTime?.let { time ->
-            val note = NoteEntity(
+        val coroutineScope = rememberCoroutineScope()
+        coroutineScope.launch {
+            // P45: 改用挂起 saveNote, 拿到数据库返回的真实 id (新建时 != 0)
+            val savedId = viewModel.saveNote(
                 id = noteIdToSave,
+                title = title,
+                content = content.text,
+                categoryId = categoryId,
+                tags = tags,
+                isPinned = isPinned,
+                color = colorArgb,
+                reminderTime = reminderTime,
+                imageUris = imageUris.toList()
+            )
+
+            // 同步更新 lastSaved, 避免 isDirty 假阳性 / 元信息时间不更新
+            val effectiveTitle = title.ifBlank { content.text.lineSequence().firstOrNull().orEmpty().take(40) }
+            lastSaved = NoteEntity(
+                id = savedId,
                 title = effectiveTitle,
                 content = content.text,
                 categoryId = categoryId,
                 tags = tags.joinToString(","),
                 isPinned = isPinned,
                 color = colorArgb,
-                reminderTime = time
+                reminderTime = reminderTime,
+                createdAt = lastSaved?.createdAt ?: now,
+                updatedAt = now
             )
-            // 显示调度结果 (成功/时间已过/失败)
-            val result = ReminderManager.scheduleReminder(context, note, time)
-            ReminderManager.showScheduleResult(context, result)
+
+            reminderTime?.let { time ->
+                val note = NoteEntity(
+                    id = savedId,
+                    title = effectiveTitle,
+                    content = content.text,
+                    categoryId = categoryId,
+                    tags = tags.joinToString(","),
+                    isPinned = isPinned,
+                    color = colorArgb,
+                    reminderTime = time
+                )
+                // P3: 调度是挂起函数, Toast 会自动切回主线程
+                val result = ReminderManager.scheduleReminder(context, note, time)
+                ReminderManager.showScheduleResult(context, result)
+            }
         }
     }
 
@@ -396,14 +413,21 @@ fun NoteEditScreen(
     /**
      * 把 [oldBlock] (markdown 表格) 替换为 [newBlock] (新 markdown 字符串)。
      * 用来支持单元格编辑回写: 在原文本里找到旧表格块, 替换为新表格块。
+     *
+     * P10/P11: 不再用 indexOf + replaceFirst (只能替换首个匹配, 长文位置错乱),
+     * 改为先 findTableBlocks 重新定位, 用 endIdx 切片重拼, 并自动修正 caret 位置。
+     * P12: caret 落在新块末尾, 撤销时回到旧块末尾。
      */
     fun replaceTableBlock(oldBlock: String, newBlock: String) {
         if (oldBlock == newBlock) return
-        val idx = content.text.indexOf(oldBlock)
-        if (idx < 0) return
-        val newText = content.text.replaceFirst(oldBlock, newBlock)
-        // 选区落在新块之后
-        val newCaret = idx + newBlock.length
+        val blocks = findTableBlocks(content.text)
+        val match = blocks.firstOrNull { (block, _) -> block.text == oldBlock } ?: return
+        val tableBlock = match.first
+        val start = tableBlock.startIdx
+        val end = tableBlock.endIdx
+        val newText = content.text.substring(0, start) + newBlock + content.text.substring(end)
+        // P12: caret 放在新块的内部, 撤销时回到旧块位置
+        val newCaret = start + newBlock.length
         content = content.copy(text = newText, selection = TextRange(newCaret))
         pushHistory()
     }
@@ -578,6 +602,7 @@ fun NoteEditScreen(
                         pushHistory()
                     },
                     onInsertAtCursor = { snippet ->
+                        // P14: 实装光标位置插入, 替代之前的 unused 桩
                         content = insertAtCursor(content, snippet)
                         pushHistory()
                     },
@@ -986,8 +1011,9 @@ private fun NoteBody(
             )
         }
         // 每个表格块渲染为可视化 Excel 风格组件
+        // P43: key 用 block.text 的 hashCode 替代 startIdx, 避免表格内容变更后 key 残留
         tableBlocks.forEach { (block, data) ->
-            item(key = "tbl_${block.startIdx}_${block.endIdx}") {
+            item(key = "tbl_${block.text.hashCode()}") {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     MarkdownTable(
                         data = data,

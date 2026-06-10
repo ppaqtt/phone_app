@@ -61,11 +61,20 @@ fun SearchScreen(
     val focusRequester = remember { FocusRequester() }
     val historyManager = remember { SearchHistoryManager.getInstance(context) }
     val searchHistory by historyManager.history.collectAsState()
+    // P29: 记录最后一次手动入栈的 query, 避免历史项被点击后再次入栈
+    var lastRecordedQuery by remember { mutableStateOf("") }
 
     // 当用户输入并搜索时，保存到历史
+    // P18: trim 后再入历史, 避免 "  test  " 和 "test" 被视为两条
+    // P29: 跳过由历史项触发的 query 变化
     LaunchedEffect(state.query) {
-        if (state.query.isNotBlank() && state.notes.isNotEmpty()) {
-            historyManager.addSearch(state.query)
+        val q = state.query.trim()
+        if (q.isNotBlank() && state.notes.isNotEmpty() && q != lastRecordedQuery) {
+            // 只有 query 不在历史里时, 才 addSearch 避免重复入栈
+            if (q !in searchHistory) {
+                historyManager.addSearch(q)
+                lastRecordedQuery = q
+            }
         }
     }
 

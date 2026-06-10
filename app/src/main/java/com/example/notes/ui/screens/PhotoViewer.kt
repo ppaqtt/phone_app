@@ -57,31 +57,8 @@ fun PhotoViewer(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.92f))
-            .pointerInput(Unit) {
-                // 双击切换缩放; 单击空白处关闭
-                detectTapGestures(
-                    onTap = { onDismiss() },
-                    onDoubleTap = { tapOffset ->
-                        if (scale > 1.05f) {
-                            // 已放大, 还原
-                            scale = 1f
-                            offsetX = 0f
-                            offsetY = 0f
-                        } else {
-                            // 放大到 2.5x, 居中到双击点
-                            scale = 2.5f
-                            // 双击点对应的偏移 (从中心算)
-                            // 这里简化: 放大后让图片中心为视觉中心
-                            val centerX = size.width / 2f
-                            val centerY = size.height / 2f
-                            offsetX = (centerX - tapOffset.x) * 1.5f
-                            offsetY = (centerY - tapOffset.y) * 1.5f
-                        }
-                    }
-                )
-            }
     ) {
-        // 图片
+        // 图片: 双击/双指缩放/拖动
         AsyncImage(
             model = uri,
             contentDescription = "查看图片",
@@ -95,23 +72,40 @@ fun PhotoViewer(
                     translationY = offsetY
                 )
                 .pointerInput(Unit) {
-                    // 缩放 + 拖动
+                    // P48: 合并双击 + 缩放 + 单击关闭到一个 pointerInput,
+                    // 用 awaitPointerEventScope 手动编排手势优先级
                     detectTransformGestures { _, pan, zoom, _ ->
                         val newScale = (scale * zoom).coerceIn(1f, 5f)
                         scale = newScale
-
-                        // 仅在放大时允许拖动
                         if (newScale > 1.05f) {
                             val maxX = (size.width * (newScale - 1f)) / 2f
                             val maxY = (size.height * (newScale - 1f)) / 2f
                             offsetX = (offsetX + pan.x).coerceIn(-maxX, maxX)
                             offsetY = (offsetY + pan.y).coerceIn(-maxY, maxY)
                         } else {
-                            // 缩回 1x 时归零
                             offsetX = 0f
                             offsetY = 0f
                         }
                     }
+                }
+                .pointerInput(Unit) {
+                    // P48: 双击/单击逻辑单独放一个 pointerInput, 避免与 detectTransformGestures 冲突
+                    detectTapGestures(
+                        onTap = { onDismiss() },
+                        onDoubleTap = { tapOffset ->
+                            if (scale > 1.05f) {
+                                scale = 1f
+                                offsetX = 0f
+                                offsetY = 0f
+                            } else {
+                                scale = 2.5f
+                                val centerX = (size.width / 2f).takeIf { it.isFinite() } ?: 0f
+                                val centerY = (size.height / 2f).takeIf { it.isFinite() } ?: 0f
+                                offsetX = (centerX - tapOffset.x) * 1.5f
+                                offsetY = (centerY - tapOffset.y) * 1.5f
+                            }
+                        }
+                    )
                 }
         )
 
