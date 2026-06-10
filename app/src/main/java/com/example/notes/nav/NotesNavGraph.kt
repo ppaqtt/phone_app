@@ -15,6 +15,7 @@ import com.example.notes.ui.screens.NotesListScreen
 import com.example.notes.ui.screens.SearchScreen
 import com.example.notes.ui.screens.SettingsScreen
 import com.example.notes.ui.screens.TagsScreen
+import com.example.notes.ui.screens.TrashScreen
 import com.example.notes.ui.viewmodel.NotesViewModel
 
 object Routes {
@@ -24,6 +25,8 @@ object Routes {
     const val TAGS = "tags"
     const val SEARCH = "search"
     const val SETTINGS = "settings"
+    // F2: 回收站
+    const val TRASH = "trash"
 
     fun edit(noteId: Long) = "edit/$noteId"
 }
@@ -45,7 +48,9 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
                 onOpenCategories = { navController.navigate(Routes.CATEGORIES) { launchSingleTop = true } },
                 onOpenTags = { navController.navigate(Routes.TAGS) { launchSingleTop = true } },
                 onOpenSearch = { navController.navigate(Routes.SEARCH) { launchSingleTop = true } },
-                onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } }
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } },
+                // F2: 回收站
+                onOpenTrash = { navController.navigate(Routes.TRASH) { launchSingleTop = true } }
             )
         }
         composable(

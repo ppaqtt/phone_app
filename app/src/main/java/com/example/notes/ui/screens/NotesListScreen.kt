@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Label
@@ -96,7 +97,8 @@ fun NotesListScreen(
     onOpenCategories: () -> Unit,
     onOpenTags: () -> Unit,
     onOpenSearch: () -> Unit,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onOpenTrash: () -> Unit
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
@@ -168,6 +170,19 @@ fun NotesListScreen(
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenTags()
+                                }
+                            )
+                            // F2: 回收站入口
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("回收站")
+                                    }
+                                },
+                                leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenTrash()
                                 }
                             )
                             DropdownMenuItem(

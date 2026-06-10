@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.notes.data.AppDatabase
 import com.example.notes.repository.NotesRepository
 import com.example.notes.util.AppUpdateChecker
+import com.example.notes.util.TrashJanitorWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +55,9 @@ class NotesApplication : Application() {
             runCatching { AppUpdateChecker.checkForUpdate(this@NotesApplication) }
                 .onFailure { Log.w("NotesApplication", "update check failed: ${it.message}") }
         }
+
+        // F2: 调度回收站清理 worker, 24h 后跑, 之后 KEEP 策略幂等。
+        TrashJanitorWorker.schedule(this)
     }
 
     /**

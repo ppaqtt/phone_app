@@ -136,6 +136,9 @@ class NotesViewModel(
      * 倒计时结束则放弃快照, 删除永久化; 4) UI 通过 [undoLastDelete] 撤销。
      *
      * 返回快照的 noteId (用于 UI 反馈)。同一时间仅支持撤销最近一次删除, 新删除会取消上一次倒计时。
+     *
+     * F2: 改走软删除 (deleted_at = now), 笔记从主列表消失, 但仍可通过
+     * [undoLastDelete] 在 5 秒内立即恢复, 或在 30 天内从回收站恢复。
      */
     private var pendingUndo: NoteWithCategoryAndImages? = null
     private var pendingUndoJob: Job? = null
@@ -146,11 +149,11 @@ class NotesViewModel(
             val snapshot = repository.getNoteSnapshot(id)
             if (snapshot == null) return@launchSafe
             pendingUndo = snapshot
+            // F2: 走软删除, 不真删
             repository.deleteNote(id)
             // 5s 倒计时; 若 5s 内用户撤销, 倒计时会被 cancel
             pendingUndoJob = viewModelScope.launch {
                 delay(5_000L)
-                // 5s 内未撤销, 永久删除
                 if (pendingUndo?.note?.id == id) {
                     pendingUndo = null
                 }
@@ -159,7 +162,8 @@ class NotesViewModel(
     }
 
     /**
-     * P97: 撤销最近一次删除 (必须在 5 秒内调用, 否则快照已清空)。
+     * P97 + F2: 撤销最近一次"软删除" (5 秒内)。
+     * 走 [restoreNoteFromSnapshot] 把 deleted_at 置回 NULL, 图片一并还原。
      * @return 是否成功撤销
      */
     suspend fun undoLastDelete(): Boolean {
@@ -208,6 +212,33 @@ class NotesViewModel(
 
     fun removeTagFromAllNotes(tag: String) {
         viewModelScope.launchSafe("removeTagFromAllNotes") { repository.removeTagFromAllNotes(tag) }
+    }
+
+    // --- Trash (F2) ------------------------------------------------------
+
+    /** F2: 回收站列表 (Flow) */
+    fun observeTrash() = repository.observeTrash()
+
+    /** F2: 回收站条数 (UI 角标) */
+    fun observeTrashCount() = repository.observeTrashCount()
+
+    /** F2: 从回收站恢复一条 */
+    fun restoreFromTrash(id: Long) {
+        viewModelScope.launchSafe("restoreFromTrash") { repository.restoreFromTrash(id) }
+    }
+
+    /** F2: 永久删除回收站里某条 (真删) */
+    fun permanentlyDeleteTrashed(id: Long) {
+        viewModelScope.launchSafe("permanentlyDeleteTrashed") { repository.permanentlyDeleteTrashed(id) }
+    }
+
+    /** F2: 立即清空回收站 (UI "清空回收站" 按钮) */
+    fun emptyTrash() {
+        viewModelScope.launchSafe("emptyTrash") {
+            // 调永久删除循环: 先拿 id 列表, 再逐个 delete
+            // 简化: 用 purgeOldTrash(daysOld=0) 删全部
+            repository.purgeOldTrash(daysOld = 0)
+        }
     }
 
     // --- Backup / Restore (F1) -----------------------------------------

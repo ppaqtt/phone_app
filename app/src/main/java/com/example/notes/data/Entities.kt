@@ -64,7 +64,16 @@ data class NoteEntity(
     val createdAt: Long = System.currentTimeMillis(),
 
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+
+    /**
+     * F2: 回收站标记。null = 正常笔记; 非 null = 已软删除的时间戳。
+     * 30 天后由 [com.example.notes.util.TrashJanitor] 真删。
+     * 用 nullable Long 而不是 Boolean 是为了: 1) 记录删除时间; 2) 走现有索引;
+     * 3) 0L 当作 1970 不会被误当有效值, 因为回收站逻辑只看 IS NULL。
+     */
+    @ColumnInfo(name = "deleted_at", defaultValue = "NULL")
+    val deletedAt: Long? = null
 )
 
 @Entity(

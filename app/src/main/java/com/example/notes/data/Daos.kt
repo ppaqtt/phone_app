@@ -12,26 +12,27 @@ import kotlinx.coroutines.flow.Flow
 interface NoteDao {
 
     @Transaction
-    @Query("SELECT * FROM notes ORDER BY is_pinned DESC, updated_at DESC")
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY is_pinned DESC, updated_at DESC")
     fun observeAll(): Flow<List<NoteWithCategory>>
 
     @Transaction
-    @Query("SELECT * FROM notes WHERE id = :id")
+    @Query("SELECT * FROM notes WHERE id = :id AND deleted_at IS NULL")
     fun observeById(id: Long): Flow<NoteWithCategory?>
 
     @Transaction
-    @Query("SELECT * FROM notes WHERE id = :id")
+    @Query("SELECT * FROM notes WHERE id = :id AND deleted_at IS NULL")
     fun observeWithImages(id: Long): Flow<NoteWithCategoryAndImages?>
 
     @Transaction
-    @Query("SELECT * FROM notes WHERE category_id = :categoryId ORDER BY is_pinned DESC, updated_at DESC")
+    @Query("SELECT * FROM notes WHERE category_id = :categoryId AND deleted_at IS NULL ORDER BY is_pinned DESC, updated_at DESC")
     fun observeByCategory(categoryId: Long): Flow<List<NoteWithCategory>>
 
     @Transaction
     @Query(
         """
         SELECT * FROM notes
-        WHERE title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%'
+        WHERE deleted_at IS NULL
+          AND (title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%')
         ORDER BY is_pinned DESC, updated_at DESC
         """
     )
@@ -64,7 +65,7 @@ interface NoteDao {
     @Query("UPDATE notes SET category_id = :categoryId WHERE id = :id")
     suspend fun setCategory(id: Long, categoryId: Long?)
 
-    @Query("SELECT * FROM notes")
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL")
     suspend fun getAllNotesForSync(): List<NoteEntity>
 
     /**
@@ -109,6 +110,38 @@ interface NoteDao {
      */
     @Query("DELETE FROM notes")
     suspend fun clearAll()
+
+    // --- Trash (F2) ------------------------------------------------------
+
+    /**
+     * F2: 回收站列表, deleted_at IS NOT NULL, 按删除时间倒序。
+     */
+    @Transaction
+    @Query("SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+    fun observeTrash(): Flow<List<NoteWithCategory>>
+
+    /** F2: 软删除 — 把 deleted_at 设为当前时间戳 */
+    @Query("UPDATE notes SET deleted_at = :deletedAt WHERE id = :id")
+    suspend fun softDelete(id: Long, deletedAt: Long = System.currentTimeMillis())
+
+    /** F2: 从回收站恢复 — 把 deleted_at 置 NULL */
+    @Query("UPDATE notes SET deleted_at = NULL WHERE id = :id")
+    suspend fun restoreFromTrash(id: Long)
+
+    /** F2: 真删 — 硬删除 (回收站条目永久删除按钮) */
+    @Query("DELETE FROM notes WHERE id = :id")
+    suspend fun permanentDelete(id: Long)
+
+    /**
+     * F2: 清空 N 天前的已删笔记 (后台清理任务调用)。
+     * 关联的 note_images 通过外键 CASCADE 自动级联删除。
+     */
+    @Query("DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < :before")
+    suspend fun purgeOldTrash(before: Long): Int
+
+    /** F2: 统计回收站条目数 (UI 显示 "回收站 (3)" 角标) */
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NOT NULL")
+    fun observeTrashCount(): Flow<Int>
 }
 
 @Dao

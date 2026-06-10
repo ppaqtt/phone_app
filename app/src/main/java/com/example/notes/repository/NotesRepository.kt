@@ -51,7 +51,19 @@ class NotesRepository(
     }
 
     suspend fun deleteNote(note: NoteEntity) = noteDao.delete(note)
-    suspend fun deleteNote(id: Long) = noteDao.deleteById(id)
+
+    /**
+     * F2: 删除按钮改走"软删除" — 把 deleted_at 设为当前时间, 笔记从列表消失,
+     * 30 天内可在回收站恢复, 30 天后由 [TrashJanitor] 真删。
+     * 用"真删"路径只在"回收站永久删除"按钮和备份清空时使用。
+     */
+    suspend fun deleteNote(id: Long) = noteDao.softDelete(id)
+
+    /**
+     * F2: 真正从数据库删除一条笔记 (硬删除), 关联 note_images 通过
+     * 外键 CASCADE 自动级联删除。
+     */
+    suspend fun permanentDeleteNote(id: Long) = noteDao.permanentDelete(id)
     suspend fun togglePin(id: Long, pinned: Boolean) = noteDao.setPinned(id, pinned)
 
     /**
@@ -64,10 +76,13 @@ class NotesRepository(
     /**
      * P97: 用快照恢复一条笔记 (包括原 id 和全部图片)。
      * 关联图片必须先恢复, 否则 noteId 外键可能找不到对应笔记。
+     *
+     * F2: 撤销软删除时, 强制把 deleted_at 置 NULL, 否则软删除行还在, 主列表看不到。
      */
     suspend fun restoreNoteFromSnapshot(snapshot: NoteWithCategoryAndImages) {
         database.withTransaction {
-            noteDao.insertWithId(snapshot.note)
+            val restored = snapshot.note.copy(deletedAt = null)
+            noteDao.insertWithId(restored)
             noteImageDao.deleteByNote(snapshot.note.id)
             val images = snapshot.images.map { it.copy(id = 0) }
             if (images.isNotEmpty()) noteImageDao.insertAll(images)
@@ -136,6 +151,32 @@ class NotesRepository(
     }
 
     suspend fun deleteNoteImage(image: NoteImageEntity) = noteImageDao.delete(image)
+
+    // --- Trash (F2) ------------------------------------------------------
+
+    /** F2: 回收站列表 (Flow, 自动刷新) */
+    fun observeTrash() = noteDao.observeTrash()
+
+    /** F2: 回收站条目数 (用于 UI 角标) */
+    fun observeTrashCount(): Flow<Int> = noteDao.observeTrashCount()
+
+    /** F2: 从回收站恢复一条笔记 */
+    suspend fun restoreFromTrash(id: Long) = noteDao.restoreFromTrash(id)
+
+    /**
+     * F2: 物理删除回收站里某条笔记 (永久删除按钮)。
+     * 注意 deleteNote(id) 走软删除, 想真删必须调这个。
+     */
+    suspend fun permanentlyDeleteTrashed(id: Long) = noteDao.permanentDelete(id)
+
+    /**
+     * F2: 清空 N 天前的已删笔记 (后台 TrashJanitor 调)。
+     * @return 真删的条数
+     */
+    suspend fun purgeOldTrash(daysOld: Int = 30): Int {
+        val threshold = System.currentTimeMillis() - daysOld * 24L * 60 * 60 * 1000
+        return noteDao.purgeOldTrash(threshold)
+    }
 
     // --- Backup / Restore (F1) -----------------------------------------
 
