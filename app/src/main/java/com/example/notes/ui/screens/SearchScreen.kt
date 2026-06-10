@@ -53,7 +53,7 @@ fun SearchScreen(
                         value = state.query,
                         onValueChange = { viewModel.setQuery(it) },
                         placeholder = { Text("搜索笔记内容、标题、标签") },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "搜索") },
                         trailingIcon = {
                             if (state.query.isNotEmpty()) {
                                 IconButton(onClick = { viewModel.setQuery("") }) {

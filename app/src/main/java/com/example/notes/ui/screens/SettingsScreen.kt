@@ -171,7 +171,7 @@ private fun AboutHeaderCard() {
         ) {
             Icon(
                 imageVector = Icons.Filled.Info,
-                contentDescription = null,
+                contentDescription = "应用信息",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(40.dp)
             )
@@ -253,7 +253,7 @@ private fun UpdateCheckCard(
         ) {
             Icon(
                 imageVector = Icons.Filled.Refresh,
-                contentDescription = null,
+                contentDescription = "检查更新",
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(12.dp))
@@ -304,7 +304,7 @@ private fun FeedbackCard() {
         ) {
             Icon(
                 imageVector = Icons.Filled.Feedback,
-                contentDescription = null,
+                contentDescription = "问题反馈",
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(Modifier.width(12.dp))
@@ -535,7 +535,7 @@ private fun LegalEntryRow(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = title,
             tint = MaterialTheme.colorScheme.primary
         )
         Spacer(Modifier.width(12.dp))
@@ -554,7 +554,7 @@ private fun LegalEntryRow(
         }
         Icon(
             imageVector = Icons.Filled.ChevronRight,
-            contentDescription = null,
+            contentDescription = "进入",
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }

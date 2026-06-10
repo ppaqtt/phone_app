@@ -9,6 +9,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -161,7 +164,7 @@ fun NoteEditScreen(
             content = lastSaved?.content.orEmpty()
         ) else NoteSnapshot("", "")
     }
-    val isDirty = remember(title, content, initialSnapshot) {
+    val isDirty = remember(title, content.text, initialSnapshot) {
         title != initialSnapshot.title || content.text != initialSnapshot.content
     }
 
@@ -183,14 +186,15 @@ fun NoteEditScreen(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9)
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
-            uris.forEach { uri ->
+            val granted = uris.mapNotNull { uri ->
                 runCatching {
                     context.contentResolver.takePersistableUriPermission(
                         uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
-                }
-                imageUris.add(uri.toString())
+                    uri.toString()
+                }.getOrNull()
             }
+            imageUris.addAll(granted)
         }
         selectedTool = null
     }
@@ -246,7 +250,7 @@ fun NoteEditScreen(
         selectedTool = null
     }
 
-    val calendar = Calendar.getInstance()
+    val calendar = remember { Calendar.getInstance() }
     fun showDateTimePicker() {
         val datePicker = DatePickerDialog(
             context,
@@ -431,6 +435,15 @@ fun NoteEditScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // 加载中遮罩
+            if (!loaded && !isNew) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            } else {
             // === 标题 (带下划线) ===
             Box(
                 modifier = Modifier
@@ -485,9 +498,14 @@ fun NoteEditScreen(
             )
 
             // === 工具面板 ===
-            if (selectedTool != null) {
+            AnimatedVisibility(
+                visible = selectedTool != null,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                selectedTool?.let { tool ->
                 ToolPanel(
-                    tool = selectedTool!!,
+                    tool = tool,
                     onPickImages = {
                         pickMedia.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -572,6 +590,7 @@ fun NoteEditScreen(
                     onDoodleClick = { showDoodle = true; selectedTool = null },
                     onTableClick = { showTableDialog = true; selectedTool = null }
                 )
+                }
             }
 
             // === 底部工具栏 (6 项, AI 已移除) ===
@@ -581,6 +600,7 @@ fun NoteEditScreen(
                     selectedTool = if (selectedTool == tool) null else tool
                 }
             )
+            }
         }
     }
 
@@ -730,7 +750,7 @@ private fun MetaInfoRow(
             )
             Icon(
                 Icons.Filled.ChevronRight,
-                contentDescription = null,
+                contentDescription = "选择分类",
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -792,7 +812,7 @@ private fun NoteBody(
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            Icon(Icons.Filled.AudioFile, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.AudioFile, contentDescription = "音频文件", tint = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.size(8.dp))
                             Text(
                                 text = "音频: " + uri.substringAfterLast('/').take(28),
@@ -941,15 +961,16 @@ private fun ImageThumb(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(4.dp)
-                .size(22.dp)
-                .clickable { onRemove() }
+                .size(40.dp)
+                .clickable { onRemove() },
+            contentColor = Color.White
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     Icons.Filled.Close,
                     contentDescription = "删除图片",
                     tint = Color.White,
-                    modifier = Modifier.size(14.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }

@@ -1,7 +1,10 @@
 package com.example.notes.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
@@ -175,12 +178,21 @@ fun NotesListScreen(
                 }
             }
 
-            if (state.notes.isEmpty()) {
+            AnimatedVisibility(
+                visible = state.notes.isEmpty(),
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
                 EmptyState(
                     onAdd = onAddNote,
                     modifier = Modifier.fillMaxSize()
                 )
-            } else {
+            }
+            AnimatedVisibility(
+                visible = state.notes.isNotEmpty(),
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
                 LazyColumn(
                     contentPadding = PaddingValues(top = 4.dp, bottom = 96.dp),
                     modifier = Modifier.fillMaxSize()
@@ -198,19 +210,25 @@ fun NotesListScreen(
     }
 
     // ============== 动作对话框 ==============
-    actionTarget?.let { target ->
-        NoteActionsRow(
-            target = target,
-            onDismiss = { dismissActions() },
-            onPin = {
-                viewModel.togglePin(target.note.id, !target.note.isPinned)
-                dismissActions()
-            },
-            onTags = { showTagsDialog = true },
-            onDelete = { showDeleteDialog = true },
-            onMove = { showMoveDialog = true },
-            onPriority = { showPriorityDialog = true }
-        )
+    AnimatedVisibility(
+        visible = actionTarget != null,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
+        actionTarget?.let { target ->
+            NoteActionsRow(
+                target = target,
+                onDismiss = { dismissActions() },
+                onPin = {
+                    viewModel.togglePin(target.note.id, !target.note.isPinned)
+                    dismissActions()
+                },
+                onTags = { showTagsDialog = true },
+                onDelete = { showDeleteDialog = true },
+                onMove = { showMoveDialog = true },
+                onPriority = { showPriorityDialog = true }
+            )
+        }
     }
 
     if (showTagsDialog && actionTarget != null) {
