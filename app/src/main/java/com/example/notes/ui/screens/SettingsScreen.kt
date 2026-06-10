@@ -346,6 +346,18 @@ private fun ChangelogCard() {
             )
             Spacer(Modifier.height(12.dp))
             ChangelogVersion(
+                version = "v1.0.6",
+                date = "2026-06-10",
+                items = listOf(
+                    "修复：「疯狂点击应用导致内容消失」严重 bug — 移除 Room 的 fallbackToDestructiveMigration(), 改为 fallbackToDestructiveMigrationOnDowngrade()",
+                    "修复：编辑页保存按钮防重入锁 — 点击一次后立即置灰, 防止快速点击引发数据竞态",
+                    "修复：删除对话框防重入锁 — 点击删除后按钮置灰, 关闭 300ms 后重置",
+                    "修复：导航页面堆叠 — 所有 navigate 添加 launchSingleTop=true",
+                    "升级：版本号 v1.0.5 → v1.0.6 (versionCode 5 → 6)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
                 version = "v1.0.5",
                 date = "2026-06-09",
                 items = listOf(
