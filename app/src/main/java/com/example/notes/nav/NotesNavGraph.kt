@@ -90,5 +90,12 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
                 onBack = { navController.popBackStack() }
             )
         }
+        // F2: 回收站
+        composable(Routes.TRASH) {
+            TrashScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
     }
 }
