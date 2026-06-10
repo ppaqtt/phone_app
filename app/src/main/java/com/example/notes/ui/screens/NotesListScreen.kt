@@ -231,12 +231,15 @@ fun NotesListScreen(
                     )
                 }
                 items(state.categories, key = { it.id }) { cat ->
+                    val indent = computeCategoryIndent(state.categories, cat.id)
                     FilterChip(
                         selected = state.activeCategoryId == cat.id,
                         onClick = {
                             viewModel.setCategoryFilter(if (state.activeCategoryId == cat.id) null else cat.id)
                         },
-                        label = { Text(cat.name) }
+                        label = {
+                            Text(if (indent > 0) "↳ ${cat.name}" else cat.name)
+                        }
                     )
                 }
             }
@@ -800,4 +803,25 @@ private fun EmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+/**
+ * F12: 计算分类在层级树中的深度 (0=顶级, 1=子级, ...)。
+ * 沿 parentId 链向上遍历, 循环引用 / 缺失父级用深度上限保护。
+ */
+private fun computeCategoryIndent(
+    all: List<com.example.notes.data.CategoryEntity>,
+    id: Long,
+    maxDepth: Int = 5
+): Int {
+    val map = all.associateBy { it.id }
+    var depth = 0
+    var cur = map[id]?.parentId
+    val seen = HashSet<Long>()
+    seen.add(id)
+    while (cur != null && depth < maxDepth && seen.add(cur)) {
+        depth++
+        cur = map[cur]?.parentId
+    }
+    return depth
 }

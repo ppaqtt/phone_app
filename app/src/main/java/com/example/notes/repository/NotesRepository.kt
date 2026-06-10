@@ -117,8 +117,12 @@ class NotesRepository(
 
     fun observeCategories(): Flow<List<CategoryEntity>> = categoryDao.observeAll()
 
-    suspend fun addCategory(name: String, color: Int): Long =
-        categoryDao.insert(CategoryEntity(name = name.trim(), color = color))
+    suspend fun addCategory(name: String, color: Int, parentId: Long? = null): Long =
+        categoryDao.insert(CategoryEntity(name = name.trim(), color = color, parentId = parentId))
+
+    /** F12: 修改分类的父级 */
+    suspend fun setCategoryParent(id: Long, parentId: Long?) =
+        categoryDao.setParent(id, parentId)
 
     suspend fun deleteCategory(category: CategoryEntity) = categoryDao.delete(category)
 
@@ -129,13 +133,16 @@ class NotesRepository(
         categoryDao.observeNoteCountForCategory(categoryId)
 
     /**
-     * 删除分类前先清理笔记的 category_id, 避免外键约束失败。
+     * 删除分类前先清理笔记的 category_id 和子分类的 parent_id, 避免外键约束失败。
      * P54: 用 [RoomDatabase.withTransaction] 包裹两步操作, 保证原子性。
      * (Room 的 @Transaction 注解只对 DAO 接口方法生效, 在 Repository 上无效。)
+     *
+     * F12: 增加"清空子分类 parent_id"步骤, 防止删父分类后子分类残留指向不存在的父级。
      */
     suspend fun deleteCategorySafely(category: CategoryEntity) {
         database.withTransaction {
             categoryDao.clearCategoryForNotes(category.id)
+            categoryDao.clearParentForChildren(category.id)
             categoryDao.delete(category)
         }
     }
@@ -250,6 +257,16 @@ class NotesRepository(
                     )
                 )
                 categoryIdMap[c.oldId] = newId
+            }
+
+            // F12: 第二轮 — 维护 parent_id。老备份没有 parentOldId 时仍保持顶级。
+            // 用单独的循环确保父分类已先插入, 查找 categoryIdMap 不会撞到 -1。
+            payload.categories.forEach { c ->
+                if (c.parentOldId != null) {
+                    val newId = categoryIdMap[c.oldId] ?: return@forEach
+                    val newParentId = categoryIdMap[c.parentOldId]
+                    categoryDao.setParent(newId, newParentId)
+                }
             }
 
             // 2) 笔记

@@ -85,7 +85,7 @@ data class NoteEntity(
 
 @Entity(
     tableName = "categories",
-    indices = [Index(value = ["name"], unique = true)]
+    indices = [Index(value = ["name"], unique = true), Index("parent_id")]
 )
 data class CategoryEntity(
     @PrimaryKey(autoGenerate = true)
@@ -96,6 +96,14 @@ data class CategoryEntity(
 
     @ColumnInfo(name = "color")
     val color: Int = 0xFF6750A4.toInt(),
+
+    /**
+     * F12: 父分类 id, null = 顶级分类。
+     * 用 nullable Long 而非 String 是为了: 1) 数据库索引快; 2) 与 id 类型一致; 3) 可空即代表"无父级"。
+     * 删除父分类时由 Repository 级联把子分类的 parentId 置空 (不级联删子分类, 避免意外丢笔记)。
+     */
+    @ColumnInfo(name = "parent_id", defaultValue = "NULL")
+    val parentId: Long? = null,
 
     @ColumnInfo(name = "created_at")
     val createdAt: Long = System.currentTimeMillis()

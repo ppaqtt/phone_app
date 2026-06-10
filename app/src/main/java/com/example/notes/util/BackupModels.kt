@@ -27,6 +27,11 @@ data class CategoryBackup(
     val oldId: Long,
     val name: String,
     val color: Int,
+    /**
+     * F12: 老备份中可能没有 parentOldId 字段 (字段为 null 时导入为顶级分类)。
+     * 默认 null 保证与 v1 老备份文件兼容。
+     */
+    val parentOldId: Long? = null,
     val createdAt: Long
 )
 

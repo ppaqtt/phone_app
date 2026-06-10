@@ -187,6 +187,17 @@ interface CategoryDao {
     suspend fun clearCategoryForNotes(id: Long)
 
     /**
+     * F12: 把"以 id 为父分类"的子分类的 parent_id 置空 (用于删除父分类前清理)。
+     * 不级联删除子分类 —— 子分类仍是有效数据, 只失去层级关系。
+     */
+    @Query("UPDATE categories SET parent_id = NULL WHERE parent_id = :id")
+    suspend fun clearParentForChildren(id: Long)
+
+    /** F12: 更新父分类 */
+    @Query("UPDATE categories SET parent_id = :parentId WHERE id = :id")
+    suspend fun setParent(id: Long, parentId: Long?)
+
+    /**
      * F1: 备份导出时一次性拿全部分类 (非响应式, 仅用于构建 JSON)。
      */
     @Query("SELECT * FROM categories ORDER BY created_at ASC")

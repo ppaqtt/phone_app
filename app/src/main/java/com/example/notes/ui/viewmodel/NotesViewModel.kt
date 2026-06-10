@@ -201,12 +201,17 @@ class NotesViewModel(
         viewModelScope.launchSafe("moveToCategory") { repository.moveToCategory(id, categoryId) }
     }
 
-    fun addCategory(name: String, color: Int) {
-        viewModelScope.launchSafe("addCategory") { repository.addCategory(name, color) }
+    fun addCategory(name: String, color: Int, parentId: Long? = null) {
+        viewModelScope.launchSafe("addCategory") { repository.addCategory(name, color, parentId) }
     }
 
     fun deleteCategory(category: CategoryEntity) {
         viewModelScope.launchSafe("deleteCategory") { repository.deleteCategorySafely(category) }
+    }
+
+    /** F12: 重新设置分类的父级 (null=顶级) */
+    fun setCategoryParent(id: Long, parentId: Long?) {
+        viewModelScope.launchSafe("setCategoryParent") { repository.setCategoryParent(id, parentId) }
     }
 
     /**

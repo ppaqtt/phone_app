@@ -79,6 +79,7 @@ object BackupManager {
                 oldId = it.id,
                 name = it.name,
                 color = it.color,
+                parentOldId = it.parentId,
                 createdAt = it.createdAt
             )
         },

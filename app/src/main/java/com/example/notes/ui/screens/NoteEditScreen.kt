@@ -2002,6 +2002,8 @@ private fun CategorySelectDialog(
     onConfirm: (Long?) -> Unit
 ) {
     var selected by remember { mutableStateOf(current) }
+    // F12: 按层级渲染分类, 子分类缩进显示
+    val flatRows = remember(categories) { flattenCategoriesForSelect(categories) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择分类") },
@@ -2029,13 +2031,19 @@ private fun CategorySelectDialog(
                             color = MaterialTheme.colorScheme.primary)
                     }
                 }
-                categories.forEach { cat ->
+                flatRows.forEach { row ->
+                    val cat = row.category
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { selected = cat.id }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                            .padding(
+                                start = (8 + row.level * 20).dp,
+                                end = 8.dp,
+                                top = 12.dp,
+                                bottom = 12.dp
+                            ),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -2060,4 +2068,26 @@ private fun CategorySelectDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
+}
+
+/**
+ * F12: 把分类按"父→子"层级展开, 子节点 start 缩进 20dp。
+ * 与 CategoriesScreen 内的 flattenForDisplay 逻辑一致。
+ */
+private data class FlatCategory(val category: com.example.notes.data.CategoryEntity, val level: Int)
+
+private fun flattenCategoriesForSelect(
+    all: List<com.example.notes.data.CategoryEntity>
+): List<FlatCategory> {
+    val byParent = all.groupBy { it.parentId }
+    val roots = byParent[null].orEmpty()
+    val result = ArrayList<FlatCategory>(all.size)
+    fun walk(items: List<com.example.notes.data.CategoryEntity>, level: Int) {
+        items.forEach { c ->
+            result.add(FlatCategory(c, level))
+            byParent[c.id]?.let { walk(it, level + 1) }
+        }
+    }
+    walk(roots, 0)
+    return result
 }
