@@ -8,9 +8,11 @@ import com.example.notes.data.NoteImageDao
 import com.example.notes.data.NoteImageEntity
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
+import timber.log.Timber
 
 /**
  * Single source of truth for the UI layer. The ViewModel never talks to the
@@ -134,4 +136,105 @@ class NotesRepository(
     }
 
     suspend fun deleteNoteImage(image: NoteImageEntity) = noteImageDao.delete(image)
+
+    // --- Backup / Restore (F1) -----------------------------------------
+
+    /**
+     * F1: 一次性把所有数据拉出来, 构建成可序列化的 payload。
+     * 用事务保证导出期间 4 个表的数据一致 (避免读到半改状态)。
+     */
+    suspend fun exportBackup(appVersion: String): BackupPayload {
+        return database.withTransaction {
+            val categories = categoryDao.getAllOnce()
+            val notes = noteDao.getAllNotesForSync()
+            val images = noteImageDao.getAllOnce()
+            com.example.notes.util.BackupManager.buildPayload(
+                appVersion = appVersion,
+                categories = categories,
+                notes = notes,
+                images = images
+            )
+        }
+    }
+
+    /**
+     * F1: 用 payload 还原数据, 全部在一个事务里完成。
+     *
+     * @param replaceExisting true = 清空旧数据再导入 (典型用法);
+     *                        false = 保留旧数据, 备份内容作为新增 (id 会重新分配)。
+     * @return (导入的分类数, 导入的笔记数, 导入的图片数)
+     *
+     * 实现要点:
+     * 1) 旧 id → 新 id 映射表, 处理数据库 AUTO_INCREMENT 复用问题;
+     * 2) 分类先于笔记导入, 否则笔记的 category_id 外键找不到父;
+     * 3) 笔记先于图片导入, 否则图片的 noteId 外键找不到父;
+     * 4) 不删除旧 category, 用 REPLACE 让 OnConflictStrategy 处理。
+     */
+    suspend fun importBackup(
+        payload: BackupPayload,
+        replaceExisting: Boolean
+    ): Triple<Int, Int, Int> {
+        return database.withTransaction {
+            if (replaceExisting) {
+                // 清空 3 张表; 图片先删 (外键依赖), 笔记次之, 分类最后
+                noteImageDao.clearAll()
+                noteDao.clearAll()
+                categoryDao.clearAll()
+            }
+
+            // 1) 分类
+            val categoryIdMap = HashMap<Long, Long>(payload.categories.size)
+            payload.categories.forEach { c ->
+                val newId = categoryDao.insertWithId(
+                    CategoryEntity(
+                        id = c.oldId,
+                        name = c.name,
+                        color = c.color,
+                        createdAt = c.createdAt
+                    )
+                )
+                categoryIdMap[c.oldId] = newId
+            }
+
+            // 2) 笔记
+            val noteIdMap = HashMap<Long, Long>(payload.notes.size)
+            payload.notes.forEach { n ->
+                val newCategoryId = n.categoryOldId?.let { categoryIdMap[it] }
+                val newId = noteDao.insertWithId(
+                    NoteEntity(
+                        id = n.oldId,
+                        title = n.title,
+                        content = n.content,
+                        categoryId = newCategoryId,
+                        tags = n.tags,
+                        isPinned = n.isPinned,
+                        priority = n.priority,
+                        color = n.color,
+                        reminderTime = n.reminderTime,
+                        createdAt = n.createdAt,
+                        updatedAt = n.updatedAt
+                    )
+                )
+                noteIdMap[n.oldId] = newId
+            }
+
+            // 3) 图片
+            val imageEntities = payload.images.mapNotNull { img ->
+                val newNoteId = noteIdMap[img.noteOldId] ?: return@mapNotNull null
+                NoteImageEntity(
+                    id = img.oldId,
+                    noteId = newNoteId,
+                    uri = img.uri,
+                    position = img.position
+                )
+            }
+            if (imageEntities.isNotEmpty()) {
+                noteImageDao.insertAll(imageEntities)
+            }
+
+            Timber.tag("Backup")
+                .i("imported categories=${categoryIdMap.size} notes=${noteIdMap.size} images=${imageEntities.size}")
+            Triple(categoryIdMap.size, noteIdMap.size, imageEntities.size)
+        }
+    }
 }

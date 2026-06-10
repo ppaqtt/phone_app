@@ -75,6 +75,7 @@ fun NotesNavGraph(viewModel: NotesViewModel) {
         }
         composable(Routes.SETTINGS) {
             SettingsScreen(
+                viewModel = viewModel,
                 onBack = { navController.popBackStack() }
             )
         }

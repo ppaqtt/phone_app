@@ -101,6 +101,14 @@ interface NoteDao {
         END
     """)
     suspend fun removeTagFromAllNotes(tag: String)
+
+    /**
+     * F1: 导入备份前清空 notes 表 (顺序: 图片 → 笔记 → 分类)。
+     * 外键约束在 category_id → categories.id 是 SET NULL, 清空笔记
+     * 时不会触发外键错误; 清空分类亦然。
+     */
+    @Query("DELETE FROM notes")
+    suspend fun clearAll()
 }
 
 @Dao
@@ -120,11 +128,30 @@ interface CategoryDao {
 
     /** P61: 响应式版本, 删除/迁移后自动刷新 */
     @Query("SELECT COUNT(*) FROM notes WHERE category_id = :id")
-    fun observeNoteCountForCategory(id: Long): Flow<Int>
+    fun observeNoteCountForCategory(categoryId: Long): Flow<Int>
 
     /** 把某分类下所有笔记的 category_id 置空 (用于删除分类前清理) */
     @Query("UPDATE notes SET category_id = NULL WHERE category_id = :id")
     suspend fun clearCategoryForNotes(id: Long)
+
+    /**
+     * F1: 备份导出时一次性拿全部分类 (非响应式, 仅用于构建 JSON)。
+     */
+    @Query("SELECT * FROM categories ORDER BY created_at ASC")
+    suspend fun getAllOnce(): List<CategoryEntity>
+
+    /**
+     * F1: 导入时按"老 id → 新 id"映射, 强制 REPLACE 让 AUTO_INCREMENT 复用。
+     * 配合 idRemap 列表上层做。
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWithId(category: CategoryEntity): Long
+
+    /**
+     * F1: 导入备份前清空 categories 表。
+     */
+    @Query("DELETE FROM categories")
+    suspend fun clearAll()
 }
 
 /** 笔记图片 DAO */
@@ -148,4 +175,16 @@ interface NoteImageDao {
 
     @Query("DELETE FROM note_images WHERE noteId = :noteId")
     suspend fun deleteByNote(noteId: Long)
+
+    /**
+     * F1: 备份导出时一次性拿全部图片 (非响应式)。
+     */
+    @Query("SELECT * FROM note_images ORDER BY noteId ASC, position ASC")
+    suspend fun getAllOnce(): List<NoteImageEntity>
+
+    /**
+     * F1: 导入备份前清空 note_images 表。
+     */
+    @Query("DELETE FROM note_images")
+    suspend fun clearAll()
 }

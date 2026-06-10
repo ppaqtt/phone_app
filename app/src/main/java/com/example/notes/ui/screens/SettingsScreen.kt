@@ -2,6 +2,8 @@ package com.example.notes.ui.screens
 
 import android.content.Intent
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,12 +21,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,10 +37,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,10 +64,14 @@ import com.example.notes.ui.theme.ColorTheme
 import com.example.notes.ui.theme.DarkMode
 import com.example.notes.ui.theme.FontScale
 import com.example.notes.ui.theme.rememberThemePreference
+import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.NoUpdateDialog
 import com.example.notes.util.UpdateAvailableDialog
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private const val FEEDBACK_URL =
     "https://docs.qq.com/form/page/DVk56eEJwc3diVUVZ"
@@ -67,8 +81,12 @@ private enum class LegalPage { PRIVACY, TERMS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(
+    viewModel: NotesViewModel,
+    onBack: () -> Unit
+) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showNoUpdateTip by remember { mutableStateOf(false) }
@@ -77,6 +95,46 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     // 法律页面本地切换 (隐私政策 / 使用条款)
     var legalPage by remember { mutableStateOf<LegalPage?>(null) }
+
+    // F1: 备份相关
+    var showImportConfirm by remember { mutableStateOf(false) }
+    var pendingImportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val backupState by viewModel.backupState.collectAsState()
+
+    // F1: 把备份结果以 Toast / Snackbar 形式反馈
+    LaunchedEffect(backupState) {
+        when (val s = backupState) {
+            is NotesViewModel.BackupState.Success -> {
+                snackbarHostState.showSnackbar(s.message)
+                viewModel.consumeBackupState()
+            }
+            is NotesViewModel.BackupState.Error -> {
+                Toast.makeText(context, s.message, Toast.LENGTH_LONG).show()
+                viewModel.consumeBackupState()
+            }
+            else -> Unit
+        }
+    }
+
+    // F1: SAF - 创建文档 (导出) — 用户选好目标文件后回调
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            viewModel.exportBackup(context, uri, BuildConfig.VERSION_NAME)
+        }
+    }
+
+    // F1: SAF - 打开文档 (导入) — 用户选好源文件后先弹确认对话框
+    val openDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            pendingImportUri = uri
+            showImportConfirm = true
+        }
+    }
 
     if (legalPage != null) {
         val (title, rawResId) = when (legalPage) {
@@ -105,7 +163,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -119,6 +178,18 @@ fun SettingsScreen(onBack: () -> Unit) {
             AboutInfoCard()
             // F7/F8/F11: 外观设置 (深色模式 / 字号 / 主题色)
             AppearanceCard()
+            // F1: 数据备份 / 恢复
+            BackupCard(
+                isWorking = backupState is NotesViewModel.BackupState.Working,
+                onExport = {
+                    val date = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val name = "qingjian_backup_$date.json"
+                    createDocumentLauncher.launch(name)
+                },
+                onImport = {
+                    openDocumentLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                }
+            )
             UpdateCheckCard(
                 isChecking = isChecking,
                 onCheck = {
@@ -159,6 +230,33 @@ fun SettingsScreen(onBack: () -> Unit) {
             currentVersion = lastCheckResult!!.currentVersion,
             errorMessage = lastCheckResult!!.errorMessage,
             onDismiss = { showNoUpdateTip = false }
+        )
+    }
+
+    // F1: 导入二次确认 — 警告用户"清空旧数据"
+    if (showImportConfirm && pendingImportUri != null) {
+        AlertDialog(
+            onDismissRequest = { showImportConfirm = false },
+            title = { Text("恢复数据") },
+            text = {
+                Text(
+                    "恢复后, 当前数据库中的全部笔记 / 分类 / 图片将被清空, " +
+                        "并替换为备份文件中的内容。此操作不可撤销, 建议先导出一份当前数据。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingImportUri?.let { viewModel.importBackup(context, it, replaceExisting = true) }
+                    showImportConfirm = false
+                    pendingImportUri = null
+                }) { Text("确认恢复") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showImportConfirm = false
+                    pendingImportUri = null
+                }) { Text("取消") }
+            }
         )
     }
 }
@@ -238,6 +336,103 @@ private fun InfoRow(label: String, value: String) {
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium
         )
+    }
+}
+
+/**
+ * F1: 数据备份 / 恢复卡片。
+ * - 导出: 触发 SAF CreateDocument, 选好目标文件后 ViewModel 写 JSON
+ * - 导入: 触发 SAF OpenDocument, 选好源文件后弹二次确认, 再 ViewModel 还原数据库
+ */
+@Composable
+private fun BackupCard(
+    isWorking: Boolean,
+    onExport: () -> Unit,
+    onImport: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "数据备份",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "把全部笔记 / 分类 / 图片导出为 JSON 文件, 或从备份文件恢复",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            BackupRowButton(
+                icon = Icons.Filled.CloudUpload,
+                title = "导出备份",
+                subtitle = if (isWorking) "正在导出…" else "保存到本地 (JSON)",
+                enabled = !isWorking,
+                onClick = onExport
+            )
+            androidx.compose.material3.HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            BackupRowButton(
+                icon = Icons.Filled.CloudDownload,
+                title = "从备份恢复",
+                subtitle = if (isWorking) "正在恢复…" else "从 JSON 文件恢复 (会清空现有数据)",
+                enabled = !isWorking,
+                onClick = onImport
+            )
+            if (isWorking) {
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BackupRowButton(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = if (enabled) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 

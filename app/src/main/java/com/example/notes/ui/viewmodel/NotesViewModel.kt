@@ -1,5 +1,7 @@
 package com.example.notes.ui.viewmodel
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -8,16 +10,22 @@ import com.example.notes.data.NoteEntity
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
 import com.example.notes.repository.NotesRepository
+import com.example.notes.util.BackupManager
+import com.example.notes.util.BackupPayload
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 enum class NoteSortOrder {
     UPDATED_DESC,    // 更新时间降序 (默认)
@@ -200,6 +208,108 @@ class NotesViewModel(
 
     fun removeTagFromAllNotes(tag: String) {
         viewModelScope.launchSafe("removeTagFromAllNotes") { repository.removeTagFromAllNotes(tag) }
+    }
+
+    // --- Backup / Restore (F1) -----------------------------------------
+
+    /**
+     * F1: 备份/恢复操作的 UI 状态。
+     * 单一 sealed interface 让 SettingsScreen 只需 collect 一次。
+     */
+    sealed interface BackupState {
+        data object Idle : BackupState
+        data object Working : BackupState
+        data class Success(val message: String) : BackupState
+        data class Error(val message: String) : BackupState
+    }
+
+    private val _backupState = MutableStateFlow<BackupState>(BackupState.Idle)
+    val backupState: StateFlow<BackupState> = _backupState.asStateFlow()
+
+    /**
+     * F1: 把数据库全量导出为 JSON, 写入用户选择的 [targetUri] (SAF)。
+     * @param appVersion 写入 JSON 的 appVersion 字段, 仅作记录用
+     */
+    fun exportBackup(context: Context, targetUri: Uri, appVersion: String) {
+        viewModelScope.launchSafe("exportBackup") {
+            _backupState.value = BackupState.Working
+            val result = runCatching {
+                val payload = repository.exportBackup(appVersion)
+                val json = BackupManager.toJson(payload)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(targetUri, "wt")?.use { out ->
+                        out.write(json.toByteArray(Charsets.UTF_8))
+                        out.flush()
+                    } ?: throw IllegalStateException("无法打开目标 URI: $targetUri")
+                }
+                // 成功后回传 (笔记数, 分类数, 图片数, 字节数) 便于 UI 摘要
+                BackupStats(
+                    notes = payload.notes.size,
+                    categories = payload.categories.size,
+                    images = payload.images.size,
+                    bytes = json.toByteArray(Charsets.UTF_8).size
+                )
+            }
+            _backupState.value = result.fold(
+                onSuccess = { stats ->
+                    BackupState.Success(
+                        "备份完成: ${stats.notes} 笔记 / ${stats.categories} 分类 / ${stats.images} 图片 (${stats.bytes / 1024} KB)"
+                    )
+                },
+                onFailure = { e ->
+                    Timber.tag("Backup").e(e, "export failed")
+                    BackupState.Error("导出失败: ${e.message ?: "未知错误"}")
+                }
+            )
+            // 5s 后自动重置状态, 避免 Success / Error 一直驻留
+            delay(5_000L)
+            if (_backupState.value is BackupState.Success || _backupState.value is BackupState.Error) {
+                _backupState.value = BackupState.Idle
+            }
+        }
+    }
+
+    private data class BackupStats(val notes: Int, val categories: Int, val images: Int, val bytes: Int)
+
+    /**
+     * F1: 从 [sourceUri] 读 JSON, 解析后调用 [importBackup] 还原数据库。
+     * @param replaceExisting true = 清空旧数据再导入 (典型"恢复"用法);
+     *                        false = 追加 (保留现有数据)
+     */
+    fun importBackup(context: Context, sourceUri: Uri, replaceExisting: Boolean) {
+        viewModelScope.launchSafe("importBackup") {
+            _backupState.value = BackupState.Working
+            val result = runCatching {
+                val json = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                        input.bufferedReader(Charsets.UTF_8).readText()
+                    } ?: throw IllegalStateException("无法打开源 URI: $sourceUri")
+                }
+                val payload: BackupPayload = BackupManager.fromJson(json)
+                val (c, n, img) = repository.importBackup(payload, replaceExisting)
+                Triple(c, n, img)
+            }
+            _backupState.value = result.fold(
+                onSuccess = { (c, n, img) ->
+                    BackupState.Success("恢复完成: $c 个分类 / $n 条笔记 / $img 张图片")
+                },
+                onFailure = { e ->
+                    Timber.tag("Backup").e(e, "import failed")
+                    BackupState.Error("导入失败: ${e.message ?: "文件格式错误"}")
+                }
+            )
+            delay(5_000L)
+            if (_backupState.value is BackupState.Success || _backupState.value is BackupState.Error) {
+                _backupState.value = BackupState.Idle
+            }
+        }
+    }
+
+    /** 让 UI 主动确认提示, 避免 5s 后状态被自动清掉 */
+    fun consumeBackupState() {
+        if (_backupState.value is BackupState.Success || _backupState.value is BackupState.Error) {
+            _backupState.value = BackupState.Idle
+        }
     }
 }
 
