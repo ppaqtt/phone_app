@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 
@@ -34,39 +35,46 @@ class SearchHistoryManager(context: Context) {
     /**
      * 添加搜索记录到历史 (大小写不敏感去重)
      * P63: 状态更新和 JSON 序列化都移到协程, 避免主线程 JSON 写操作
+     * P85: 旧版用 `val current = _history.value; ...; _history.value = ...` 的
+     * 读-改-写序列, 两次连续 addSearch 会发生竞态: 后一次读到旧值, 覆盖前一次结果。
+     * 改用 [MutableStateFlow.update] 内部 CAS, 原子完成 read-modify-write。
      */
     fun addSearch(query: String) {
         if (query.isBlank()) return
+        val lowerQuery = query.lowercase()
         scope.launch {
-            val current = _history.value.toMutableList()
-            val lowerQuery = query.lowercase()
-            current.removeAll { it.lowercase() == lowerQuery }
-            current.add(0, query)
-            val trimmed = current.take(MAX_HISTORY_SIZE)
-            _history.value = trimmed
-            saveHistory(trimmed)
+            _history.update { current ->
+                val newList = current.toMutableList()
+                newList.removeAll { it.lowercase() == lowerQuery }
+                newList.add(0, query)
+                newList.take(MAX_HISTORY_SIZE)
+            }
+            saveHistory(_history.value)
         }
     }
 
     /**
      * 清除所有搜索历史
+     * P89: 改到协程里, 与 addSearch 保持风格一致 (避免主线程写 SharedPreferences)
      */
     fun clearHistory() {
-        _history.value = emptyList()
-        prefs.edit().remove(KEY_HISTORY).apply()
+        scope.launch {
+            _history.value = emptyList()
+            prefs.edit().remove(KEY_HISTORY).apply()
+        }
     }
 
     /**
      * 删除单条搜索记录 (大小写不敏感匹配)
-     * P63: 同上, 切协程避免主线程 IO
+     * P63/P85: 同上, 切协程避免主线程 IO, 用 update 避免竞态
      */
     fun removeSearch(query: String) {
+        val lowerQuery = query.lowercase()
         scope.launch {
-            val lowerQuery = query.lowercase()
-            val current = _history.value.toMutableList()
-            current.removeAll { it.lowercase() == lowerQuery }
-            _history.value = current
-            saveHistory(current)
+            _history.update { current ->
+                current.filterNot { it.lowercase() == lowerQuery }
+            }
+            saveHistory(_history.value)
         }
     }
 

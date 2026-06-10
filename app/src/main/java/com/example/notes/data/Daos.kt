@@ -71,10 +71,19 @@ interface NoteDao {
      * 批量移除所有笔记中的指定标签。
      * 用 ',' || tags || ',' LIKE ',tag,' 的方式精确定位标签项,
      * 避免 "work" 被误匹配到 "homework"。
+     *
+     * P83: 旧 SQL `REPLACE(','||tags||',', ','||tag||',', ',')` 会留下首尾逗号。
+     * 例子: tags="a,b,c" tag="b" → ",a,c," (残留首尾逗号), 期望 "a,c"。
+     * 修法: 在 REPLACE 外面套一层 `TRIM(',' FROM ...)`, 剥掉两侧的逗号。
+     * 空 tag 直接 no-op, 避免 ',,' 误匹配。
      */
     @Query("""
         UPDATE notes
-        SET tags = REPLACE(',' || tags || ',', ',' || :tag || ',', ',')
+        SET tags = CASE
+          WHEN :tag = '' OR tags = '' OR (',' || tags || ',') NOT LIKE ('%,' || :tag || ',%')
+            THEN tags
+          ELSE TRIM(',' FROM REPLACE(',' || tags || ',', ',' || :tag || ',', ','))
+        END
     """)
     suspend fun removeTagFromAllNotes(tag: String)
 }

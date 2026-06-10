@@ -33,14 +33,15 @@ import kotlinx.coroutines.delay
  * 启动画面: 居中显示 ic_launcher_source.png (清笺卷轴图标),
  * 紧贴下方显示 app_name (清笺)。
  *
- * 整体淡入, 等待 [ready] = true 后再回调 onAnimationComplete。
- * 这样首屏数据未加载好时, 启动页会一直显示, 避免数据"闪烁"。
+ * 整体淡入, 固定延迟 600ms 后回调 onAnimationComplete。
+ * 600ms 是经验值: Room 首次冷启 + 简单 SELECT 远小于此, 慢机也基本够用;
+ * 真正慢的极端场景 (上千条笔记) 也只会"闪一下"不会崩溃。
+ *
+ * P84: 旧版有 `ready: Boolean` 参数但 MainActivity 始终用默认值 true,
+ * 该参数变成死代码且误导后人。删除并把淡入 / 淡出 / 回调合并为一个 LaunchedEffect。
  */
 @Composable
-fun SplashScreen(
-    ready: Boolean = true,
-    onAnimationComplete: () -> Unit
-) {
+fun SplashScreen(onAnimationComplete: () -> Unit) {
     val alpha = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
@@ -48,14 +49,8 @@ fun SplashScreen(
             targetValue = 1f,
             animationSpec = tween(durationMillis = 400)
         )
-    }
-
-    // 数据就绪时再回调, 但最少显示 600ms 防闪
-    LaunchedEffect(ready) {
-        if (ready) {
-            delay(600L)
-            onAnimationComplete()
-        }
+        delay(600L)
+        onAnimationComplete()
     }
 
     Box(

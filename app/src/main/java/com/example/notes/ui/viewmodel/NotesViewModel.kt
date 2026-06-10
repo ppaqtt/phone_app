@@ -116,31 +116,31 @@ class NotesViewModel(
     }
 
     fun deleteNote(id: Long) {
-        viewModelScope.launch { repository.deleteNote(id) }
+        viewModelScope.launchSafe("deleteNote") { repository.deleteNote(id) }
     }
 
     fun togglePin(id: Long, pinned: Boolean) {
-        viewModelScope.launch { repository.togglePin(id, pinned) }
+        viewModelScope.launchSafe("togglePin") { repository.togglePin(id, pinned) }
     }
 
     fun setPriority(id: Long, priority: Int) {
-        viewModelScope.launch { repository.setPriority(id, priority) }
+        viewModelScope.launchSafe("setPriority") { repository.setPriority(id, priority) }
     }
 
     fun setTags(id: Long, tags: List<String>) {
-        viewModelScope.launch { repository.setTags(id, tags.joinToString(",")) }
+        viewModelScope.launchSafe("setTags") { repository.setTags(id, tags.joinToString(",")) }
     }
 
     fun moveToCategory(id: Long, categoryId: Long?) {
-        viewModelScope.launch { repository.moveToCategory(id, categoryId) }
+        viewModelScope.launchSafe("moveToCategory") { repository.moveToCategory(id, categoryId) }
     }
 
     fun addCategory(name: String, color: Int) {
-        viewModelScope.launch { repository.addCategory(name, color) }
+        viewModelScope.launchSafe("addCategory") { repository.addCategory(name, color) }
     }
 
     fun deleteCategory(category: CategoryEntity) {
-        viewModelScope.launch { repository.deleteCategorySafely(category) }
+        viewModelScope.launchSafe("deleteCategory") { repository.deleteCategorySafely(category) }
     }
 
     /**
@@ -151,7 +151,23 @@ class NotesViewModel(
         repository.observeNoteCountForCategory(categoryId)
 
     fun removeTagFromAllNotes(tag: String) {
-        viewModelScope.launch { repository.removeTagFromAllNotes(tag) }
+        viewModelScope.launchSafe("removeTagFromAllNotes") { repository.removeTagFromAllNotes(tag) }
+    }
+}
+
+/**
+ * P90: 给 ViewModel 扩展一个 [launchSafe], 统一捕获 DAO/IO 异常并打日志,
+ * 避免 Room 异常被传到全局 CoroutineExceptionHandler 导致 APP 闪退。
+ * 原版 8 处 `viewModelScope.launch { ... }` 全部无 try-catch, 一个
+ * 偶发的 SQLiteConstraintException 就会让进程崩。
+ */
+private fun androidx.lifecycle.ViewModel.launchSafe(
+    tag: String,
+    block: suspend () -> Unit
+) {
+    viewModelScope.launch {
+        runCatching { block() }
+            .onFailure { e -> android.util.Log.e("NotesViewModel", "$tag failed: ${e.message}", e) }
     }
 }
 

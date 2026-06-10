@@ -420,11 +420,14 @@ fun NoteEditScreen(
      * 智能退出: 有修改则弹"是否保存"对话框, 没修改则直接退出.
      * 同时, 进入 / 退出过程中用 [busy] 锁防重入, 避免疯狂点击导致
      * 多次执行 onBack / save 引起的内容丢失或数据库写入竞争.
+     *
+     * P82: 不再调 busy = true 后只调 then() (then 是 onBack, 弹回后 busy 永远
+     * 不释放, 下次进入笔记所有按钮置灰)。弹回后 onBack 会销毁 Composable,
+     * busy 状态随之销毁, 不必再设锁。
      */
     fun tryExit(then: () -> Unit) {
         if (busy) return
         if (!isDirty) {
-            busy = true
             then()
             return
         }
@@ -733,13 +736,20 @@ fun NoteEditScreen(
                         if (busy) return@TextButton
                         busy = true
                         // P57: viewModelScope.launch 异步执行, onBack 立即触发 → 改用 scope.launch 等待完成后退出
+                        // P82补充: 异常时也要确保 onBack, 否则 Composable 仍存活 + busy=true 锁死
                         scope.launch {
-                            lastSaved?.let {
-                                viewModel.deleteNote(it.id)
-                                it.reminderTime?.let { _ -> ReminderManager.cancelReminder(context, it.id) }
+                            try {
+                                lastSaved?.let {
+                                    viewModel.deleteNote(it.id)
+                                    it.reminderTime?.let { _ -> ReminderManager.cancelReminder(context, it.id) }
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("NoteEditScreen", "delete failed", e)
+                                Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            } finally {
+                                confirmDelete = false
+                                onBack()
                             }
-                            confirmDelete = false
-                            onBack()
                         }
                     },
                     enabled = !busy
@@ -779,8 +789,8 @@ fun NoteEditScreen(
                     TextButton(
                         onClick = {
                             if (busy) return@TextButton
-                            busy = true
-                            // 丢弃修改直接退出
+                            // P82: 丢弃修改直接退出, 不设 busy 锁 (弹回后 onBack
+                            // 会销毁 Composable, busy 不再被读到)
                             showExitConfirm = false
                             pendingExitAction?.invoke()
                         },

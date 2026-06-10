@@ -343,11 +343,57 @@ private fun ChangelogCard() {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "更新日志",
+                "更新日志",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(12.dp))
+            ChangelogVersion(
+                version = "v1.1.0",
+                date = "2026-06-10",
+                items = listOf(
+                    "修复：编辑页退出时 busy 锁死 — 移除 tryExit/丢弃按钮的 busy = true, 删除路径补 try-finally, 防止下次进入笔记所有按钮永久置灰",
+                    "修复：标签批量删除后首尾残留逗号 — removeTagFromAllNotes SQL 套 TRIM(',') 包裹, tags='a,b,c' 删 b 后正确变为 'a,c'",
+                    "修复：DAO 异常会闪退 — NotesViewModel 新增 launchSafe 扩展, 8 处 viewModelScope.launch 统一捕获异常并打日志",
+                    "修复：SplashScreen 死参数 ready — 移除, 把淡入 / 600ms 等待 / 回调合并为一个 LaunchedEffect",
+                    "修复：搜索历史 addSearch/removeSearch 竞态 — 改用 MutableStateFlow.update CAS, 原子完成 read-modify-write",
+                    "修复：分享笔记为纯文本时无错误反馈 — shareAsText 补 runCatching + Toast, 与 shareAsImage 风格一致",
+                    "升级：版本号 v1.0.9 → v1.1.0 (versionCode 9 → 10)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
+                version = "v1.0.9",
+                date = "2026-06-10",
+                items = listOf(
+                    "修复：「问题反馈」/「立即更新」无反馈 — runCatching 空 catch 补 Toast, ActivityNotFoundException 给用户提示",
+                    "修复：删除笔记后立即返回会丢数据 — viewModelScope.launch 异步改 scope.launch 等待完成后 onBack",
+                    "修复：音频 URI 提取无 debounce — 加 500ms 节流, 避免长文输入卡顿",
+                    "修复：搜索历史 IO 仍主线程 — addSearch/removeSearch 内部 JSON 移协程 IO",
+                    "修复：SimpleDateFormat 每次 new — 统一 4 个 ThreadLocal, 与 fmtFull 保持一致",
+                    "修复：右滑背景缺 Share 图标 — NoteActionsBackground 补第 6 个图标与 6 项菜单一致",
+                    "修复：deleteInFlight 重置 300ms 太慢 — 改为 100ms, 快速操作时按钮不意外置灰",
+                    "修复：MarkdownTable onEditDone @Suppress 误导 — 删除, 注明通过 KeyboardActions.onDone 实际被调用",
+                    "修复：MainActivity ViewModel by lazy 模糊生命周期 — 改 onCreate 直接初始化",
+                    "升级：版本号 v1.0.8 → v1.0.9 (versionCode 8 → 9)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
+            ChangelogVersion(
+                version = "v1.0.8",
+                date = "2026-06-10",
+                items = listOf(
+                    "修复：编辑页 saveNote 内部 rememberCoroutineScope 崩溃 (P0) — 提到 Composable 顶部, saveNote 改纯 suspend",
+                    "修复：保存按钮 / 退出确认 fire-and-forget 丢数据 (P0) — saveNoteThen 包装, 协程完成后再回调",
+                    "修复：CellPos 无 Saver 配置变更崩溃 (P0) — 自定义 CellPosSaver 编码 'row,col'",
+                    "修复：删除分类事务不原子 (P0) — Room @Transaction 注解在 Repository 上无效, 改 withTransaction 包裹",
+                    "修复：onInsertAtCursor @Suppress 误导 — 贯通到 ColumnsPanel / ListPanel, 符号/模板插入到光标处",
+                    "修复：右滑手势每帧 launch 协程风暴 — 改 pointerInput + detectHorizontalDragGestures + Animatable",
+                    "修复：分类计数 O(n*m) — 新增 observeNoteCountForCategory, 改用 SQL COUNT",
+                    "升级：版本号 v1.0.7 → v1.0.8 (versionCode 7 → 8)"
+                )
+            )
+            Spacer(Modifier.height(16.dp))
             ChangelogVersion(
                 version = "v1.0.6",
                 date = "2026-06-10",

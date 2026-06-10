@@ -17,21 +17,31 @@ object NoteShareUtil {
 
     /**
      * 分享笔记为纯文本
+     * P86: 旧版没有 runCatching, 在没有 ACTION_SEND 处理的设备 (如部分车机)
+     * 上 startActivity 会抛 ActivityNotFoundException 导致崩溃, 与
+     * shareAsImage 风格不一致。补上同样的 runCatching + Toast 反馈。
      */
     fun shareAsText(context: Context, note: NoteEntity) {
-        val shareText = buildString {
-            appendLine("【${note.title}】")
-            appendLine()
-            appendLine(note.content)
-            appendLine()
-            appendLine("—— 来自清笺笔记")
+        runCatching {
+            val shareText = buildString {
+                appendLine("【${note.title}】")
+                appendLine()
+                appendLine(note.content)
+                appendLine()
+                appendLine("—— 来自清笺笔记")
+            }
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_SUBJECT, note.title)
+                putExtra(Intent.EXTRA_TEXT, shareText)
+            }
+            context.startActivity(Intent.createChooser(intent, "分享笔记"))
+        }.onFailure { e ->
+            android.util.Log.e("NoteShareUtil", "shareAsText failed", e)
+            android.widget.Toast.makeText(
+                context, "分享失败: ${e.message}", android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, note.title)
-            putExtra(Intent.EXTRA_TEXT, shareText)
-        }
-        context.startActivity(Intent.createChooser(intent, "分享笔记"))
     }
 
     /**

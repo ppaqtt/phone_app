@@ -5,6 +5,47 @@
 
 ---
 
+## [1.1.0] - 2026-06-10
+
+### 修复 (P82-P90 新一轮 9 项潜在问题)
+
+#### 严重 (数据损坏 / 崩溃)
+- **P82 修复**: `NoteEditScreen.tryExit` 与"丢弃"按钮原本 `busy = true` 后立即
+  调用 `then()` (= onBack) 销毁 Composable, `busy` 锁永远不释放, 下次进入
+  同一笔记所有按钮永久置灰。删除 `busy = true` (弹回后 Composable 销毁, busy
+  状态随之销毁, 不必再设锁); 删除路径补 try-finally 保证 onBack 一定执行。
+- **P83 修复**: `removeTagFromAllNotes` SQL 用 `REPLACE(',,tags,,', ',,tag,,', ',')`
+  会留下首尾逗号 (例: tags="a,b,c" 删 b 后变成 ",a,c," 而非 "a,c")。
+  修法: 套 `TRIM(',' FROM REPLACE(...))` 剥两侧逗号; 同时加空 tag 短路保护。
+- **P90 修复**: `NotesViewModel` 8 处 `viewModelScope.launch { repository.X() }`
+  全部无 try-catch, 任何 DAO 异常 (SQLiteConstraintException 等) 都会被传到
+  全局 `CoroutineExceptionHandler` 导致 APP 闪退。新增 `ViewModel.launchSafe`
+  扩展统一捕获并打日志。
+
+#### 中等
+- **P84 修复**: `SplashScreen` 旧版有 `ready: Boolean = true` 参数但
+  MainActivity 始终不传, 该参数是死代码且误导后人。删除, 把"淡入 + 600ms
+  等待 + 回调"合并为一个 LaunchedEffect。
+- **P85 修复**: `SearchHistoryManager.addSearch / removeSearch` 旧版用
+  `val cur = _history.value; ...; _history.value = ...` 读-改-写, 两次连续
+  操作会竞态 (后一次读到旧值, 覆盖前一次结果)。改用 `MutableStateFlow.update`
+  内部 CAS, 原子完成。
+- **P86 修复**: `NoteShareUtil.shareAsText` 旧版没有 `runCatching`, 在没有
+  ACTION_SEND 处理的设备 (如部分车机) 上 startActivity 会抛
+  ActivityNotFoundException 导致崩溃, 与 shareAsImage 风格不一致。补上同样
+  的 `runCatching` + Toast 反馈。
+
+#### 轻微
+- **P89 修复**: `SearchHistoryManager.clearHistory` 旧版直接在调用线程 (常为
+  主线程) 写 SharedPreferences, 与 addSearch 的协程风格不一致。改为
+  `scope.launch { ... }`, 同样走 IO 线程。
+
+### 升级
+- 升级：版本号 v1.0.9 → v1.1.0 (versionCode 9 → 10)
+- 升级：FALLBACK_LATEST_VERSION 同步到 1.1.0
+
+---
+
 ## [1.0.9] - 2026-06-10
 
 ### 修复 (P75-P81 新增 + P57/P62/P64/P66/P70/P72/P80 补漏)
