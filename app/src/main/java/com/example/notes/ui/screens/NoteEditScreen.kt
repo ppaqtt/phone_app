@@ -235,6 +235,36 @@ fun NoteEditScreen(
         }
     }
 
+    // F17: OCR 图片选择器
+    var isOcrProcessing by remember { mutableStateOf(false) }
+    val pickOcrImage = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                isOcrProcessing = true
+                runCatching {
+                    val text = com.example.notes.util.OcrHelper.recognizeText(context, uri)
+                    if (text.isNotBlank()) {
+                        content = if (content.text.isEmpty()) {
+                            content.copy(text = text)
+                        } else {
+                            content.copy(text = content.text + "\n" + text)
+                        }
+                        pushHistory()
+                        Toast.makeText(context, "识别完成, 已插入 ${text.length} 字", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "未识别到文字", Toast.LENGTH_SHORT).show()
+                    }
+                }.onFailure {
+                    Toast.makeText(context, "识别失败: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+                isOcrProcessing = false
+                selectedTool = null
+            }
+        }
+    }
+
     // 初始快照 (用于判断"内容是否被修改过")
     val initialSnapshot = remember(noteId, loaded) {
         if (loaded) NoteSnapshot(
@@ -917,7 +947,13 @@ fun NoteEditScreen(
                         requestRecordAudio.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     speechText = speechText,
-                    isListening = isListening
+                    isListening = isListening,
+                    // F17: OCR 文字识别
+                    onOcrClick = {
+                        pickOcrImage.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    }
                 )
                 }
             }
@@ -1608,7 +1644,9 @@ private fun ToolPanel(
     // F16: 语音转文字
     onSpeechClick: () -> Unit,
     speechText: String,
-    isListening: Boolean
+    isListening: Boolean,
+    // F17: OCR 文字识别
+    onOcrClick: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -1654,6 +1692,12 @@ private fun ToolPanel(
                     icon = Icons.Filled.CameraAlt,
                     label = "拍照",
                     onClick = onTakePhoto
+                )
+                // F17: OCR 文字识别
+                ToolSubItem(
+                    icon = Icons.Filled.TextFields,
+                    label = "识别文字",
+                    onClick = onOcrClick
                 )
             }
             BottomTool.SPEECH -> SpeechPanel(

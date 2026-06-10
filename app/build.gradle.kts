@@ -16,8 +16,8 @@ android {
         applicationId = "com.example.notes"
         minSdk = 24
         targetSdk = 34
-        versionCode = 24
-        versionName = "1.14.0"
+        versionCode = 25
+        versionName = "1.15.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -163,6 +163,9 @@ dependencies {
 
     // Accompanist
     implementation(libs.accompanist.permissions)
+
+    // F17: ML Kit 中文 OCR
+    implementation(libs.mlkit.text.recognition.chinese)
 
     // Kotlin
     implementation(libs.kotlinx.coroutines.android)
