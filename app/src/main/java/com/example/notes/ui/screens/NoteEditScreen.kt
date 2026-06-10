@@ -43,7 +43,10 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FormatAlignLeft
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.FormatAlignCenter
 import androidx.compose.material.icons.filled.FormatAlignRight
 import androidx.compose.material.icons.filled.FormatBold
@@ -63,6 +66,8 @@ import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -276,6 +281,63 @@ fun NoteEditScreen(
             pushHistory()
         }
         selectedTool = null
+    }
+
+    // F10: PDF / 长图导出 - SAF 启动器
+    var showExportMenu by remember { mutableStateOf(false) }
+    val createPdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    val pages = com.example.notes.util.NoteExporter.exportPdfToUri(
+                        context = context,
+                        uri = uri,
+                        title = title.ifBlank { "无标题" },
+                        content = content.text,
+                        meta = "清笺 · ${
+                            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                                .format(Date())
+                        }"
+                    )
+                    Toast.makeText(
+                        context,
+                        "已导出 PDF ($pages 页)",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }.onFailure {
+                    Toast.makeText(context, "导出 PDF 失败: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+    val createImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("image/png")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    val (w, h) = com.example.notes.util.NoteExporter.exportImageToUri(
+                        context = context,
+                        uri = uri,
+                        title = title.ifBlank { "无标题" },
+                        content = content.text,
+                        meta = "清笺 · ${
+                            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                                .format(Date())
+                        }"
+                    )
+                    Toast.makeText(
+                        context,
+                        "已导出长图 (${w}×${h})",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }.onFailure {
+                    Toast.makeText(context, "导出长图失败: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     // P67: 不再用共享 Calendar 状态, 每次 showDateTimePicker 新建一个实例,
@@ -527,6 +589,44 @@ fun NoteEditScreen(
                         enabled = !busy
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = "保存")
+                    }
+                    // F10: 导出下拉菜单 (PDF / 长图)
+                    Box {
+                        IconButton(
+                            onClick = { showExportMenu = true },
+                            enabled = !busy
+                        ) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = "更多")
+                        }
+                        DropdownMenu(
+                            expanded = showExportMenu,
+                            onDismissRequest = { showExportMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("导出为 PDF") },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.PictureAsPdf, contentDescription = null)
+                                },
+                                onClick = {
+                                    showExportMenu = false
+                                    val fileName = com.example.notes.util.NoteExporter
+                                        .defaultFileName(title.ifBlank { "笔记" }, "pdf")
+                                    createPdfLauncher.launch(fileName)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("导出为长图 (PNG)") },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Image, contentDescription = null)
+                                },
+                                onClick = {
+                                    showExportMenu = false
+                                    val fileName = com.example.notes.util.NoteExporter
+                                        .defaultFileName(title.ifBlank { "笔记" }, "png")
+                                    createImageLauncher.launch(fileName)
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
