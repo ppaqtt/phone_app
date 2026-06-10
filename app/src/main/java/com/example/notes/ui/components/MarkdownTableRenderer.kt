@@ -156,8 +156,8 @@ fun MarkdownTable(
     modifier: Modifier = Modifier,
     readOnly: Boolean = false
 ) {
-    var editing by remember { mutableStateOf<CellPos?>(null) }
-    var editValue by remember { mutableStateOf(TextFieldValue("")) }
+    var editing by rememberSaveable { mutableStateOf<CellPos?>(null) }
+    var editValue by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
 
     Column(
         modifier = modifier

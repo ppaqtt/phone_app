@@ -307,6 +307,16 @@ fun NoteEditScreen(
         }
     }
 
+    // 从内容中提取音频URI
+    LaunchedEffect(loaded, content.text) {
+        if (loaded && content.text.isNotEmpty()) {
+            val audioPattern = Regex("\\[音频\\]\\(([^)]+)\\)")
+            val foundUris = audioPattern.findAll(content.text).map { it.groupValues[1] }.toList()
+            audioUris.clear()
+            audioUris.addAll(foundUris)
+        }
+    }
+
     fun saveNote() {
         val noteIdToSave = lastSaved?.id ?: 0L
         val colorArgb = color.toArgb()
