@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * F3: 解析桌面小部件发来的 intent。
+     * F3 + F4: 解析桌面小部件 / 快捷方式发来的 intent。
      * @return WidgetIntent 描述初始目标; null 表示"无特殊要求, 走默认列表"。
      */
     private fun parseWidgetIntent(intent: Intent?): WidgetIntent? {
@@ -100,6 +100,9 @@ class MainActivity : ComponentActivity() {
                 val id = intent.getLongExtra(NotesAppWidget.EXTRA_NOTE_ID, 0L)
                 if (id > 0L) WidgetIntent.OpenNote(id) else null
             }
+            // F4: 快捷方式入口
+            ACTION_OPEN_SEARCH -> WidgetIntent.OpenSearch
+            ACTION_OPEN_TRASH -> WidgetIntent.OpenTrash
             else -> null
         }
     }
@@ -108,11 +111,17 @@ class MainActivity : ComponentActivity() {
         // F3: 桌面小部件启动 Activity 的两个 action
         const val ACTION_NEW_NOTE = "com.example.notes.action.NEW_NOTE"
         const val ACTION_OPEN_NOTE = "com.example.notes.action.OPEN_NOTE"
+        // F4: App 快捷方式启动 Activity 的 action
+        const val ACTION_OPEN_SEARCH = "com.example.notes.action.OPEN_SEARCH"
+        const val ACTION_OPEN_TRASH = "com.example.notes.action.OPEN_TRASH"
     }
 }
 
-/** F3: 桌面小部件对 MainActivity 启动意图的封装, NotesNavGraph 据此决定初始路由 */
+/** F3 + F4: 桌面入口对 MainActivity 启动意图的封装, NotesNavGraph 据此决定初始路由 */
 sealed interface WidgetIntent {
     data object NewNote : WidgetIntent
     data class OpenNote(val noteId: Long) : WidgetIntent
+    // F4: 快捷方式新增 2 个
+    data object OpenSearch : WidgetIntent
+    data object OpenTrash : WidgetIntent
 }

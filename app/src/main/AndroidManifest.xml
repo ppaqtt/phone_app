@@ -57,6 +57,11 @@
                 <data android:host="qing-jian.ppaqtt.com" />
                 <data android:pathPrefix="/privacy" />
             </intent-filter>
+
+            <!-- F4: App 快捷方式 (长按桌面图标) -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- F3: 桌面小部件, 系统识别入口 -->

@@ -43,7 +43,7 @@ fun NotesNavGraph(
         (context.applicationContext as NotesApplication).repository
     }
 
-    // F3: 桌面小部件启动时直接跳到新建/打开笔记页
+    // F3 + F4: 桌面小部件 / 快捷方式启动时直接跳到目标页
     androidx.compose.runtime.LaunchedEffect(widgetIntent) {
         when (widgetIntent) {
             is WidgetIntent.NewNote -> {
@@ -51,6 +51,12 @@ fun NotesNavGraph(
             }
             is WidgetIntent.OpenNote -> {
                 navController.navigate(Routes.edit(widgetIntent.noteId)) { launchSingleTop = true }
+            }
+            is WidgetIntent.OpenSearch -> {
+                navController.navigate(Routes.SEARCH) { launchSingleTop = true }
+            }
+            is WidgetIntent.OpenTrash -> {
+                navController.navigate(Routes.TRASH) { launchSingleTop = true }
             }
             null -> Unit
         }
