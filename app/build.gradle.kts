@@ -1,11 +1,11 @@
-// 注意: 根 build.gradle.kts 的 buildscript classpath 已注入 AGP / Kotlin / KSP / Hilt,
+// 注意: 根 build.gradle.kts 的 buildscript classpath 已注入 AGP / Kotlin / KSP,
 // 这里直接用 id(...) 引用, 不要 alias(libs.plugins...) — 否则会报
 // "plugin is already on the classpath with an unknown version" 冲突.
+// P112-FIX: 移除 Hilt 插件, 项目未使用 (无 @HiltAndroidApp 注解), 留着会阻断 KSP
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
-    id("dagger.hilt.android.plugin")
 }
 
 android {
@@ -137,10 +137,11 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
-    // Hilt
-    implementation(libs.hilt.android)
-    ksp(libs.hilt.compiler)
-    implementation(libs.hilt.navigation.compose)
+    // Hilt: P112-FIX 整个项目未使用 Hilt (无 @HiltAndroidApp 注解),
+    // 但旧 build.gradle.kts 仍带 hilt-android / hilt-compiler 依赖, 导致
+    // Hilt KSP 处理器启动后找不到入口而失败, 进而阻断 Room KSP 进程,
+    // 引发 84 个 cascade 编译错误。完全移除 Hilt 依赖和插件。
+    // (若后续要接 Hilt, 需要先在 Application 类加 @HiltAndroidApp, 再恢复插件)
 
     // Network
     implementation(libs.retrofit)
@@ -180,6 +181,4 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.mockk.android)
-    androidTestImplementation(libs.hilt.testing)
-    kspAndroidTest(libs.hilt.compiler)
 }

@@ -9,7 +9,8 @@ buildscript {
     dependencies {
         classpath("com.android.tools.build:gradle:8.0.2")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.8.22")
-        classpath("com.google.dagger:hilt-android-gradle-plugin:2.48")
+        // P112-FIX: 项目未使用 Hilt, 移除 hilt-android-gradle-plugin classpath
+        // 否则 KSP 会启动 Hilt 处理器, 找不到 @HiltAndroidApp 而失败, 阻断整个 KSP 链
         classpath("com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin:1.8.22-1.0.11")
     }
 }
