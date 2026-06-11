@@ -108,18 +108,14 @@ interface NoteDao {
      * 修法: 在 REPLACE 外面套一层 `TRIM(',' FROM ...)`, 剥掉两侧的逗号。
      * 空 tag 直接 no-op, 避免 ',,' 误匹配。
      *
-     * P109-FIX: KSP 编译报 "no viable alternative at input" 错误,
-     * 原因: 嵌套三层 || 拼接 + CASE WHEN 让 SQLite 解析器在某些版本下报错。
-     * 拆成两段, 先在临时表达式算好目标 tags, 再用 CASE 应用, 兼容性好。
+     * P111-FIX: KSP 解析器在嵌套 CASE WHEN + WHERE + || 拼接时报错
+     * "no viable alternative at input 'UPDATE' / Not sure how to convert a Cursor"。
+     * 简化方案: 只保留 SET 子句中的简单表达式, 改用 instr() 替代 || 拼接。
      */
     @Query("""
         UPDATE notes
-        SET tags = CASE
-          WHEN tags = '' OR :tag = '' OR (',' || tags || ',') NOT LIKE ('%,' || :tag || ',%')
-            THEN tags
-          ELSE TRIM(',' FROM REPLACE(',' || tags || ',', ',' || :tag || ',', ','))
-        END
-        WHERE tags != '' AND :tag != '' AND (',' || tags || ',') LIKE ('%,' || :tag || ',%')
+        SET tags = TRIM(',' FROM REPLACE(',' || tags || ',', ',' || :tag || ',', ','))
+        WHERE tags != '' AND :tag != '' AND instr(',' || tags || ',', ',' || :tag || ',') > 0
     """)
     suspend fun removeTagFromAllNotes(tag: String)
 
