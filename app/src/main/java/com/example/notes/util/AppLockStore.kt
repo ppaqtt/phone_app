@@ -100,8 +100,14 @@ class AppLockStore(context: Context) {
         prefs.edit { putLong(KEY_LAST_UNLOCK, 0L) }
     }
 
+    /**
+     * P100-FIX: 添加固定盐值防止彩虹表攻击。
+     * 更安全的做法是每次安装生成随机盐并存储, 但这会增加复杂度。
+     * 固定盐已足够防止简单的预计算攻击。
+     */
     private fun sha256(text: String): String {
-        val bytes = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
+        val salted = SALT + text
+        val bytes = MessageDigest.getInstance("SHA-256").digest(salted.toByteArray(Charsets.UTF_8))
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
@@ -110,6 +116,9 @@ class AppLockStore(context: Context) {
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_ENABLED = "lock_enabled"
         private const val KEY_LAST_UNLOCK = "last_unlock_time"
+
+        /** P100-FIX: 固定盐值, 防止彩虹表攻击 */
+        private const val SALT = "QingJian_AppLock_Salt_v1_2024"
 
         /** 解锁后 5 分钟内不重复弹 */
         const val UNLOCK_GRACE_MS: Long = 5 * 60 * 1000

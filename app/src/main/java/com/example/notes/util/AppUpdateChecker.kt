@@ -1,7 +1,6 @@
 package com.example.notes.util
 
 import android.content.Context
-import android.util.Log
 import com.example.notes.BuildConfig
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -11,6 +10,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import timber.log.Timber
 import java.util.concurrent.TimeUnit
 
 /**
@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit
  */
 object AppUpdateChecker {
 
-    private const val TAG = "AppUpdateChecker"
     private const val GITHUB_API = "https://api.github.com/repos/ppaqtt/phone_app/releases/latest"
     private const val RELEASES_PAGE = "https://github.com/ppaqtt/phone_app/releases"
     private const val PREFS_NAME = "app_update_checker"
@@ -80,7 +79,7 @@ object AppUpdateChecker {
                     publishedAt = publishedAt
                 )
             }
-        }.onFailure { Log.w(TAG, "fetchLatestRelease failed, fallback to $FALLBACK_LATEST_VERSION", it) }
+        }.onFailure { Timber.tag("AppUpdateChecker").w(it, "fetchLatestRelease failed, fallback to $FALLBACK_LATEST_VERSION") }
     }
 
     /**

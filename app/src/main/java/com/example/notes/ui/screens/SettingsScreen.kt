@@ -79,6 +79,10 @@ import java.util.Locale
 private const val FEEDBACK_URL =
     "https://docs.qq.com/form/page/DVk56eEJwc3diVUVZ"
 
+/** P102: 官方QQ群链接 */
+private const val QQ_GROUP_URL =
+    "https://qm.qq.com/q/rbxVPtqTD"
+
 /** 内部法律页面枚举 (用于本地切换 AboutLegalScreen) */
 private enum class LegalPage { PRIVACY, TERMS }
 
@@ -213,6 +217,7 @@ fun SettingsScreen(
                 }
             )
             FeedbackCard()
+            QQGroupCard()  // P102: 官方群聊入口
             ChangelogCard()
             LegalEntriesCard(
                 onOpenPrivacy = { legalPage = LegalPage.PRIVACY },
@@ -794,31 +799,132 @@ private fun FeedbackCard() {
     }
 }
 
+/**
+ * P102: 官方QQ群入口卡片。
+ */
 @Composable
-private fun ChangelogCard() {
-    // P-FIX-005: 从 ChangelogData 数据驱动渲染, 不再在 Composable 里硬编码 20+ 版本。
+private fun QQGroupCard() {
+    val context = LocalContext.current
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                val intent = Intent(Intent.ACTION_VIEW, QQ_GROUP_URL.toUri())
+                runCatching { context.startActivity(intent) }
+                    .onFailure { e ->
+                        context.toastShort("无法打开链接: ${e.message}")
+                    }
+            },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                "更新日志",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Info,
+                contentDescription = "官方群聊",
+                tint = MaterialTheme.colorScheme.primary
             )
-            Spacer(Modifier.height(12.dp))
-            ChangelogData.entries.forEachIndexed { index, entry ->
-                if (index > 0) Spacer(Modifier.height(16.dp))
-                ChangelogVersion(
-                    version = entry.version,
-                    date = entry.date,
-                    items = entry.items
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "官方交流群",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "点击加入QQ群【清笺APP官方交流群】",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            Icon(
+                imageVector = Icons.Filled.OpenInBrowser,
+                contentDescription = "打开链接",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+    }
+}
+
+@Composable
+private fun ChangelogCard() {
+    val context = LocalContext.current
+    var showDialog by remember { mutableStateOf(false) }
+
+    // P103: 更新日志改为按钮形式, 点击弹出对话框查看
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showDialog = true },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Info,
+                contentDescription = "更新日志",
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "更新日志",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "点击查看历次版本更新内容",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = "查看",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+    // 更新日志对话框
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("更新日志") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                ) {
+                    ChangelogData.entries.forEachIndexed { index, entry ->
+                        if (index > 0) Spacer(Modifier.height(16.dp))
+                        ChangelogVersion(
+                            version = entry.version,
+                            date = entry.date,
+                            items = entry.items
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showDialog = false }) {
+                    Text("关闭")
+                }
+            }
+        )
     }
 }
 

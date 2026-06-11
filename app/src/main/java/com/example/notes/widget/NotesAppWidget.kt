@@ -115,10 +115,11 @@ class NotesAppWidget : AppWidgetProvider() {
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 action = MainActivity.ACTION_OPEN_NOTE
             }
+            // P101-FIX: 移除 FLAG_MUTABLE, 与 FLAG_IMMUTABLE 冲突
+            // 列表项需要 fillInIntent 覆盖 extras, 因此必须用 MUTABLE
             val templatePi = PendingIntent.getActivity(
                 context, 1, openIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    or PendingIntent.FLAG_MUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
             views.setPendingIntentTemplate(R.id.widget_list, templatePi)
 
