@@ -191,7 +191,7 @@ private fun HistoryItem(
     ) {
         Icon(
             Icons.Filled.History,
-            contentDescription = null,
+            contentDescription = "搜索历史",
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )

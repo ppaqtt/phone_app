@@ -12,6 +12,7 @@ import androidx.core.content.FileProvider
 import com.example.notes.data.NoteEntity
 import java.io.File
 import java.io.FileOutputStream
+import timber.log.Timber
 
 object NoteShareUtil {
 
@@ -37,7 +38,7 @@ object NoteShareUtil {
             }
             context.startActivity(Intent.createChooser(intent, "分享笔记"))
         }.onFailure { e ->
-            android.util.Log.e("NoteShareUtil", "shareAsText failed", e)
+            Timber.tag("NoteShareUtil").e(e, "shareAsText failed")
             android.widget.Toast.makeText(
                 context, "分享失败: ${e.message}", android.widget.Toast.LENGTH_SHORT
             ).show()
@@ -65,7 +66,7 @@ object NoteShareUtil {
             }
             context.startActivity(Intent.createChooser(intent, "分享笔记图片"))
         }.onFailure { e ->
-            android.util.Log.e("NoteShareUtil", "shareAsImage failed", e)
+            Timber.tag("NoteShareUtil").e(e, "shareAsImage failed")
             android.widget.Toast.makeText(
                 context, "生成分享图片失败: ${e.message}", android.widget.Toast.LENGTH_SHORT
             ).show()

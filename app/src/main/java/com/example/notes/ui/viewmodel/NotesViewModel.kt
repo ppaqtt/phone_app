@@ -207,7 +207,7 @@ class NotesViewModel(
             repository.restoreNoteFromSnapshot(snapshot)
             true
         }.getOrElse {
-            android.util.Log.e("NotesViewModel", "undoLastDelete failed: ${it.message}", it)
+            Timber.tag("NotesViewModel").e(it, "undoLastDelete failed: ${it.message}")
             false
         }
     }
@@ -394,7 +394,7 @@ private fun androidx.lifecycle.ViewModel.launchSafe(
 ) {
     viewModelScope.launch {
         runCatching { block() }
-            .onFailure { e -> android.util.Log.e("NotesViewModel", "$tag failed: ${e.message}", e) }
+            .onFailure { e -> Timber.tag("NotesViewModel").e(e, "$tag failed: ${e.message}") }
     }
 }
 

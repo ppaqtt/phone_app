@@ -200,7 +200,7 @@ fun NotesListScreen(
                         ) {
                             DropdownMenuItem(
                                 text = { Text("标签管理") },
-                                leadingIcon = { Icon(Icons.Filled.Label, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.Filled.Label, contentDescription = "标签") },
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenTags()
@@ -213,7 +213,7 @@ fun NotesListScreen(
                                         Text("回收站")
                                     }
                                 },
-                                leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.Filled.DeleteSweep, contentDescription = "回收站") },
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenTrash()
@@ -221,7 +221,7 @@ fun NotesListScreen(
                             )
                             DropdownMenuItem(
                                 text = { Text("排序方式") },
-                                leadingIcon = { Icon(Icons.Filled.Sort, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.Filled.Sort, contentDescription = "排序") },
                                 onClick = {
                                     showMoreMenu = false
                                     showSortDialog = true
@@ -230,7 +230,7 @@ fun NotesListScreen(
                             // F13: 统计入口
                             DropdownMenuItem(
                                 text = { Text("统计") },
-                                leadingIcon = { Icon(Icons.Filled.QueryStats, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.Filled.QueryStats, contentDescription = "统计") },
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenStats()
@@ -247,7 +247,7 @@ fun NotesListScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAddNote,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                icon = { Icon(Icons.Filled.Add, contentDescription = "新建笔记") },
                 text = { Text("新建笔记") }
             )
         }

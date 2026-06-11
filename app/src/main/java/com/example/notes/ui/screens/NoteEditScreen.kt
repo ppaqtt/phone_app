@@ -91,7 +91,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -106,6 +105,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextFieldValue
 import androidx.compose.ui.text.TextRange
+import timber.log.Timber
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -581,7 +581,7 @@ fun NoteEditScreen(
                 saveNote()
                 then()
             } catch (e: Exception) {
-                android.util.Log.e("NoteEditScreen", "saveNote failed", e)
+                Timber.tag("NoteEditScreen").e(e, "saveNote failed")
                 Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 busy = false
@@ -708,7 +708,7 @@ fun NoteEditScreen(
                             DropdownMenuItem(
                                 text = { Text("导出为 PDF") },
                                 leadingIcon = {
-                                    Icon(Icons.Filled.PictureAsPdf, contentDescription = null)
+                                    Icon(Icons.Filled.PictureAsPdf, contentDescription = "PDF")
                                 },
                                 onClick = {
                                     showExportMenu = false
@@ -720,7 +720,7 @@ fun NoteEditScreen(
                             DropdownMenuItem(
                                 text = { Text("导出为长图 (PNG)") },
                                 leadingIcon = {
-                                    Icon(Icons.Filled.Image, contentDescription = null)
+                                    Icon(Icons.Filled.Image, contentDescription = "长图")
                                 },
                                 onClick = {
                                     showExportMenu = false
@@ -1024,7 +1024,7 @@ fun NoteEditScreen(
                                     it.reminderTime?.let { _ -> ReminderManager.cancelReminder(context, it.id) }
                                 }
                             } catch (e: Exception) {
-                                android.util.Log.e("NoteEditScreen", "delete failed", e)
+                                Timber.tag("NoteEditScreen").e(e, "delete failed")
                                 Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
                             } finally {
                                 confirmDelete = false

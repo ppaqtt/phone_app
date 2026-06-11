@@ -13,6 +13,7 @@ import com.example.notes.work.ReminderWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
+import timber.log.Timber
 
 object ReminderManager {
 
@@ -61,7 +62,7 @@ object ReminderManager {
                 .enqueueUniqueWork(workName, ExistingWorkPolicy.REPLACE, workRequest)
             ScheduleResult.SCHEDULED
         } catch (e: Exception) {
-            android.util.Log.e("ReminderManager", "scheduleReminder failed", e)
+            Timber.tag("ReminderManager").e(e, "scheduleReminder failed")
             ScheduleResult.FAILED
         }
     }

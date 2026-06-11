@@ -87,7 +87,7 @@ fun AppLockScreen(
             Spacer(Modifier.height(8.dp))
             Icon(
                 imageVector = Icons.Filled.Lock,
-                contentDescription = null,
+                contentDescription = "锁图标",
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(56.dp)
             )

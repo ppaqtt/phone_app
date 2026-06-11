@@ -155,7 +155,7 @@ private fun CategoryRow(category: CategoryEntity, level: Int, onDelete: () -> Un
             if (level > 0) {
                 Icon(
                     Icons.Filled.SubdirectoryArrowRight,
-                    contentDescription = null,
+                    contentDescription = "子分类",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )

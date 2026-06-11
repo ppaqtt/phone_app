@@ -227,7 +227,7 @@ private fun EmptyTrashState() {
     ) {
         Icon(
             imageVector = Icons.Filled.DeleteForever,
-            contentDescription = null,
+            contentDescription = "回收站",
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(72.dp)
         )

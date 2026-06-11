@@ -169,7 +169,7 @@ private fun TagItem(
     ) {
         Icon(
             Icons.Filled.Label,
-            contentDescription = null,
+            contentDescription = "标签",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
