@@ -105,8 +105,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.input.TextRange
 import timber.log.Timber
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -200,6 +200,25 @@ fun NoteEditScreen(
     var findIndex by remember { mutableStateOf(0) }
     // P51: 协程作用域提到 Composable 级, 供 saveNote 内部 suspend 函数使用
     val scope = rememberCoroutineScope()
+
+    // === 撤销/重做 (必须在 LaunchedEffect(speechHelper) 之前定义, 否则 speechHelper 协程闭包
+    // 引用 pushHistory 会报 "Unresolved reference") ===
+    val undoRedo = remember { UndoRedoState<NoteSnapshot>(maxDepth = 80) }
+    val canUndo by remember { derivedStateOf { undoRedo.canUndo } }
+    val canRedo by remember { derivedStateOf { undoRedo.canRedo } }
+    // P37: 节流, 200ms 内连续输入不重复入栈 (避免 80 步容量被快速耗尽)
+    // P112-FIX: 改用 `val pushHistory = { ... }` (lambda), 不能用 `fun pushHistory()` (local function)。
+    // 原因: local function 作用域只限于 immediate enclosing 块, 不能被 LaunchedEffect
+    // 等 suspend lambda 跨嵌套边界访问, 会报 "Unresolved reference: pushHistory"。
+    // lambda 是 first-class 值, 闭包捕获 State, 可以从 Composable 内任何位置调用。
+    var lastPushMs by remember { mutableStateOf(0L) }
+    val pushHistory: () -> Unit = {
+        val now = System.currentTimeMillis()
+        if (now - lastPushMs >= 200L) {
+            lastPushMs = now
+            undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))
+        }
+    }
 
     // F16: 语音转文字
     var speechText by remember { mutableStateOf("") }
@@ -304,25 +323,8 @@ fun NoteEditScreen(
         }
     }
 
-    // === 撤销/重做 ===
-    val undoRedo = remember { UndoRedoState<NoteSnapshot>(maxDepth = 80) }
-    // 启动时记一次基线
+    // === 撤销/重做: 启动时记一次基线 (pushHistory 已在前面定义) ===
     LaunchedEffect(Unit) { undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime)) }
-    val canUndo by remember { derivedStateOf { undoRedo.canUndo } }
-    val canRedo by remember { derivedStateOf { undoRedo.canRedo } }
-    // P37: 节流, 200ms 内连续输入不重复入栈 (避免 80 步容量被快速耗尽)
-    // P112-FIX: 改用 `val pushHistory = { ... }` (lambda), 不能用 `fun pushHistory()` (local function)。
-    // 原因: local function 作用域只限于 immediate enclosing 块, 不能被 LaunchedEffect
-    // 等 suspend lambda 跨嵌套边界访问, 会报 "Unresolved reference: pushHistory"。
-    // lambda 是 first-class 值, 闭包捕获 State, 可以从 Composable 内任何位置调用。
-    var lastPushMs by remember { mutableStateOf(0L) }
-    val pushHistory: () -> Unit = {
-        val now = System.currentTimeMillis()
-        if (now - lastPushMs >= 200L) {
-            lastPushMs = now
-            undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))
-        }
-    }
 
     // === Toast: 选区为空时给提示 ===
     fun showSelectFirstHint() {
@@ -1495,54 +1497,74 @@ private fun NoteBody(
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 modifier = Modifier.fillMaxWidth(),
-                decorationBox = { inner ->
-                    if (content.text.isEmpty()) {
-                        Text(
-                            text = "记录此刻的想法...",
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                color = MaterialTheme.colorScheme.outline,
-                                lineHeight = 24.sp
-                            )
-                        )
-                    }
-                    inner()
+                decorationBox = { innerTextField ->
+                    NoteBodyDecorationBox(
+                        isEmpty = content.text.isEmpty(),
+                        innerTextField = innerTextField
+                    )
                 }
             )
         }
         // F14: 代码块检测 + 高亮渲染
         // 解析整段内容, 找出所有 ```lang ... ``` 块
+        // P-FIX: 用 items() 替代 forEach, 保留 LazyListScope receiver,
+        // 否则 forEach lambda 内调用 item { } 会报 "@Composable invocations can only happen from the context of a @Composable function"
         val codeBlocks = remember(content.text) { findCodeBlocks(content.text) }
-        codeBlocks.forEach { span ->
+        items(
+            items = codeBlocks,
+            key = { span -> "code_${span.text.hashCode()}_${span.code.hashCode()}" }
+        ) { span ->
             if (span.code.isNotEmpty()) {
-                item(key = "code_${span.text.hashCode()}_${span.code.hashCode()}") {
-                    CodeBlock(code = span.code, language = span.language)
-                }
+                CodeBlock(code = span.code, language = span.language)
             }
         }
         // 每个表格块渲染为可视化 Excel 风格组件
         // P43: key 用 block.text 的 hashCode 替代 startIdx, 避免表格内容变更后 key 残留
-        tableBlocks.forEach { (block, data) ->
-            item(key = "tbl_${block.text.hashCode()}") {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                    MarkdownTable(
-                        data = data,
-                        onCellEdit = { newMarkdown ->
-                            onTableEdit(block.text, newMarkdown)
-                        }
-                    )
-                }
+        items(
+            items = tableBlocks,
+            key = { (block, _) -> "tbl_${block.text.hashCode()}" }
+        ) { (block, data) ->
+            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                MarkdownTable(
+                    data = data,
+                    onCellEdit = { newMarkdown ->
+                        onTableEdit(block.text, newMarkdown)
+                    }
+                )
             }
         }
     }
-
-        // 全屏图片查看器覆盖层 (置顶)
-        viewerUri?.let { uri ->
-            PhotoViewer(
-                uri = uri,
-                onDismiss = { viewerUri = null }
-            )
-        }
     }
+
+    // 全屏图片查看器覆盖层 (置顶)
+    viewerUri?.let { uri ->
+        PhotoViewer(
+            uri = uri,
+            onDismiss = { viewerUri = null }
+        )
+    }
+}
+
+/**
+ * P-FIX-装饰盒: 抽出为顶层 @Composable, 避免 inline lambda 内调用
+ * Text() / innerTextField() 时 Kotlin 1.8.22 推断不出 Composable receiver
+ * (报 "@Composable invocations can only happen from the context of a @Composable function")。
+ */
+@Composable
+private fun NoteBodyDecorationBox(
+    isEmpty: Boolean,
+    innerTextField: @Composable () -> Unit
+) {
+    if (isEmpty) {
+        Text(
+            text = "记录此刻的想法...",
+            style = MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.outline,
+                lineHeight = 24.sp
+            )
+        )
+    }
+    innerTextField()
 }
 
 /** 找到的所有表格块 (text, startIdx, endIdx) 及其 [TableData] */
