@@ -1435,6 +1435,13 @@ private fun NoteBody(
     // 解析整段内容, 找出所有表格块的 (startIndex, endIndex) 和 TableData
     val tableBlocks = remember(content.text) { findTableBlocks(content.text) }
 
+    // P-FIX3: codeBlocks 的 remember 必须放在 LazyColumn 内容 lambda **外**,
+    // 与 tableBlocks 同级. 否则 Kotlin 1.8.22 推断 LazyColumn 的 content
+    // (LazyListScope.() -> Unit, 非 @Composable) 上下文时, 后续 items() 的
+    // 编译可能错误地把 receiver 链关联到非 Composable scope, 报
+    // "@Composable invocations can only happen from the context of a @Composable function"
+    val codeBlocks = remember(content.text) { findCodeBlocks(content.text) }
+
     // 全屏图片查看器状态 (uri 非空时显示)
     var viewerUri by remember { mutableStateOf<String?>(null) }
 
@@ -1513,7 +1520,8 @@ private fun NoteBody(
         // 否则 forEach lambda 内调用 item { } 会报 "@Composable invocations can only happen from the context of a @Composable function"
         // P-FIX2: 改用位置参数调用, 避免 `items = codeBlocks` 命名参数与函数名 `items` 同名
         // 引起 Kotlin 1.8.22 类型推断失败, 导致 itemContent lambda 被推断为非 @Composable.
-        val codeBlocks = remember(content.text) { findCodeBlocks(content.text) }
+        // P-FIX3: codeBlocks 的 remember 已上移到 LazyColumn 外 (与 tableBlocks 同级),
+        // 这里直接引用即可.
         items(
             codeBlocks,
             key = { span: CodeBlockSpan -> "code_${span.text.hashCode()}_${span.code.hashCode()}" }
