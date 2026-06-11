@@ -60,6 +60,9 @@ class NotesViewModel(
 
     val uiState: StateFlow<NotesUiState> =
         combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder) { notesList, categories, activeId, q, sort ->
+            // SQL 已经 ORDER BY is_pinned DESC, updated_at DESC, 但内存 sortBy*
+            // 会丢掉 is_pinned 优先级。所有排序都先按置顶降序, 再按用户选的次级 key。
+            val pinnedFirst = compareByDescending<NoteWithCategory> { it.note.isPinned }
             val filtered = if (q.isBlank()) notesList else {
                 val needle = q.trim()
                 notesList.filter { n ->
@@ -69,12 +72,12 @@ class NotesViewModel(
                 }
             }
             val sorted = when (sort) {
-                NoteSortOrder.UPDATED_DESC -> filtered.sortedByDescending { it.note.updatedAt }
-                NoteSortOrder.UPDATED_ASC -> filtered.sortedBy { it.note.updatedAt }
-                NoteSortOrder.CREATED_DESC -> filtered.sortedByDescending { it.note.createdAt }
-                NoteSortOrder.CREATED_ASC -> filtered.sortedBy { it.note.createdAt }
-                NoteSortOrder.TITLE_ASC -> filtered.sortedBy { it.note.title }
-                NoteSortOrder.PRIORITY_DESC -> filtered.sortedByDescending { it.note.priority }
+                NoteSortOrder.UPDATED_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.updatedAt })
+                NoteSortOrder.UPDATED_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.updatedAt })
+                NoteSortOrder.CREATED_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.createdAt })
+                NoteSortOrder.CREATED_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.createdAt })
+                NoteSortOrder.TITLE_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.title })
+                NoteSortOrder.PRIORITY_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.priority })
             }
             NotesUiState(
                 notes = sorted,

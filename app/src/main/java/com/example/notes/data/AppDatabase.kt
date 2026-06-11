@@ -5,6 +5,7 @@ import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
@@ -13,11 +14,12 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class],
+    // v8 → v9 给 notes 加 is_pinned / updated_at / deleted_at 单列索引
     // F12: v7 → v8 给 categories 加 parent_id 字段 (嵌套分类)
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
-    version = 8,
+    version = 9,
     autoMigrations = [
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
@@ -41,6 +43,18 @@ abstract class AppDatabase : RoomDatabase() {
                 instance ?: build(context).also { instance = it }
             }
 
+        /**
+         * v8 → v9: 给 notes 表增 3 个单列索引。
+         * 用 IF NOT EXISTS 保证幂等, 万一 Room 已先于我们建好索引也不会失败。
+         */
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_pinned` ON `notes` (`is_pinned`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_updated_at` ON `notes` (`updated_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_deleted_at` ON `notes` (`deleted_at`)")
+            }
+        }
+
         private fun build(context: Context): AppDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -50,6 +64,8 @@ abstract class AppDatabase : RoomDatabase() {
                 // 仅在版本号被人工调低时清空(防止调试时 downgrade 崩溃),
                 // 正常升级路径绝不删数据. v4 → v5 加外键通过 AutoMigration 完成。
                 .fallbackToDestructiveMigrationOnDowngrade()
+                // v8 → v9 手动迁移: 给 notes 加 3 个查询索引
+                .addMigrations(MIGRATION_8_9)
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {

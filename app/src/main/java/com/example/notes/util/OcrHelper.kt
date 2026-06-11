@@ -45,10 +45,18 @@ object OcrHelper {
                     val result = visionText.text
                     // P-FIX-003: 不在日志中输出图片 URI, 避免泄露用户图片路径
                     Timber.d("OCR recognized ${result.length} chars")
+                    if (scaled != bitmap) {
+                        runCatching { scaled.recycle() }
+                    }
+                    runCatching { bitmap.recycle() }
                     continuation.resume(result)
                 }
                 .addOnFailureListener { e ->
                     Timber.e(e, "OCR failed")
+                    if (scaled != bitmap) {
+                        runCatching { scaled.recycle() }
+                    }
+                    runCatching { bitmap.recycle() }
                     continuation.resumeWithException(e)
                 }
             continuation.invokeOnCancellation {
@@ -64,7 +72,8 @@ object OcrHelper {
         } ?: throw IllegalArgumentException("无法加载图片: $uri")
     }
 
-    /** 如果任一边超过 1920, 等比缩放到 1920 以内 */
+    /** 如果任一边超过 1920, 等比缩放到 1920 以内。
+     *  返回新 bitmap 时回收原图, 避免大图缩放时短时间持有 2x 内存。*/
     private fun scaleIfNeeded(bitmap: Bitmap, maxDim: Int = 1920): Bitmap {
         val w = bitmap.width
         val h = bitmap.height
@@ -79,6 +88,11 @@ object OcrHelper {
             newH = maxDim
             newW = (maxDim * ratio).toInt()
         }
-        return bitmap.scale(newW, newH)
+        val scaled = bitmap.scale(newW, newH)
+        if (scaled != bitmap) {
+            // 新建的缩放 bitmap 不会与原图共享像素, 立刻回收原图释放 native 内存
+            runCatching { bitmap.recycle() }
+        }
+        return scaled
     }
 }
