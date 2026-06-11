@@ -12,9 +12,6 @@ import android.widget.RemoteViews
 import com.example.notes.MainActivity
 import com.example.notes.NotesApplication
 import com.example.notes.R
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import timber.log.Timber
 
 /**
@@ -196,7 +193,6 @@ class NotesRemoteViewsFactory(
             val app = context.applicationContext as NotesApplication
             // RemoteViewsFactory 的回调都在 binder 线程池, 走 blocking runBlocking 简单
             // 取 5 条 IO 不会卡顿, 后续可改成回调注册
-            val appScope = CoroutineScope(Dispatchers.IO)
             // 这里用 runBlocking 是因为 RemoteViewsFactory.getViewAt 是同步调用,
             // 没有 suspend 入口。AppWidget 列表项数 ≤ 5, IO 微秒级, 不构成性能问题。
             notes = kotlinx.coroutines.runBlocking { app.repository.getRecentNotes(5) }

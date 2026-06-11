@@ -345,52 +345,56 @@ fun NotesListScreen(
     }
 
     if (showTagsDialog && actionTarget != null) {
+        val target = actionTarget
         TagsEditDialog(
-            initial = actionTarget!!.note.tags,
+            initial = target.note.tags,
             onDismiss = { showTagsDialog = false; dismissActions() },
             onConfirm = { newTags ->
-                viewModel.setTags(actionTarget!!.note.id, newTags)
+                viewModel.setTags(target.note.id, newTags)
                 showTagsDialog = false; dismissActions()
             }
         )
     }
 
     if (showPriorityDialog && actionTarget != null) {
+        val target = actionTarget
         PriorityDialog(
-            current = actionTarget!!.note.priority,
+            current = target.note.priority,
             onDismiss = { showPriorityDialog = false; dismissActions() },
             onConfirm = { p ->
-                viewModel.setPriority(actionTarget!!.note.id, p)
+                viewModel.setPriority(target.note.id, p)
                 showPriorityDialog = false; dismissActions()
             }
         )
     }
 
     if (showMoveDialog && actionTarget != null) {
+        val target = actionTarget
         MoveCategoryDialog(
             categories = state.categories,
-            current = actionTarget!!.note.categoryId,
+            current = target.note.categoryId,
             onDismiss = { showMoveDialog = false; dismissActions() },
             onConfirm = { catId ->
-                viewModel.moveToCategory(actionTarget!!.note.id, catId)
+                viewModel.moveToCategory(target.note.id, catId)
                 showMoveDialog = false; dismissActions()
             }
         )
     }
 
     if (showDeleteDialog && actionTarget != null) {
+        val target = actionTarget
         AlertDialog(
             onDismissRequest = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
             title = { Text("删除笔记") },
-            text = { Text("确认要删除「${actionTarget!!.note.title.ifBlank { "无标题" }}」吗?删除后 5 秒内可撤销。") },
+            text = { Text("确认要删除「${target.note.title.ifBlank { "无标题" }}」吗?删除后 5 秒内可撤销。") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         if (deleteInFlight) return@TextButton
                         deleteInFlight = true
-                        val title = actionTarget!!.note.title.ifBlank { "无标题" }
+                        val title = target.note.title.ifBlank { "无标题" }
                         // P97: 改用 deleteNoteWithUndo, 删除后弹 Snackbar 提供 5 秒内撤销
-                        viewModel.deleteNoteWithUndo(actionTarget!!.note.id)
+                        viewModel.deleteNoteWithUndo(target.note.id)
                         showDeleteDialog = false
                         dismissActions()
                         scope.launch {

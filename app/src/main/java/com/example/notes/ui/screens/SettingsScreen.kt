@@ -1,7 +1,6 @@
 package com.example.notes.ui.screens
 
 import android.content.Intent
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -70,6 +69,8 @@ import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.ChangelogData
 import com.example.notes.util.NoUpdateDialog
 import com.example.notes.util.UpdateAvailableDialog
+import com.example.notes.util.toastLong
+import com.example.notes.util.toastShort
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -112,7 +113,7 @@ fun SettingsScreen(
                 viewModel.consumeBackupState()
             }
             is NotesViewModel.BackupState.Error -> {
-                Toast.makeText(context, s.message, Toast.LENGTH_LONG).show()
+                context.toastLong(s.message)
                 viewModel.consumeBackupState()
             }
             else -> Unit
@@ -221,19 +222,20 @@ fun SettingsScreen(
         }
     }
 
-    if (showUpdateDialog && lastCheckResult?.releaseInfo != null) {
+    val checkResult = lastCheckResult
+    if (showUpdateDialog && checkResult?.releaseInfo != null) {
         UpdateAvailableDialog(
-            currentVersion = lastCheckResult!!.currentVersion,
-            release = lastCheckResult!!.releaseInfo!!,
-            errorMessage = lastCheckResult!!.errorMessage,
+            currentVersion = checkResult.currentVersion,
+            release = checkResult.releaseInfo!!,
+            errorMessage = checkResult.errorMessage,
             onDismiss = { showUpdateDialog = false }
         )
     }
 
-    if (showNoUpdateTip && lastCheckResult != null) {
+    if (showNoUpdateTip && checkResult != null) {
         NoUpdateDialog(
-            currentVersion = lastCheckResult!!.currentVersion,
-            errorMessage = lastCheckResult!!.errorMessage,
+            currentVersion = checkResult.currentVersion,
+            errorMessage = checkResult.errorMessage,
             onDismiss = { showNoUpdateTip = false }
         )
     }
@@ -751,7 +753,7 @@ private fun FeedbackCard() {
                 // P75: runCatching 空 catch 静默吞异常 → 加 Toast 反馈
                 runCatching { context.startActivity(intent) }
                     .onFailure { e ->
-                        Toast.makeText(context, "无法打开链接: ${e.message}", Toast.LENGTH_SHORT).show()
+                        context.toastShort("无法打开链接: ${e.message}")
                     }
             },
         colors = CardDefaults.cardColors(

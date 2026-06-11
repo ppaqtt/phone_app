@@ -2,7 +2,6 @@ package com.example.notes.util
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONArray
+import timber.log.Timber
 
 /**
  * 搜索历史管理器
@@ -100,7 +100,7 @@ class SearchHistoryManager(context: Context) {
             }
             _history.value = list
         } catch (e: Exception) {
-            Log.w(TAG, "搜索历史 JSON 解析失败, 已重置. error=${e.message}")
+            Timber.tag("SearchHistoryManager").w(e, "搜索历史 JSON 解析失败, 已重置")
             _history.value = emptyList()
         }
     }
@@ -112,7 +112,6 @@ class SearchHistoryManager(context: Context) {
     }
 
     companion object {
-        private const val TAG = "SearchHistoryManager"
         private const val PREFS_NAME = "search_history"
         private const val KEY_HISTORY = "history"
         private const val MAX_HISTORY_SIZE = 20

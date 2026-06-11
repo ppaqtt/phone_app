@@ -1,7 +1,6 @@
 package com.example.notes
 
 import android.app.Application
-import android.util.Log
 import com.example.notes.data.AppDatabase
 import com.example.notes.repository.NotesRepository
 import com.example.notes.util.AppLockStore
@@ -59,7 +58,7 @@ class NotesApplication : Application() {
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         appScope.launch {
             runCatching { AppUpdateChecker.checkForUpdate(persistContext = applicationContext) }
-                .onFailure { Log.w("NotesApplication", "update check failed: ${it.message}") }
+                .onFailure { Timber.tag("NotesApplication").w(it, "update check failed") }
         }
 
         // F2: 调度回收站清理 worker, 24h 后跑, 之后 KEEP 策略幂等。
@@ -85,7 +84,7 @@ class NotesApplication : Application() {
                     w.appendLine("Thread: ${thread.name}")
                     w.appendLine("Build: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                     w.appendLine()
-                    w.appendLine(Log.getStackTraceString(throwable))
+                    w.appendLine(throwable.stackTraceToString())
                 }
             }
             // 把崩溃再交给系统默认 handler (杀进程 + ANR 等)

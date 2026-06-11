@@ -1,7 +1,6 @@
 package com.example.notes.util
 
 import android.content.Context
-import android.widget.Toast
 import androidx.work.BackoffPolicy
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
@@ -80,7 +79,7 @@ object ReminderManager {
             ScheduleResult.FAILED -> "提醒设置失败, 请稍后重试"
         }
         withContext(Dispatchers.Main) {
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            context.toastShort(message)
         }
     }
 }

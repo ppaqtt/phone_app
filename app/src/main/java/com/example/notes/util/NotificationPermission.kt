@@ -2,8 +2,11 @@ package com.example.notes.util
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -21,8 +24,10 @@ import androidx.core.content.ContextCompat
  *
  * 该工具封装:
  * 1. [hasNotificationPermission] 检测当前是否已授权
- * 2. [rememberNotificationPermissionRequest] Composable 内一键拉起系统弹窗,
- *    用户授权 / 拒绝后回调 [onResult]。
+ * 2. [shouldShowRationale] 用户拒绝过但未勾"不再询问" (可再弹窗引导)
+ * 3. [isPermanentlyDenied] 用户勾了"不再询问" (只能跳设置页)
+ * 4. [rememberNotificationPermissionRequest] Composable 内一键拉起系统弹窗,
+ *    永久拒绝时自动跳应用设置页。
  */
 object NotificationPermission {
 
@@ -35,11 +40,56 @@ object NotificationPermission {
             context, Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
     }
+
+    /**
+     * 用户拒绝过但未勾"不再询问" — 可再次弹窗引导。
+     * API < 33 返回 false (不需要弹窗)。
+     */
+    fun shouldShowRationale(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        return !ContextCompat.shouldShowRequestPermissionRationale(
+            context, Manifest.permission.POST_NOTIFICATIONS
+        )
+        // 注: shouldShowRequestPermissionRationale 在"首次请求"和"永久拒绝"时
+        // 都返回 false。这里取反是因为我们只关心"用户主动拒绝但可再引导"的场景。
+    }
+
+    /**
+     * 用户已永久拒绝 (勾了"不再询问") — 只能跳设置页。
+     * 判断逻辑: 已拒绝 + 不应弹 rationale = 永久拒绝。
+     */
+    fun isPermanentlyDenied(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+        return !hasPermission(context) &&
+            !ContextCompat.shouldShowRequestPermissionRationale(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            )
+    }
+
+    /** 打开应用通知设置页 */
+    fun openAppSettings(context: Context) {
+        val intent = Intent().apply {
+            when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
+                    action = Settings.ACTION_APP_NOTIFICATION_SETTINGS
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                }
+                else -> {
+                    action = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+                    data = Uri.fromParts("package", context.packageName, null)
+                }
+            }
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        context.startActivity(intent)
+    }
 }
 
 /**
  * Composable 拉起 POST_NOTIFICATIONS 申请弹窗, 回调 [onResult] 收到结果。
  * 调用一次后 [request] 状态会重置, 可再次触发。
+ *
+ * 若用户已永久拒绝, 自动跳应用设置页 (不再弹无意义的系统弹窗)。
  */
 @Composable
 fun rememberNotificationPermissionRequest(
@@ -57,7 +107,13 @@ fun rememberNotificationPermissionRequest(
     LaunchedEffect(trigger.value) {
         if (trigger.value) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (NotificationPermission.isPermanentlyDenied(context)) {
+                    // 永久拒绝: 跳设置页, 不弹无意义的系统弹窗
+                    NotificationPermission.openAppSettings(context)
+                    onResult(false)
+                } else {
+                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             } else {
                 pendingResult.value(true)
                 onResult(true)
