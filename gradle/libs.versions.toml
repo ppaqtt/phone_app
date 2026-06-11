@@ -1,14 +1,14 @@
 [versions]
-agp = "8.0.2"
-kotlin = "1.8.22"
-ksp = "1.8.22-1.0.11"
-kotlin-stdlib = "1.8.22"
+agp = "8.5.2"
+kotlin = "1.9.22"
+ksp = "1.9.22-1.0.17"
+kotlin-stdlib = "1.9.22"
 
 coreKtx = "1.12.0"
 lifecycle = "2.6.2"
 activityCompose = "1.7.2"
 composeBom = "2023.08.00"
-composeCompiler = "1.4.8"
+composeCompiler = "1.5.10"
 navigationCompose = "2.7.5"
 
 room = "2.5.2"
@@ -23,7 +23,7 @@ lottie = "6.1.0"
 workmanager = "2.8.1"
 timber = "5.0.1"
 accompanist = "0.30.1"
-mlkit-text-recognition-chinese = "16.0.0"
+mlkit-text-recognition-chinese = "16.0.1"
 
 # Testing
 junit = "4.13.2"
