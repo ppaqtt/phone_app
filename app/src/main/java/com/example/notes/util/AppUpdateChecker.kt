@@ -31,9 +31,12 @@ object AppUpdateChecker {
     private const val KEY_LAST_CHECK_AT = "last_check_at"
 
     /**
-     * 网络不可用时的兜底最新版本号。后续每次正式发版时手动同步。
+     * P108-FIX: 网络不可用时的兜底最新版本号。
+     * 必须与更新日志 [ChangelogData] 中的最新版本保持一致,
+     * 否则网络失败时会给出错误的更新提示。
+     * 每次正式发版时手动同步。
      */
-    const val FALLBACK_LATEST_VERSION = "1.15.0"
+    const val FALLBACK_LATEST_VERSION = "1.0.6"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME
@@ -126,12 +129,20 @@ object AppUpdateChecker {
         }
         val current = currentVersion()
         val effective = remote?.version ?: FALLBACK_LATEST_VERSION
+        val hasUpdate = isNewerAvailable(current, effective)
+        // P108-FIX: 更清晰的错误提示, 区分"网络失败"和"已是最新"。
+        val errorMessage = when {
+            remote == null -> "网络异常, 已使用本地版本对比 (兜底版本: v$effective)"
+            !hasUpdate && compareVersions(current, effective) > 0 ->
+                "当前版本 v$current 比远程版本 v$effective 更新"
+            else -> null
+        }
         val result = UpdateCheckResult(
             currentVersion = current,
             latestVersion = effective,
             releaseInfo = remote,
-            hasUpdate = isNewerAvailable(current, effective),
-            errorMessage = if (remote == null) "网络异常, 已使用本地版本对比" else null
+            hasUpdate = hasUpdate,
+            errorMessage = errorMessage
         )
         // 把"上次发现的新版本"持久化, 供主屏冷启动后弹出 SnackBar
         if (persistContext != null && result.hasUpdate) {
@@ -192,17 +203,24 @@ object AppUpdateChecker {
     }
 
     /**
-     * 解析 "1.2.3" -> [1, 2, 3]
+     * P108-FIX: 解析版本号 "v1.2.3" / "1.2.3-beta" -> [1, 2, 3]。
+     * 过滤掉非数字后缀（如 -beta, -rc1），只取主版本号部分比较。
      */
-    fun parseVersion(version: String): List<Int> =
-        version.removePrefix("v").split(".").mapNotNull { it.toIntOrNull() }
+    fun parseVersion(version: String): List<Int> {
+        val cleaned = version.removePrefix("v")
+            .substringBefore("-")   // "1.2.3-beta" -> "1.2.3"
+            .substringBefore("+")   // "1.2.3+build" -> "1.2.3"
+        return cleaned.split(".").mapNotNull { it.toIntOrNull() }
+    }
 
     /**
-     * 比较两个版本号: a < b 返回负数, a > b 返回正数, 相等返回 0
+     * P108-FIX: 比较两个版本号, 增加日志便于排查更新问题。
+     * a < b 返回负数, a > b 返回正数, 相等返回 0。
      */
     fun compareVersions(a: String, b: String): Int {
         val pa = parseVersion(a)
         val pb = parseVersion(b)
+        Timber.tag("AppUpdateChecker").d("compareVersions: '$a' -> $pa vs '$b' -> $pb")
         val len = maxOf(pa.size, pb.size)
         for (i in 0 until len) {
             val ai = pa.getOrElse(i) { 0 }
