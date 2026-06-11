@@ -308,7 +308,6 @@ private fun KeyButton(
     onLongClick: (() -> Unit)? = null
 ) {
     // Compose 1.5+ 才有 combinedClickable 的 LongClick 支持; 简化用 pointerInput 实现
-    var lastClickTime by remember { mutableStateOf(0L) }
     Box(
         modifier = Modifier
             .size(72.dp)

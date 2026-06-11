@@ -126,7 +126,6 @@ fun findCodeBlocks(text: String): List<CodeBlockSpan> {
         if (trimmed.startsWith("```")) {
             // 围栏: ```lang 或 ```
             val lang = trimmed.removePrefix("```").trim()
-            val startLine = i
             val startOffset = runningOffset
             i++
             runningOffset += line.length + 1 // +1 for '\n'
@@ -259,19 +258,15 @@ private fun highlight(code: String, language: String): AnnotatedString {
     return buildAnnotatedString {
         val lines = code.split('\n')
         lines.forEachIndexed { lineIdx, line ->
-            // 1) 注释优先
+            // 1) 注释优先: 把注释段以 italic 样式附加, 返回非注释部分 codePart
             val commentIdx = line.indexOf(lineCommentStart)
-            val commentStart: Int
-            val codePart: String
-            if (commentIdx >= 0) {
-                commentStart = commentIdx
-                codePart = line.substring(0, commentIdx)
+            val codePart: String = if (commentIdx >= 0) {
                 withStyle(SpanStyle(color = commentColor, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) {
                     append(line.substring(commentIdx))
                 }
+                line.substring(0, commentIdx)
             } else {
-                commentStart = -1
-                codePart = line
+                line
             }
             // 2) 扫描 codePart: 字符串 / 数字 / 关键字 / 普通
             var i = 0
