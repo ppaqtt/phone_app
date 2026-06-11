@@ -118,7 +118,6 @@ object NoteExporter {
         val density = 2.0f
         val widthPx = ((PAGE_WIDTH_PT * density).toInt())
         val marginPx = (MARGIN_PT * density).toInt()
-        val lineHeightPx = LINE_HEIGHT_PT * density
         val bodySizePx = BODY_SIZE * density
         val titleSizePx = TITLE_SIZE * density
         val metaSizePx = META_SIZE * density

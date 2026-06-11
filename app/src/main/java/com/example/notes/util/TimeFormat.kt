@@ -22,9 +22,9 @@ private val fmtDate = ThreadLocal.withInitial {
     SimpleDateFormat("MM-dd", Locale.getDefault())
 }
 
-fun formatTimestamp(ts: Long): String = fmtFull.get().format(Date(ts))
+fun formatTimestamp(ts: Long): String = fmtFull.get()!!.format(Date(ts))
 
-fun formatTimestampShort(ts: Long): String = fmtShort.get().format(Date(ts))
+fun formatTimestampShort(ts: Long): String = fmtShort.get()!!.format(Date(ts))
 
 /**
  * 相对时间显示: "刚刚" / "X 分钟前" / "X 小时前" / "昨天 HH:mm" / "MM-dd"
@@ -37,8 +37,8 @@ fun formatRelativeTime(ts: Long, now: Long = System.currentTimeMillis()): String
         delta < 60_000L -> "刚刚"
         delta < 60 * 60_000L -> "${delta / 60_000L} 分钟前"
         delta < 24 * 60 * 60_000L -> "${delta / (60 * 60_000L)} 小时前"
-        delta < 2 * 24 * 60 * 60_000L -> "昨天 ${fmtTime.get().format(Date(ts))}"
-        delta < 365L * 24 * 60 * 60_000L -> fmtDate.get().format(Date(ts))
+        delta < 2 * 24 * 60 * 60_000L -> "昨天 ${fmtTime.get()!!.format(Date(ts))}"
+        delta < 365L * 24 * 60 * 60_000L -> fmtDate.get()!!.format(Date(ts))
         else -> formatTimestamp(ts)
     }
 }

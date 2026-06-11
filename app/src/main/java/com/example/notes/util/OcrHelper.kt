@@ -40,7 +40,7 @@ object OcrHelper {
         val image = InputImage.fromBitmap(scaled, 0)
 
         return suspendCancellableCoroutine { continuation ->
-            val task = recognizer.process(image)
+            recognizer.process(image)
                 .addOnSuccessListener { visionText ->
                     val result = visionText.text
                     // P-FIX-003: 不在日志中输出图片 URI, 避免泄露用户图片路径

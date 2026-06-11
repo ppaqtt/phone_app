@@ -18,7 +18,7 @@ object ImageUtils {
     }
 
     fun createImageFile(context: Context): File {
-        val timeStamp = fmt.get().format(Date())
+        val timeStamp = fmt.get()!!.format(Date())
         val storageDir = context.getExternalFilesDir("images")
         return File.createTempFile(
             "NOTE_${timeStamp}",

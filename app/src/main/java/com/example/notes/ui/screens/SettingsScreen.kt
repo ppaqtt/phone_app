@@ -232,7 +232,7 @@ fun SettingsScreen(
     if (showUpdateDialog && checkResult?.releaseInfo != null) {
         UpdateAvailableDialog(
             currentVersion = checkResult.currentVersion,
-            release = checkResult.releaseInfo!!,
+            release = checkResult.releaseInfo,
             errorMessage = checkResult.errorMessage,
             onDismiss = { showUpdateDialog = false }
         )
@@ -857,7 +857,6 @@ private fun QQGroupCard() {
 
 @Composable
 private fun ChangelogCard() {
-    val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
 
     // P103: 更新日志改为按钮形式, 点击弹出对话框查看

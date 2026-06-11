@@ -396,7 +396,6 @@ private fun countWords(text: String): Int {
 private fun bucketByMonth(rows: List<NoteStatsRow>, months: Int): List<Pair<String, Int>> {
     val cal = Calendar.getInstance()
     val sdf = SimpleDateFormat("M月", Locale.getDefault())
-    val keys = ArrayList<Pair<String, Int>>()
     // 倒推 months-1 个月, 直到当前月
     val base = Calendar.getInstance().apply {
         set(Calendar.DAY_OF_MONTH, 1)

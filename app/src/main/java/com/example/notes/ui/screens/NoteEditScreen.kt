@@ -309,7 +309,7 @@ fun NoteEditScreen(
             color = (lastSaved?.color?.let { Color(it) } ?: NoteSwatches.first()),
             isPinned = lastSaved?.isPinned ?: false,
             categoryId = lastSaved?.categoryId,
-            tags = (lastSaved?.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList()) as List<String>,
+            tags = lastSaved?.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
             reminderTime = lastSaved?.reminderTime
         ) else NoteSnapshot("", "")
     }
@@ -924,12 +924,6 @@ fun NoteEditScreen(
                         pushHistory()
                         selectedTool = null
                     },
-                    onInsertText = { snippet ->
-                        // 在末尾 append 一行
-                        val newText = if (content.text.isEmpty()) snippet else content.text + "\n" + snippet
-                        content = content.copy(text = newText)
-                        pushHistory()
-                    },
                     onInsertAtCursor = { snippet ->
                         // P14: 实装光标位置插入, 替代之前的 unused 桩
                         content = insertAtCursor(content, snippet)
@@ -1203,7 +1197,7 @@ private fun MetaInfoRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = sdf.format(dateMs),
+            text = sdf!!.format(dateMs),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1706,7 +1700,6 @@ private fun ToolPanel(
     onTakePhoto: () -> Unit,
     onPickAudio: () -> Unit,
     onToggleTodo: () -> Unit,
-    onInsertText: (String) -> Unit,
     onInsertAtCursor: (String) -> Unit,
     onWrapBold: () -> Unit,
     onWrapItalic: () -> Unit,

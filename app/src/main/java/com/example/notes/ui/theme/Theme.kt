@@ -13,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -92,8 +91,6 @@ fun NotesAppTheme(
     pref: ThemePref = rememberThemePref(),
     content: @Composable () -> Unit
 ) {
-    val context = LocalContext.current
-
     // F7: 主题模式 (SYSTEM/LIGHT/DARK)
     val effectiveDark = when (pref.darkMode) {
         DarkMode.SYSTEM -> darkTheme
