@@ -5,9 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.RawQuery
 import androidx.room.Transaction
-import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -99,19 +97,6 @@ interface NoteDao {
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertWithId(note: NoteEntity): Long
-
-    /**
-     * 批量移除所有笔记中的指定标签。
-     * 用 ',' || tags || ',' 的方式包裹做精确匹配, 避免 "work" 误匹配 "homework"。
-     * REPLACE 后用 TRIM 剥掉残留首尾逗号; 空 tag 直接 no-op。
-     *
-     * P111-FIX: 旧 @Query 内联写法 `|| :tag ||` 在 KSP 解析器中报错
-     *   "no viable alternative at input 'UPDATE notes SET tag' / Unused parameter: tag"。
-     * 改用 @RawQuery + SimpleSQLiteQuery 注入, 让 KSP 跳过 SQL 解析,
-     * 仅检查返回类型 (Int = 受影响行数) 与参数绑定。
-     */
-    @RawQuery
-    suspend fun removeTagFromAllNotesRaw(query: SupportSQLiteQuery): Int
 
     /**
      * F1: 导入备份前清空 notes 表 (顺序: 图片 → 笔记 → 分类)。

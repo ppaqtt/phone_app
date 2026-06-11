@@ -31,12 +31,13 @@ object AppUpdateChecker {
     private const val KEY_LAST_CHECK_AT = "last_check_at"
 
     /**
-     * P108-FIX: 网络不可用时的兜底最新版本号。
+     * P108-FIX + P111-FIX: 网络不可用时的兜底最新版本号。
      * 必须与更新日志 [ChangelogData] 中的最新版本保持一致,
      * 否则网络失败时会给出错误的更新提示。
+     * ChangelogData 当前最高为 v1.15.0 (v25), 故 fallback 与之同步。
      * 每次正式发版时手动同步。
      */
-    const val FALLBACK_LATEST_VERSION = "1.0.6"
+    private const val FALLBACK_LATEST_VERSION = "1.15.0"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME

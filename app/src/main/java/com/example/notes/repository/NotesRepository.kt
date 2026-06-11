@@ -12,7 +12,6 @@ import com.example.notes.data.NoteWithCategoryAndImages
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
-import androidx.sqlite.db.SimpleSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import timber.log.Timber
@@ -125,26 +124,38 @@ class NotesRepository(
     /**
      * 批量移除所有笔记中的指定标签 (一次 SQL 完成)。
      *
-     * P111-FIX: 旧实现是 `@Query` 内联 SQL, KSP 解析器在 `|| :tag ||` 处
-     * 报 "no viable alternative at input 'UPDATE notes SET tag' / Unused parameter: tag"。
-     * 改用 `@RawQuery` + `SimpleSQLiteQuery` 在调用方构造 SQL, 让 KSP 跳过解析。
+     * P111-FIX: 旧实现走 DAO `@Query` 内联 SQL, KSP 解析器在 `|| :tag ||`
+     * 处报 "no viable alternative at input 'UPDATE notes SET tag' / Unused parameter: tag"。
+     * 上一版改用 `@RawQuery` + `SimpleSQLiteQuery` 也引起 88 个 cascade 编译错误。
+     *
+     * 最终方案: 完全绕开 Room/KSP 解析, 直接用 `database.openHelper.writableDatabase.execSQL()`
+     * 执行, SQL 中 `:tag` 替换为已转义的字面量, 由 SQLite 直接解析。
      *
      * SQL 含义: 包裹后用 REPLACE 去除 `,tag,` 子串, 再 TRIM 掉残留首尾逗号。
-     * 用 `instr` 在 WHERE 阶段提前过滤, 减少 REPLACE 调用次数 (空 tags 跳过)。
+     * WHERE 用 `instr` 提前过滤, 减少 REPLACE 调用次数 (空 tags 跳过)。
+     *
+     * 安全性: tag 通过 [escapeSqlString] 转义, 拒绝包含分隔符/控制字符的输入,
+     * 避免 SQL 注入; 空 tag / 纯空白 tag 直接 no-op。
      */
     suspend fun removeTagFromAllNotes(tag: String) {
         if (tag.isBlank()) return
-        val safeTag = tag.replace(",", "")  // 防御: tag 内不应含逗号, 避免破坏包裹语义
-        if (safeTag.isBlank()) return
+        // 防御: tag 内不能含逗号 (会破坏 `,tag,` 包裹语义); 也不能含 SQL 控制字符
+        val sanitized = tag.replace(",", "").replace(Regex("[\\x00'\";\\-\\-]"), "")
+        if (sanitized.isBlank()) return
+        val escaped = escapeSqlString(sanitized)
         val sql = """
             UPDATE notes
-            SET tags = TRIM(',' FROM REPLACE(',' || tags || ',', ',' || ? || ',', ','))
-            WHERE tags != '' AND instr(',' || tags || ',', ',' || ? || ',') > 0
+            SET tags = TRIM(',' FROM REPLACE(',' || tags || ',', ',' || '$escaped' || ',', ','))
+            WHERE tags != '' AND instr(',' || tags || ',', ',' || '$escaped' || ',') > 0
         """.trimIndent()
-        noteDao.removeTagFromAllNotesRaw(
-            SimpleSQLiteQuery(sql, arrayOf<Any?>(safeTag, safeTag))
-        )
+        database.withTransaction {
+            database.openHelper.writableDatabase.execSQL(sql)
+        }
     }
+
+    /** 把字符串转义为 SQL 字面量, 包裹单引号并转义内部单引号 */
+    private fun escapeSqlString(s: String): String =
+        s.replace("'", "''")
 
     // --- Categories ------------------------------------------------------
 

@@ -111,11 +111,10 @@ class NotesApplication : Application() {
                 val backupFile = File(backupDir, "pre_upgrade_$ts.json")
 
                 // 懒加载 repository 读取数据
-                val payload = BackupManager.buildPayload(
-                    repository.getAllNotesOnce(),
-                    repository.getAllCategoriesOnce(),
-                    repository.getAllNoteImagesOnce()
-                )
+                // P111-FIX: 不再调用 repository 上不存在的 getAllXxxOnce(),
+                // 改用 repository.exportBackup(currentVersion) 一步完成
+                // 笔记+分类+图片的聚合, 避免逐表读取再手工拼装 payload。
+                val payload = repository.exportBackup(currentVersion.toString())
                 backupFile.writeText(BackupManager.toJson(payload))
                 Timber.tag("NotesApplication").i(
                     "Pre-upgrade safety backup created: ${backupFile.absolutePath}"
