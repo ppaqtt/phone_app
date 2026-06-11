@@ -60,7 +60,8 @@ object OcrHelper {
                     continuation.resumeWithException(e)
                 }
             continuation.invokeOnCancellation {
-                task.cancel()
+                // ML Kit Task 没有 cancel() — 通过让监听器捕获异常间接终止
+                // (recognizer.process 返回的 Task 内部已绑定 InputImage 生命周期)
             }
         }
     }
@@ -82,8 +83,8 @@ object OcrHelper {
             val h = options.outHeight
             var sampleSize = 1
             if (w > maxDim || h > maxDim) {
-                val wRatio = Math.ceil(w.toFloat() / maxDim).toInt()
-                val hRatio = Math.ceil(h.toFloat() / maxDim).toInt()
+                val wRatio = kotlin.math.ceil(w.toDouble() / maxDim).toInt()
+                val hRatio = kotlin.math.ceil(h.toDouble() / maxDim).toInt()
                 sampleSize = maxOf(wRatio, hRatio)
             }
             Timber.d("OCR image ${w}x${h}, sampleSize=$sampleSize")

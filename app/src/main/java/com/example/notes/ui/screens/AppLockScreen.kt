@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -193,7 +194,7 @@ private suspend fun handleSubmit(
     firstPin: String,
     onSetFirst: () -> Unit,
     onSuccess: () -> Unit,
-    onFail: () -> Unit,
+    onFail: suspend () -> Unit,
     onCooldown: () -> Unit
 ) {
     when (mode) {
@@ -314,7 +315,7 @@ private fun KeyButton(
             .clip(RoundedCornerShape(36.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .pointerInput(Unit) {
-                androidx.compose.foundation.gestures.detectTapGestures(
+                detectTapGestures(
                     onTap = { onClick() },
                     onLongPress = { onLongClick?.invoke() }
                 )

@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.FormatAlignCenter
+import androidx.compose.material.icons.filled.FormatAlignLeft
 import androidx.compose.material.icons.filled.FormatAlignRight
 import androidx.compose.material.icons.filled.FormatBold
 import androidx.compose.material.icons.filled.FormatItalic
@@ -104,8 +105,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextFieldValue
-import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TextRange
 import timber.log.Timber
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -135,6 +136,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 
 /** 底部工具栏当前选中的工具 (AI 已移除) */
@@ -283,7 +285,7 @@ fun NoteEditScreen(
         if (loaded) NoteSnapshot(
             title = lastSaved?.title.orEmpty(),
             content = lastSaved?.content.orEmpty(),
-            color = lastSaved?.color ?: NoteSwatches.first(),
+            color = (lastSaved?.color?.let { Color(it) } ?: NoteSwatches.first()),
             isPinned = lastSaved?.isPinned ?: false,
             categoryId = lastSaved?.categoryId,
             tags = (lastSaved?.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList()) as List<String>,
@@ -309,12 +311,17 @@ fun NoteEditScreen(
     val canUndo by remember { derivedStateOf { undoRedo.canUndo } }
     val canRedo by remember { derivedStateOf { undoRedo.canRedo } }
     // P37: 节流, 200ms 内连续输入不重复入栈 (避免 80 步容量被快速耗尽)
+    // P112-FIX: 改用 `val pushHistory = { ... }` (lambda), 不能用 `fun pushHistory()` (local function)。
+    // 原因: local function 作用域只限于 immediate enclosing 块, 不能被 LaunchedEffect
+    // 等 suspend lambda 跨嵌套边界访问, 会报 "Unresolved reference: pushHistory"。
+    // lambda 是 first-class 值, 闭包捕获 State, 可以从 Composable 内任何位置调用。
     var lastPushMs by remember { mutableStateOf(0L) }
-    fun pushHistory() {
+    val pushHistory: () -> Unit = {
         val now = System.currentTimeMillis()
-        if (now - lastPushMs < 200L) return
-        lastPushMs = now
-        undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))
+        if (now - lastPushMs >= 200L) {
+            lastPushMs = now
+            undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))
+        }
     }
 
     // === Toast: 选区为空时给提示 ===

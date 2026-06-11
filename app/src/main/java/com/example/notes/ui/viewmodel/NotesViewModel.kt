@@ -172,7 +172,7 @@ class NotesViewModel(
     }
 
     fun deleteNote(id: Long) {
-        viewModelScope.launchSafe("deleteNote") { repository.deleteNote(id) }
+        launchSafe("deleteNote") { repository.deleteNote(id) }
     }
 
     /**
@@ -190,7 +190,7 @@ class NotesViewModel(
 
     fun deleteNoteWithUndo(id: Long) {
         pendingUndoJob?.cancel()
-        viewModelScope.launchSafe("deleteNoteWithUndo") {
+        launchSafe("deleteNoteWithUndo") {
             val snapshot = repository.getNoteSnapshot(id)
             if (snapshot == null) return@launchSafe
             pendingUndo = snapshot
@@ -225,32 +225,32 @@ class NotesViewModel(
     }
 
     fun togglePin(id: Long, pinned: Boolean) {
-        viewModelScope.launchSafe("togglePin") { repository.togglePin(id, pinned) }
+        launchSafe("togglePin") { repository.togglePin(id, pinned) }
     }
 
     fun setPriority(id: Long, priority: Int) {
-        viewModelScope.launchSafe("setPriority") { repository.setPriority(id, priority) }
+        launchSafe("setPriority") { repository.setPriority(id, priority) }
     }
 
     fun setTags(id: Long, tags: List<String>) {
-        viewModelScope.launchSafe("setTags") { repository.setTags(id, tags.joinToString(",")) }
+        launchSafe("setTags") { repository.setTags(id, tags.joinToString(",")) }
     }
 
     fun moveToCategory(id: Long, categoryId: Long?) {
-        viewModelScope.launchSafe("moveToCategory") { repository.moveToCategory(id, categoryId) }
+        launchSafe("moveToCategory") { repository.moveToCategory(id, categoryId) }
     }
 
     fun addCategory(name: String, color: Int, parentId: Long? = null) {
-        viewModelScope.launchSafe("addCategory") { repository.addCategory(name, color, parentId) }
+        launchSafe("addCategory") { repository.addCategory(name, color, parentId) }
     }
 
     fun deleteCategory(category: CategoryEntity) {
-        viewModelScope.launchSafe("deleteCategory") { repository.deleteCategorySafely(category) }
+        launchSafe("deleteCategory") { repository.deleteCategorySafely(category) }
     }
 
     /** F12: 重新设置分类的父级 (null=顶级) */
     fun setCategoryParent(id: Long, parentId: Long?) {
-        viewModelScope.launchSafe("setCategoryParent") { repository.setCategoryParent(id, parentId) }
+        launchSafe("setCategoryParent") { repository.setCategoryParent(id, parentId) }
     }
 
     /**
@@ -261,7 +261,7 @@ class NotesViewModel(
         repository.observeNoteCountForCategory(categoryId)
 
     fun removeTagFromAllNotes(tag: String) {
-        viewModelScope.launchSafe("removeTagFromAllNotes") { repository.removeTagFromAllNotes(tag) }
+        launchSafe("removeTagFromAllNotes") { repository.removeTagFromAllNotes(tag) }
     }
 
     // --- Trash (F2) ------------------------------------------------------
@@ -274,17 +274,17 @@ class NotesViewModel(
 
     /** F2: 从回收站恢复一条 */
     fun restoreFromTrash(id: Long) {
-        viewModelScope.launchSafe("restoreFromTrash") { repository.restoreFromTrash(id) }
+        launchSafe("restoreFromTrash") { repository.restoreFromTrash(id) }
     }
 
     /** F2: 永久删除回收站里某条 (真删) */
     fun permanentlyDeleteTrashed(id: Long) {
-        viewModelScope.launchSafe("permanentlyDeleteTrashed") { repository.permanentlyDeleteTrashed(id) }
+        launchSafe("permanentlyDeleteTrashed") { repository.permanentlyDeleteTrashed(id) }
     }
 
     /** F2: 立即清空回收站 (UI "清空回收站" 按钮) */
     fun emptyTrash() {
-        viewModelScope.launchSafe("emptyTrash") {
+        launchSafe("emptyTrash") {
             // 调永久删除循环: 先拿 id 列表, 再逐个 delete
             // 简化: 用 purgeOldTrash(daysOld=0) 删全部
             repository.purgeOldTrash(daysOld = 0)
@@ -313,7 +313,7 @@ class NotesViewModel(
      * @param appVersion 写入 JSON 的 appVersion 字段, 仅作记录用
      */
     fun exportBackup(context: Context, targetUri: Uri, appVersion: String) {
-        viewModelScope.launchSafe("exportBackup") {
+        launchSafe("exportBackup") {
             _backupState.value = BackupState.Working
             val result = runCatching {
                 val payload = repository.exportBackup(appVersion)
@@ -359,7 +359,7 @@ class NotesViewModel(
      *                        false = 追加 (保留现有数据)
      */
     fun importBackup(context: Context, sourceUri: Uri, replaceExisting: Boolean) {
-        viewModelScope.launchSafe("importBackup") {
+        launchSafe("importBackup") {
             _backupState.value = BackupState.Working
             val result = runCatching {
                 val json = withContext(Dispatchers.IO) {

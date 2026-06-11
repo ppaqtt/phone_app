@@ -149,7 +149,7 @@ private fun CategoryRow(category: CategoryEntity, level: Int, onDelete: () -> Un
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Row(
-            modifier = PaddingValues16_14.paddingWithIndent(level),
+            modifier = Modifier.paddingWithIndent(level),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (level > 0) {
@@ -181,13 +181,9 @@ private fun CategoryRow(category: CategoryEntity, level: Int, onDelete: () -> Un
 }
 
 // 用来在 Row 上同时处理"缩进 + 内边距" — 避免在每个调用点重复 padding(horizontal=16, vertical=14) 模板
-private object PaddingValues16_14 {
-    val base = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 14.dp)
-
-    @Composable
-    fun Modifier.paddingWithIndent(level: Int): Modifier = this
-        .padding(start = (16 + level * 20).dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
-}
+@Composable
+private fun Modifier.paddingWithIndent(level: Int): Modifier = this
+    .padding(start = (16 + level * 20).dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
 
 @Composable
 private fun AddCategoryDialog(

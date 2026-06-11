@@ -221,9 +221,10 @@ object NoteExporter {
         val usableHeightPt = contentAreaHeightPt - titleRows * LINE_HEIGHT_PT.toInt()
         val linesPerPage = (usableHeightPt / LINE_HEIGHT_PT).toInt().coerceAtLeast(1)
         return if (raw.size <= linesPerPage) {
-            listOf(raw)
+            raw
         } else {
-            raw.chunked(linesPerPage)
+            // 超出 pages 的部分丢弃, 由调用方按页绘制
+            raw.take(linesPerPage)
         }
     }
 

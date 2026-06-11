@@ -46,7 +46,10 @@ val OnSurfaceVariantDark = Color(0xFFCAC4D0)
 val OutlineDark = Color(0xFF938F99)
 
 // Predefined note card swatches
-val NoteSwatches = listOf(
+// P112-FIX: 显式 `listOf<Color>`, 让 Kotlin 1.8.22 不会推断成 List<Any>。
+// 否则 .first() 返回 Any?, 赋值给 NoteSnapshot.color: Color 字段时
+// 会报 "Type mismatch: inferred type is Any but Color was expected"。
+val NoteSwatches: List<Color> = listOf(
     Color(0xFFFFFFFF), // White
     Color(0xFFFFE7A0), // Sun
     Color(0xFFFFD1DC), // Pink

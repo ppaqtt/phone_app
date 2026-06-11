@@ -15,6 +15,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 /**
@@ -48,10 +49,10 @@ object NotificationPermission {
      * P96-FIX: 之前错误地取反了 shouldShowRequestPermissionRationale 的结果,
      * 导致用户拒绝后判断逻辑颠倒, rationale 永远显示不出来。修正为不取反。
      */
-    fun shouldShowRationale(context: Context): Boolean {
+    fun shouldShowRationale(activity: android.app.Activity): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
-        return ContextCompat.shouldShowRequestPermissionRationale(
-            context, Manifest.permission.POST_NOTIFICATIONS
+        return ActivityCompat.shouldShowRequestPermissionRationale(
+            activity, Manifest.permission.POST_NOTIFICATIONS
         )
     }
 
@@ -59,12 +60,13 @@ object NotificationPermission {
      * 用户已永久拒绝 (勾了"不再询问") — 只能跳设置页。
      * 判断逻辑: 已拒绝 + 不应弹 rationale = 永久拒绝。
      */
-    fun isPermanentlyDenied(context: Context): Boolean {
+    fun isPermanentlyDenied(context: Context, activity: android.app.Activity?): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
-        return !hasPermission(context) &&
-            !ContextCompat.shouldShowRequestPermissionRationale(
-                context, Manifest.permission.POST_NOTIFICATIONS
-            )
+        if (hasPermission(context)) return false
+        if (activity == null) return false
+        return !ActivityCompat.shouldShowRequestPermissionRationale(
+            activity, Manifest.permission.POST_NOTIFICATIONS
+        )
     }
 
     /** 打开应用通知设置页 */
@@ -97,7 +99,8 @@ fun rememberNotificationPermissionRequest(
     onResult: (granted: Boolean) -> Unit = {}
 ): MutableState<Boolean> {
     val context = LocalContext.current
-    val pendingResult = remember { mutableStateOf<(Boolean) -> Unit> {} }
+    val activity = context as? android.app.Activity
+    val pendingResult = remember { mutableStateOf<(Boolean) -> Unit>({}) }
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -108,7 +111,7 @@ fun rememberNotificationPermissionRequest(
     LaunchedEffect(trigger.value) {
         if (trigger.value) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (NotificationPermission.isPermanentlyDenied(context)) {
+                if (NotificationPermission.isPermanentlyDenied(context, activity)) {
                     // 永久拒绝: 跳设置页, 不弹无意义的系统弹窗
                     NotificationPermission.openAppSettings(context)
                     onResult(false)

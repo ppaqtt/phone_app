@@ -202,7 +202,7 @@ fun DoodleDialog(
                 val h = canvasSize.height
                 val allPaths = paths.toList() + listOf(currentPath)
                 val colorArgb = brushColor.toArgb()
-                val strokeWidth = brushWidth
+                val sw = brushWidth
                 // P4: 切到 Dispatchers.IO 异步生成 PNG, 避免主线程 OOM/ANR
                 scope.launch {
                     val resultUri = withContext(Dispatchers.IO) {
@@ -219,7 +219,7 @@ fun DoodleDialog(
                                 val paint = Paint().apply {
                                     isAntiAlias = true
                                     strokeCap = Paint.Cap.ROUND
-                                    strokeWidth = strokeWidth
+                                    strokeWidth = sw
                                     color = colorArgb
                                     style = Paint.Style.STROKE
                                 }

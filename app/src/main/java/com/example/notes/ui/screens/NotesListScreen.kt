@@ -1,7 +1,6 @@
 package com.example.notes.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateItemPlacement
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -328,7 +327,7 @@ fun NotesListScreen(
                             onClick = { onOpenNote(nwc.note.id) },
                             onActionShown = { actionTarget = nwc }
                         )
-                    }.animateItemPlacement()
+                    }
                 }
             }
         }
@@ -360,81 +359,85 @@ fun NotesListScreen(
         }
     }
 
-    if (showTagsDialog && actionTarget != null) {
-        val target = actionTarget
-        TagsEditDialog(
-            initial = target.note.tags,
-            onDismiss = { showTagsDialog = false; dismissActions() },
-            onConfirm = { newTags ->
-                viewModel.setTags(target.note.id, newTags)
-                showTagsDialog = false; dismissActions()
-            }
-        )
+    if (showTagsDialog) {
+        actionTarget?.let { target ->
+            TagsEditDialog(
+                initial = target.note.tags,
+                onDismiss = { showTagsDialog = false; dismissActions() },
+                onConfirm = { newTags ->
+                    viewModel.setTags(target.note.id, newTags)
+                    showTagsDialog = false; dismissActions()
+                }
+            )
+        }
     }
 
-    if (showPriorityDialog && actionTarget != null) {
-        val target = actionTarget
-        PriorityDialog(
-            current = target.note.priority,
-            onDismiss = { showPriorityDialog = false; dismissActions() },
-            onConfirm = { p ->
-                viewModel.setPriority(target.note.id, p)
-                showPriorityDialog = false; dismissActions()
-            }
-        )
+    if (showPriorityDialog) {
+        actionTarget?.let { target ->
+            PriorityDialog(
+                current = target.note.priority,
+                onDismiss = { showPriorityDialog = false; dismissActions() },
+                onConfirm = { p ->
+                    viewModel.setPriority(target.note.id, p)
+                    showPriorityDialog = false; dismissActions()
+                }
+            )
+        }
     }
 
-    if (showMoveDialog && actionTarget != null) {
-        val target = actionTarget
-        MoveCategoryDialog(
-            categories = state.categories,
-            current = target.note.categoryId,
-            onDismiss = { showMoveDialog = false; dismissActions() },
-            onConfirm = { catId ->
-                viewModel.moveToCategory(target.note.id, catId)
-                showMoveDialog = false; dismissActions()
-            }
-        )
+    if (showMoveDialog) {
+        actionTarget?.let { target ->
+            MoveCategoryDialog(
+                categories = state.categories,
+                current = target.note.categoryId,
+                onDismiss = { showMoveDialog = false; dismissActions() },
+                onConfirm = { catId ->
+                    viewModel.moveToCategory(target.note.id, catId)
+                    showMoveDialog = false; dismissActions()
+                }
+            )
+        }
     }
 
-    if (showDeleteDialog && actionTarget != null) {
-        val target = actionTarget
-        AlertDialog(
-            onDismissRequest = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
-            title = { Text("删除笔记") },
-            text = { Text("确认要删除「${target.note.title.ifBlank { "无标题" }}」吗?删除后 5 秒内可撤销。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (deleteInFlight) return@TextButton
-                        deleteInFlight = true
-                        val title = target.note.title.ifBlank { "无标题" }
-                        // P97: 改用 deleteNoteWithUndo, 删除后弹 Snackbar 提供 5 秒内撤销
-                        viewModel.deleteNoteWithUndo(target.note.id)
-                        showDeleteDialog = false
-                        dismissActions()
-                        scope.launch {
-                            val result = snackbarHostState.showSnackbar(
-                                message = "已删除「$title」",
-                                actionLabel = "撤销",
-                                withDismissAction = true,
-                                duration = androidx.compose.material3.SnackbarDuration.Short
-                            )
-                            if (result == SnackbarResult.ActionPerformed) {
-                                viewModel.undoLastDelete()
+    if (showDeleteDialog) {
+        actionTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
+                title = { Text("删除笔记") },
+                text = { Text("确认要删除「${target.note.title.ifBlank { "无标题" }}」吗?删除后 5 秒内可撤销。") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (deleteInFlight) return@TextButton
+                            deleteInFlight = true
+                            val title = target.note.title.ifBlank { "无标题" }
+                            // P97: 改用 deleteNoteWithUndo, 删除后弹 Snackbar 提供 5 秒内撤销
+                            viewModel.deleteNoteWithUndo(target.note.id)
+                            showDeleteDialog = false
+                            dismissActions()
+                            scope.launch {
+                                val result = snackbarHostState.showSnackbar(
+                                    message = "已删除「$title」",
+                                    actionLabel = "撤销",
+                                    withDismissAction = true,
+                                    duration = androidx.compose.material3.SnackbarDuration.Short
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    viewModel.undoLastDelete()
+                                }
                             }
-                        }
-                    },
-                    enabled = !deleteInFlight
-                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
-                    enabled = !deleteInFlight
-                ) { Text("取消") }
-            }
-        )
+                        },
+                        enabled = !deleteInFlight
+                    ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
+                        enabled = !deleteInFlight
+                    ) { Text("取消") }
+                }
+            )
+        }
     }
 
     // 排序对话框
