@@ -12,6 +12,7 @@ import com.example.notes.data.NoteWithCategoryAndImages
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
+import androidx.sqlite.db.SimpleSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import timber.log.Timber
@@ -121,8 +122,29 @@ class NotesRepository(
         noteDao.setReminderRepeat(id, repeat)
     }
 
-    /** 批量移除所有笔记中的指定标签 (一次 SQL 完成) */
-    suspend fun removeTagFromAllNotes(tag: String) = noteDao.removeTagFromAllNotes(tag)
+    /**
+     * 批量移除所有笔记中的指定标签 (一次 SQL 完成)。
+     *
+     * P111-FIX: 旧实现是 `@Query` 内联 SQL, KSP 解析器在 `|| :tag ||` 处
+     * 报 "no viable alternative at input 'UPDATE notes SET tag' / Unused parameter: tag"。
+     * 改用 `@RawQuery` + `SimpleSQLiteQuery` 在调用方构造 SQL, 让 KSP 跳过解析。
+     *
+     * SQL 含义: 包裹后用 REPLACE 去除 `,tag,` 子串, 再 TRIM 掉残留首尾逗号。
+     * 用 `instr` 在 WHERE 阶段提前过滤, 减少 REPLACE 调用次数 (空 tags 跳过)。
+     */
+    suspend fun removeTagFromAllNotes(tag: String) {
+        if (tag.isBlank()) return
+        val safeTag = tag.replace(",", "")  // 防御: tag 内不应含逗号, 避免破坏包裹语义
+        if (safeTag.isBlank()) return
+        val sql = """
+            UPDATE notes
+            SET tags = TRIM(',' FROM REPLACE(',' || tags || ',', ',' || ? || ',', ','))
+            WHERE tags != '' AND instr(',' || tags || ',', ',' || ? || ',') > 0
+        """.trimIndent()
+        noteDao.removeTagFromAllNotesRaw(
+            SimpleSQLiteQuery(sql, arrayOf<Any?>(safeTag, safeTag))
+        )
+    }
 
     // --- Categories ------------------------------------------------------
 

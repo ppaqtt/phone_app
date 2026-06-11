@@ -5,7 +5,9 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.RawQuery
 import androidx.room.Transaction
+import androidx.sqlite.db.SupportSQLiteQuery
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -100,24 +102,16 @@ interface NoteDao {
 
     /**
      * 批量移除所有笔记中的指定标签。
-     * 用 ',' || tags || ',' LIKE ',tag,' 的方式精确定位标签项,
-     * 避免 "work" 被误匹配到 "homework"。
+     * 用 ',' || tags || ',' 的方式包裹做精确匹配, 避免 "work" 误匹配 "homework"。
+     * REPLACE 后用 TRIM 剥掉残留首尾逗号; 空 tag 直接 no-op。
      *
-     * P83: 旧 SQL `REPLACE(','||tags||',', ','||tag||',', ',')` 会留下首尾逗号。
-     * 例子: tags="a,b,c" tag="b" → ",a,c," (残留首尾逗号), 期望 "a,c"。
-     * 修法: 在 REPLACE 外面套一层 `TRIM(',' FROM ...)`, 剥掉两侧的逗号。
-     * 空 tag 直接 no-op, 避免 ',,' 误匹配。
-     *
-     * P111-FIX: KSP 解析器在嵌套 CASE WHEN + WHERE + || 拼接时报错
-     * "no viable alternative at input 'UPDATE' / Not sure how to convert a Cursor"。
-     * 简化方案: 只保留 SET 子句中的简单表达式, 改用 instr() 替代 || 拼接。
+     * P111-FIX: 旧 @Query 内联写法 `|| :tag ||` 在 KSP 解析器中报错
+     *   "no viable alternative at input 'UPDATE notes SET tag' / Unused parameter: tag"。
+     * 改用 @RawQuery + SimpleSQLiteQuery 注入, 让 KSP 跳过 SQL 解析,
+     * 仅检查返回类型 (Int = 受影响行数) 与参数绑定。
      */
-    @Query("""
-        UPDATE notes
-        SET tags = TRIM(',' FROM REPLACE(',' || tags || ',', ',' || :tag || ',', ','))
-        WHERE tags != '' AND :tag != '' AND instr(',' || tags || ',', ',' || :tag || ',') > 0
-    """)
-    suspend fun removeTagFromAllNotes(tag: String)
+    @RawQuery
+    suspend fun removeTagFromAllNotesRaw(query: SupportSQLiteQuery): Int
 
     /**
      * F1: 导入备份前清空 notes 表 (顺序: 图片 → 笔记 → 分类)。
