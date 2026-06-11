@@ -58,23 +58,29 @@ class NotesApplication : Application() {
 
         // P107-FIX: 检测是否首次运行新版本。如果是, 先导出 JSON 备份再升级数据库,
         // 确保即使 Room 迁移失败, 用户数据也有可恢复的备份。
-        appScope.launch { maybeBackupBeforeUpgrade() }
+        // P113-FIX: 整个 onCreate 包 try/catch, 任何后台协程崩溃都不能阻止 App 启动
+        runCatching { appScope.launch { maybeBackupBeforeUpgrade() } }
+            .onFailure { Timber.tag("NotesApplication").w(it, "backup launch failed") }
 
         // App 启动后异步检查更新, 不阻塞主流程
         // P-FIX-001: 传 applicationContext, 检查到新版本后写入 SharedPreferences,
         // 供 NotesListScreen 冷启动后弹出 SnackBar 通知用户
-        appScope.launch {
-            runCatching { AppUpdateChecker.checkForUpdate(persistContext = applicationContext) }
-                .onFailure { Timber.tag("NotesApplication").w(it, "update check failed") }
-        }
+        runCatching {
+            appScope.launch {
+                runCatching { AppUpdateChecker.checkForUpdate(persistContext = applicationContext) }
+                    .onFailure { Timber.tag("NotesApplication").w(it, "update check failed") }
+            }
+        }.onFailure { Timber.tag("NotesApplication").w(it, "update launch failed") }
 
         // F2: 调度回收站清理 worker, 24h 后跑, 之后 KEEP 策略幂等。
-        TrashJanitorWorker.schedule(this)
+        runCatching { TrashJanitorWorker.schedule(this) }
+            .onFailure { Timber.tag("NotesApplication").w(it, "worker schedule failed") }
 
         // P105-FIX: 应用启动时自动创建数据库本地备份。
         // 每次启动都复制一份 notes.db 到 cacheDir/auto_backup/,
         // 保留最近 3 份。如果更新后数据库损坏, 可从最近备份恢复。
-        appScope.launch { autoBackupDatabase() }
+        runCatching { appScope.launch { autoBackupDatabase() } }
+            .onFailure { Timber.tag("NotesApplication").w(it, "auto-backup launch failed") }
     }
 
     /**
@@ -165,6 +171,8 @@ class NotesApplication : Application() {
     private fun installCrashHandler() {
         val prev = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            // 调试用: 直接在 logcat 打印崩溃, 方便没接 adb 时也能在 Android Studio Logcat 看到
+            android.util.Log.e("NotesAppCrash", "=== FATAL on ${thread.name} ===", throwable)
             runCatching {
                 val dir = File(cacheDir, "crash").apply { mkdirs() }
                 // P112-FIX: 显式指定 <File>, 避免 Kotlin 1.8.22 在 `?:` 上下文
