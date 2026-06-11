@@ -102,10 +102,11 @@ class NotesApplication : Application() {
 
                 val backupDir = File(filesDir, "upgrade_backup").apply { mkdirs() }
                 // 保留最近 2 份升级备份
-                backupDir.listFiles()
-                    ?.sortedByDescending { it.lastModified() }
-                    ?.drop(1)
-                    ?.forEach { it.delete() }
+                // P112-FIX: 显式 List<File> 类型, 避免 Kotlin 1.8.22 平台类型
+                // (Array<File!>) 透过 ?-chain 传播导致 cascade "T not inferred / it unresolved" 错误。
+                val existingBackups: List<File> =
+                    backupDir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+                existingBackups.drop(1).forEach { it.delete() }
 
                 val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                 val backupFile = File(backupDir, "pre_upgrade_$ts.json")
@@ -142,10 +143,10 @@ class NotesApplication : Application() {
 
             val backupDir = File(cacheDir, "auto_backup").apply { mkdirs() }
             // 清理旧备份, 只保留最近 3 份
-            backupDir.listFiles()
-                ?.sortedByDescending { it.lastModified() }
-                ?.drop(3)
-                ?.forEach { it.delete() }
+            // P112-FIX: 显式 List<File> 类型, 同上, 避免 Kotlin 1.8.22 平台类型推断失败。
+            val existingBackups: List<File> =
+                backupDir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+            existingBackups.drop(3).forEach { it.delete() }
 
             val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val backupFile = File(backupDir, "notes_backup_$ts.db")
@@ -166,7 +167,10 @@ class NotesApplication : Application() {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
                 val dir = File(cacheDir, "crash").apply { mkdirs() }
-                val list = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyArray()
+                // P112-FIX: 显式指定 <File>, 避免 Kotlin 1.8.22 在 `?:` 上下文
+                // 推断不出 T 导致后续 list.drop(4).forEach { it.delete() } 一连串
+                // "type variable T not inferred / receiver type mismatch / unresolved it" errors。
+                val list: List<File> = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
                 list.drop(4).forEach { it.delete() }
                 val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
                 val file = File(dir, "crash_$ts.log")

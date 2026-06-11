@@ -286,7 +286,7 @@ fun NoteEditScreen(
             color = lastSaved?.color ?: NoteSwatches.first(),
             isPinned = lastSaved?.isPinned ?: false,
             categoryId = lastSaved?.categoryId,
-            tags = lastSaved?.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
+            tags = (lastSaved?.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList()) as List<String>,
             reminderTime = lastSaved?.reminderTime
         ) else NoteSnapshot("", "")
     }
