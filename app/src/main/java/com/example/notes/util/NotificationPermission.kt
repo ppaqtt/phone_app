@@ -44,14 +44,15 @@ object NotificationPermission {
     /**
      * 用户拒绝过但未勾"不再询问" — 可再次弹窗引导。
      * API < 33 返回 false (不需要弹窗)。
+     *
+     * P96-FIX: 之前错误地取反了 shouldShowRequestPermissionRationale 的结果,
+     * 导致用户拒绝后判断逻辑颠倒, rationale 永远显示不出来。修正为不取反。
      */
     fun shouldShowRationale(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
-        return !ContextCompat.shouldShowRequestPermissionRationale(
+        return ContextCompat.shouldShowRequestPermissionRationale(
             context, Manifest.permission.POST_NOTIFICATIONS
         )
-        // 注: shouldShowRequestPermissionRationale 在"首次请求"和"永久拒绝"时
-        // 都返回 false。这里取反是因为我们只关心"用户主动拒绝但可再引导"的场景。
     }
 
     /**

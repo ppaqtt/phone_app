@@ -48,6 +48,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -287,8 +288,22 @@ fun NotesListScreen(
                 }
             }
 
+            // 加载中: 数据未到时显示进度条, 避免空白闪屏
             AnimatedVisibility(
-                visible = state.notes.isEmpty(),
+                visible = state.isLoading,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            AnimatedVisibility(
+                visible = !state.isLoading && state.notes.isEmpty(),
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {
@@ -298,7 +313,7 @@ fun NotesListScreen(
                 )
             }
             AnimatedVisibility(
-                visible = state.notes.isNotEmpty(),
+                visible = !state.isLoading && state.notes.isNotEmpty(),
                 enter = fadeIn(),
                 exit = fadeOut()
             ) {

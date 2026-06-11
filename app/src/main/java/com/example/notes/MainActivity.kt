@@ -23,6 +23,7 @@ import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.ui.viewmodel.ViewModelFactory
 import com.example.notes.util.NotificationPermission
 import com.example.notes.util.rememberNotificationPermissionRequest
+import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
 
@@ -109,7 +110,14 @@ class MainActivity : ComponentActivity() {
             // F4: 快捷方式入口
             ACTION_OPEN_SEARCH -> WidgetIntent.OpenSearch
             ACTION_OPEN_TRASH -> WidgetIntent.OpenTrash
-            else -> null
+            else -> {
+                // P98-FIX: 未知 action 打日志, 便于排查第三方应用 / 旧版快捷方式
+                // 唤起失败的问题 (例如小部件点击没反应), 不打日志的话难以定位。
+                if (intent.action != null) {
+                    Timber.tag("MainActivity").w("unknown widget intent action: %s", intent.action)
+                }
+                null
+            }
         }
     }
 

@@ -42,7 +42,12 @@ data class NotesUiState(
     val categories: List<CategoryEntity> = emptyList(),
     val activeCategoryId: Long? = null,
     val query: String = "",
-    val sortOrder: NoteSortOrder = NoteSortOrder.UPDATED_DESC
+    val sortOrder: NoteSortOrder = NoteSortOrder.UPDATED_DESC,
+    /**
+     * 首次订阅 Flow 期间为 true, 数据到来后切 false。
+     * UI 可借此在加载期间显示指示器, 避免空白闪屏。
+     */
+    val isLoading: Boolean = true
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -84,12 +89,16 @@ class NotesViewModel(
                 categories = categories,
                 activeCategoryId = activeId,
                 query = q,
-                sortOrder = sort
+                sortOrder = sort,
+                // combine 首次发射即表示数据已就绪, 关闭 loading。
+                // 后续重订阅 (如配置变更) 因为是 stateIn 重启, combine 会在新数据到来
+                // 之前不发新值, 故初始值仍带 isLoading=true。
+                isLoading = false
             )
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = NotesUiState()
+            initialValue = NotesUiState(isLoading = true)
         )
 
     // --- F13: 统计 --------------------------------------------------------

@@ -63,6 +63,15 @@ object BackupManager {
     fun fromJson(json: String): BackupPayload = gson.fromJson(json, BackupPayload::class.java)
 
     /**
+     * P97-FIX: 安全反序列化, 失败返回 Result.failure 而非抛异常。
+     * 用法: 从用户选择的文件读取 JSON 后, 跑 [fromJsonSafe], 失败分支给用户
+     * 清晰反馈 ("备份文件已损坏 / 格式不符"), 成功分支直接导入。
+     */
+    fun fromJsonSafe(json: String): Result<BackupPayload> = runCatching {
+        gson.fromJson(json, BackupPayload::class.java)
+    }
+
+    /**
      * 用数据库实体直接构建 payload —— 免得调用方手工映射 6 个字段。
      */
     fun buildPayload(
