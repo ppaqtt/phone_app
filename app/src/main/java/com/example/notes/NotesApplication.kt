@@ -54,9 +54,11 @@ class NotesApplication : Application() {
         installCrashHandler()
 
         // App 启动后异步检查更新, 不阻塞主流程
+        // P-FIX-001: 传 applicationContext, 检查到新版本后写入 SharedPreferences,
+        // 供 NotesListScreen 冷启动后弹出 SnackBar 通知用户
         val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         appScope.launch {
-            runCatching { AppUpdateChecker.checkForUpdate() }
+            runCatching { AppUpdateChecker.checkForUpdate(persistContext = applicationContext) }
                 .onFailure { Log.w("NotesApplication", "update check failed: ${it.message}") }
         }
 

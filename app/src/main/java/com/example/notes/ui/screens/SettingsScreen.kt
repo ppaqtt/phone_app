@@ -67,6 +67,7 @@ import com.example.notes.ui.theme.rememberThemePreference
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.AppLockStore
 import com.example.notes.util.AppUpdateChecker
+import com.example.notes.util.ChangelogData
 import com.example.notes.util.NoUpdateDialog
 import com.example.notes.util.UpdateAvailableDialog
 import kotlinx.coroutines.launch
@@ -198,7 +199,8 @@ fun SettingsScreen(
                 onCheck = {
                     scope.launch {
                         isChecking = true
-                        val result = AppUpdateChecker.checkForUpdate()
+                        // P-FIX-002: 用户点"检查更新"是明确意图, 跳过内存缓存 forceRefresh=true
+                        val result = AppUpdateChecker.checkForUpdate(forceRefresh = true)
                         lastCheckResult = result
                         isChecking = false
                         if (result.hasUpdate) {
@@ -792,6 +794,7 @@ private fun FeedbackCard() {
 
 @Composable
 private fun ChangelogCard() {
+    // P-FIX-005: 从 ChangelogData 数据驱动渲染, 不再在 Composable 里硬编码 20+ 版本。
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -805,257 +808,14 @@ private fun ChangelogCard() {
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(12.dp))
-            ChangelogVersion(
-                version = "v1.15.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：OCR 文字识别 — 集成 Google ML Kit 中文文本识别 (on-device, 无需网络)。笔记编辑页 IMAGE 工具面板加「识别文字」按钮, 选图后自动识别并插入到笔记正文; 大图自动缩放到 1920px",
-                    "升级：版本号 v1.14.0 → v1.15.0 (versionCode 24 → 25)"
+            ChangelogData.entries.forEachIndexed { index, entry ->
+                if (index > 0) Spacer(Modifier.height(16.dp))
+                ChangelogVersion(
+                    version = entry.version,
+                    date = entry.date,
+                    items = entry.items
                 )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.14.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：语音转文字 — 封装 Android SpeechRecognizer (系统内置, 无需 API Key)。笔记编辑页底部工具栏加「语音」按钮, 点击请求录音权限后开始聆听; 识别完成自动插入到笔记正文",
-                    "升级：版本号 v1.13.0 → v1.14.0 (versionCode 23 → 24)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.13.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：代码块高亮 — 渲染 ```lang ... ``` 围栏代码块, 深色背景 + 语言标签 + 横向滚动; 自带轻量关键字着色 (Kotlin / Java / Python / JS / Go / Rust / C/C++), 不引入第三方库",
-                    "升级：版本号 v1.12.0 → v1.13.0 (versionCode 22 → 23)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.12.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：统计仪表盘 — 4 个计数卡 (笔记 / 置顶 / 提醒 / 图片) + 字数卡 (中文字符 / 英文单词 / 平均每篇) + 分类分布卡 (横向比例条) + 月度趋势卡 (最近 6 个月竖向柱状图)",
-                    "升级：版本号 v1.11.0 → v1.12.0 (versionCode 21 → 22)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.11.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：嵌套分类 — CategoryEntity 加 parentId 字段, 单层缩进 (0=顶级, 1=子级)。分类管理列表按父→子顺序渲染, 子分类缩进 20dp + ↳ 箭头图标; 新增分类时可选父分类, 父分类候选自动排除自身和所有 descendants 防止循环引用; 删除父分类时自动把子分类提升为顶级; 笔记编辑分类选择 / 列表过滤 chip 同步缩进显示",
-                    "升级：Room v7→v8 AutoMigration; 备份导出/导入同步维护 parentOldId 映射, 老备份默认顶级; 版本号 v1.10.0 → v1.11.0 (versionCode 20 → 21)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.10.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：每日重复提醒 — NoteEntity 加 reminderRepeat 字段 (NONE/DAILY/WEEKLY/MONTHLY/YEARLY)。ReminderWorker 触发后若 repeat != NONE, 自动用 Calendar.add 排下次触发; 笔记编辑页加 ReminderCard 卡片, 设置提醒后显示 5 段重复模式选择条",
-                    "升级：Room v6→v7 AutoMigration; 版本号 v1.9.0 → v1.10.0 (versionCode 19 → 20)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.9.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：PDF / 长图导出 — 笔记编辑页顶部 MoreVert 下拉新增「导出为 PDF」和「导出为长图 (PNG)」两项, 走 SAF CreateDocument。PDF 走 android.graphics.pdf.PdfDocument 渲染 (A4 自动分页), 长图走 Bitmap + StaticLayout 拼接 (2x 像素密度)",
-                    "升级：版本号 v1.8.0 → v1.9.0 (versionCode 18 → 19)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.8.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：应用锁 — AppLockStore 持久化 PIN 的 SHA-256 哈希 (不存明文); AppLockGate 包裹 NavGraph, 启动 / 切回前台检测 5 分钟解锁宽限期; AppLockScreen PIN 数字键盘 + 圆点指示器, 失败 30s 冷却",
-                    "升级：版本号 v1.7.0 → v1.8.0 (versionCode 17 → 18)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.7.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：App 快捷方式 (长按桌面图标) — res/xml/shortcuts.xml 注册 3 个动态快捷方式 (新建笔记 / 搜索 / 回收站)。AndroidManifest MainActivity meta-data 指向 shortcuts.xml",
-                    "升级：版本号 v1.6.0 → v1.7.0 (versionCode 16 → 17)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.6.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：桌面小部件 (AppWidget) — 4x2 圆角卡片显示最近 5 条笔记 (按 updated_at 倒序), 标题 + 内容预览; 列表项点击通过 setOnClickFillInIntent 打开笔记; 底部 + 按钮快速新建; saveNote 后调 NotesAppWidget.requestRefresh 触发刷新",
-                    "升级：版本号 v1.5.0 → v1.6.0 (versionCode 15 → 16)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.5.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：回收站 — NoteEntity 加 deletedAt 字段 (null=正常, 非 null=已删除); 删除改走软删除, 列表 / 搜索 / 按分类观察自动加 deleted_at IS NULL 过滤; TrashScreen 显示 30 天内已删笔记, 每条 2 动作: 恢复 / 永久删除; 顶栏「清空」二次确认; TrashJanitorWorker 24h 后跑一次, 自动清理 30 天前条目 (KEEP 策略幂等)",
-                    "升级：Room v5→v6 AutoMigration; 版本号 v1.4.0 → v1.5.0 (versionCode 14 → 15)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.4.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "新增：数据备份 / 恢复 — 全部笔记 / 分类 / 图片导出为 JSON, 走 SAF CreateDocument / OpenDocument; DTO 与 Entity 解耦, 兼容老备份; AUTO_INCREMENT 冲突通过「老 id → 新 id」映射表解决; 外键约束按「图片→笔记→分类」顺序清空 + 反向顺序插入; 导入前 AlertDialog 二次确认",
-                    "升级：版本号 v1.3.0 → v1.4.0 (versionCode 13 → 14)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.1.0",
-                date = "2026-06-10",
-                items = listOf(
-                    "修复：编辑页退出时 busy 锁死 — 移除 tryExit/丢弃按钮的 busy = true, 删除路径补 try-finally, 防止下次进入笔记所有按钮永久置灰",
-                    "修复：标签批量删除后首尾残留逗号 — removeTagFromAllNotes SQL 套 TRIM(',') 包裹, tags='a,b,c' 删 b 后正确变为 'a,c'",
-                    "修复：DAO 异常会闪退 — NotesViewModel 新增 launchSafe 扩展, 8 处 viewModelScope.launch 统一捕获异常并打日志",
-                    "修复：SplashScreen 死参数 ready — 移除, 把淡入 / 600ms 等待 / 回调合并为一个 LaunchedEffect",
-                    "修复：搜索历史 addSearch/removeSearch 竞态 — 改用 MutableStateFlow.update CAS, 原子完成 read-modify-write",
-                    "修复：分享笔记为纯文本时无错误反馈 — shareAsText 补 runCatching + Toast, 与 shareAsImage 风格一致",
-                    "升级：版本号 v1.0.9 → v1.1.0 (versionCode 9 → 10)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.9",
-                date = "2026-06-10",
-                items = listOf(
-                    "修复：「问题反馈」/「立即更新」无反馈 — runCatching 空 catch 补 Toast, ActivityNotFoundException 给用户提示",
-                    "修复：删除笔记后立即返回会丢数据 — viewModelScope.launch 异步改 scope.launch 等待完成后 onBack",
-                    "修复：音频 URI 提取无 debounce — 加 500ms 节流, 避免长文输入卡顿",
-                    "修复：搜索历史 IO 仍主线程 — addSearch/removeSearch 内部 JSON 移协程 IO",
-                    "修复：SimpleDateFormat 每次 new — 统一 4 个 ThreadLocal, 与 fmtFull 保持一致",
-                    "修复：右滑背景缺 Share 图标 — NoteActionsBackground 补第 6 个图标与 6 项菜单一致",
-                    "修复：deleteInFlight 重置 300ms 太慢 — 改为 100ms, 快速操作时按钮不意外置灰",
-                    "修复：MarkdownTable onEditDone @Suppress 误导 — 删除, 注明通过 KeyboardActions.onDone 实际被调用",
-                    "修复：MainActivity ViewModel by lazy 模糊生命周期 — 改 onCreate 直接初始化",
-                    "升级：版本号 v1.0.8 → v1.0.9 (versionCode 8 → 9)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.8",
-                date = "2026-06-10",
-                items = listOf(
-                    "修复：编辑页 saveNote 内部 rememberCoroutineScope 崩溃 (P0) — 提到 Composable 顶部, saveNote 改纯 suspend",
-                    "修复：保存按钮 / 退出确认 fire-and-forget 丢数据 (P0) — saveNoteThen 包装, 协程完成后再回调",
-                    "修复：CellPos 无 Saver 配置变更崩溃 (P0) — 自定义 CellPosSaver 编码 'row,col'",
-                    "修复：删除分类事务不原子 (P0) — Room @Transaction 注解在 Repository 上无效, 改 withTransaction 包裹",
-                    "修复：onInsertAtCursor @Suppress 误导 — 贯通到 ColumnsPanel / ListPanel, 符号/模板插入到光标处",
-                    "修复：右滑手势每帧 launch 协程风暴 — 改 pointerInput + detectHorizontalDragGestures + Animatable",
-                    "修复：分类计数 O(n*m) — 新增 observeNoteCountForCategory, 改用 SQL COUNT",
-                    "升级：版本号 v1.0.7 → v1.0.8 (versionCode 7 → 8)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.6",
-                date = "2026-06-10",
-                items = listOf(
-                    "修复：「疯狂点击应用导致内容消失」严重 bug — 移除 Room 的 fallbackToDestructiveMigration(), 改为 fallbackToDestructiveMigrationOnDowngrade()",
-                    "修复：编辑页保存按钮防重入锁 — 点击一次后立即置灰, 防止快速点击引发数据竞态",
-                    "修复：删除对话框防重入锁 — 点击删除后按钮置灰, 关闭 300ms 后重置",
-                    "修复：导航页面堆叠 — 所有 navigate 添加 launchSingleTop=true",
-                    "升级：版本号 v1.0.5 → v1.0.6 (versionCode 5 → 6)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.5",
-                date = "2026-06-09",
-                items = listOf(
-                    "新增：隐私政策 / 使用条款 Markdown 文档 (res/raw/privacy_policy.md + terms_of_service.md), 含 SDK 清单 / 权限说明 / 数据存储 / 第三方服务 / 联系方式 / 生效日期",
-                    "新增：AboutLegalScreen 通用法律文本展示页 (极简 Markdown 渲染: ## 标题 / > 引用 / - 列表 / ** 粗体)",
-                    "新增：设置 → 关于 加 2 入口 (隐私政策 / 使用条款), 点击跳转 AboutLegalScreen",
-                    "新增：AndroidManifest.xml MainActivity 注册 DeepLink: app://privacy + https://qing-jian.ppaqtt.com/privacy (后者 autoVerify)",
-                    "新增：MainActivity 解析 intent.data, 深链接直达隐私政策页 (覆盖启动流程)",
-                    "新增：PackageSignatureReader.kt 工具类, 运行时读取 APK 签名 SHA1 / MD5 (兼容 API 24+: API 28+ 走 SigningInfo, API < 28 走 Signature[])",
-                    "美化：隐私政策 / 使用条款加 TL;DR 一分钟速览 + emoji 视觉锚点 (📌 / 💾 / 🔐 / ⚖️ / 📬) + 表格化布局 + 联系方式条目化",
-                    "优化：隐私政策 / 使用条款「联系我们」对齐 (邮箱 2474922840@qq.com + 项目主页 + 点击「关于 - 问题反馈」)",
-                    "升级：版本号 v1.0.4 → v1.0.5 (versionCode 4 → 5)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.4",
-                date = "2026-06-09",
-                items = listOf(
-                    "新增：APP 图标更换为「清笺」卷轴+毛笔 PNG, 5 密度 mipmap 自适配",
-                    "新增：app_name 便签 → 清笺, 与图标命名一致",
-                    "新增：启动画面改用 ic_launcher_source.png 居中 + app_name 紧贴下方, 移除 Lottie",
-                    "新增：富文本对齐作用于当前光标所在段落 (左/中/右)",
-                    "新增：Aa 文字样式 (B/I/U/S/高亮/字号/字色) 作用于当前选区, 选区为空时 Toast 提示",
-                    "新增：富文本样式切换 (再次点击同一样式自动移除 marker)",
-                    "升级：表格插入升级为 Excel 风格可视化渲染, 单元格可点击编辑后回写 markdown",
-                    "升级：编辑器 BasicTextField 改用 TextFieldValue, 可追踪光标 / 选区",
-                    "升级：撤销/重做栈接上 TextFieldValue 改动",
-                    "升级：版本号 v1.0.3 → v1.0.4 (versionCode 3 → 4)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.3",
-                date = "2026-06-08",
-                items = listOf(
-                    "移除：AI 工具栏 (底部工具栏从 7 图标减为 6 图标)",
-                    "新增：分栏面板 4 子页签 (文字样式 / 符号 / 分割线 / 图文模版)",
-                    "新增：Aa 文字格式面板 (B / I / U / S / 高亮 + 8 档字号 + 7 色字体颜色)",
-                    "新增：列表面板 6 按钮 (左/中/右对齐 + 圆点/数字/字母编号)",
-                    "新增：待办切换 ☐ (单按钮插入或去除)",
-                    "新增：拍照调起系统摄像头 + 去除文档扫码",
-                    "新增：更多面板 3 入口 (涂鸦 / 表格 / 音频)",
-                    "新增：涂鸦白板 Dialog (颜色/粗细/撤销/重做/清空, 导出 PNG)",
-                    "新增：表格插入 (输入行×列, 生成等宽对齐 markdown 表格)",
-                    "新增：音频读取 (OpenDocument audio/*)",
-                    "新增：撤销 / 重做按钮接上快照栈",
-                    "新增：主界面右滑笔记卡片弹出 5 动作菜单 (置顶/标签/删除/移动/重要度)",
-                    "新增：5 个动作全部接上 ViewModel/Repository (重要度 0/1/2 三档)",
-                    "简化：元信息行去除置顶和提醒小图标",
-                    "升级：Room v3 → v4 (NoteEntity 新增 priority 字段)",
-                    "新增：5 个运行时权限 (CAMERA / RECORD_AUDIO / READ_MEDIA_*)",
-                    "升级：检查更新接 GitHub Releases API (OkHttp 真实请求), 失败时回退本地版本",
-                    "升级：发现新版本时显示 release notes 摘要, 一键跳转到 GitHub Releases 页面",
-                    "升级：版本号 v1.0.0 → v1.0.3 (versionCode 1 → 3)"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.2",
-                date = "2026-06-08",
-                items = listOf(
-                    "重写：笔记编辑界面为极简风格 (顶部 4 按钮 + 元信息行 + 大文本区 + 底部工具栏)",
-                    "新增：工具面板 (选中工具时浮起, 含图片/待办/分栏/文字/列表等子项)",
-                    "新增：多图支持 — 笔记可添加多张图片 (不再只是封面), 横向缩略图画廊 + 序号 + 删除按钮",
-                    "优化：图片选择器支持一次性多选 (最多 9 张)",
-                    "修复：颜色保存/读取的 toArgb 转换 bug"
-                )
-            )
-            Spacer(Modifier.height(16.dp))
-            ChangelogVersion(
-                version = "v1.0.1",
-                date = "2026-06-07",
-                items = listOf(
-                    "新增：应用启动时自动检查更新",
-                    "新增：笔记支持多张图片（不再只是封面）",
-                    "新增：笔记分享功能",
-                    "新增：关于页面与更新日志",
-                    "新增：问题反馈入口（腾讯文档）",
-                    "优化：新建笔记界面极简改版",
-                    "优化：默认笔记颜色调整为白色",
-                    "移除：云同步相关功能"
-                )
-            )
+            }
         }
     }
 }

@@ -87,8 +87,11 @@ import com.example.notes.data.NoteWithCategory
 import com.example.notes.ui.components.NoteCard
 import com.example.notes.ui.viewmodel.NoteSortOrder
 import com.example.notes.ui.viewmodel.NotesViewModel
+import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.NoteShareUtil
 import kotlinx.coroutines.launch
+import android.content.Intent
+import android.net.Uri
 
 @Composable
 fun NotesListScreen(
@@ -128,6 +131,35 @@ fun NotesListScreen(
         if (!showDeleteDialog) {
             delay(100)
             deleteInFlight = false
+        }
+    }
+
+    // P-FIX-001: 冷启动后, 若后台检查发现新版本, 弹出 SnackBar 提示用户。
+    // 用户点 "查看" 跳转 GitHub Releases; 点 "稍后" / 滑动关闭则只清标记, 不跳转。
+    // 注意: 仅在首屏首次组合时触发, 之后切回前台不会重复弹 (LaunchedEffect key 固定)。
+    LaunchedEffect(Unit) {
+        val pending = AppUpdateChecker.consumePendingUpdateTip(context)
+        if (pending != null) {
+            val result = snackbarHostState.showSnackbar(
+                message = "发现新版本 v$pending, 点击查看更新内容",
+                actionLabel = "查看",
+                withDismissAction = true
+            )
+            when (result) {
+                SnackbarResult.ActionPerformed -> {
+                    runCatching {
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            Uri.parse("https://github.com/ppaqtt/phone_app/releases")
+                        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    }
+                    AppUpdateChecker.clearPendingUpdateTip(context)
+                }
+                SnackbarResult.Dismissed -> {
+                    // 用户滑动关闭 / 自动消失, 标记延后到下次启动再提醒
+                }
+            }
         }
     }
 
