@@ -80,15 +80,10 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.10"
+        kotlinCompilerExtensionVersion = "1.4.8"
     }
 
     packaging {
-        // P114: 16 KB 页大小对齐 (Android 15+ 要求)
-        // AGP 8.5.1+ 默认开启 ELF segment 16KB 对齐
-        jniLibs {
-            useLegacyPackaging = false
-        }
         resources {
             excludes += setOf(
                 "/META-INF/{AL2.0,LGPL2.1}",
@@ -112,9 +107,9 @@ android {
 }
 
 dependencies {
-    // 强制锁 kotlin-stdlib 1.9.22, 匹配 Kotlin 1.9.22 编译器
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.22")
+    // 强制锁 kotlin-stdlib 1.8.22, 避免被传递依赖拉到 1.9.0
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:1.8.22")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")
 
     // Core / lifecycle
     implementation(libs.androidx.core.ktx)
