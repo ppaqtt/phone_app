@@ -39,9 +39,7 @@ object NoteShareUtil {
             context.startActivity(Intent.createChooser(intent, "分享笔记"))
         }.onFailure { e ->
             Timber.tag("NoteShareUtil").e(e, "shareAsText failed")
-            android.widget.Toast.makeText(
-                context, "分享失败: ${e.message}", android.widget.Toast.LENGTH_SHORT
-            ).show()
+            context.toastShort("分享失败: ${e.message}")
         }
     }
 
@@ -50,26 +48,28 @@ object NoteShareUtil {
      */
     fun shareAsImage(context: Context, note: NoteEntity) {
         // P2: 提前用 runCatching 包裹整个 IO 流程, 单点捕获异常
+        // P-FIX-002: 用 try/finally 确保 bitmap 在异常路径上也能 recycle, 避免 OOM
         runCatching {
             val bitmap = createNoteBitmap(note)
-            val file = File(context.cacheDir, "share_note_${note.id}.png")
-            FileOutputStream(file).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            try {
+                val file = File(context.cacheDir, "share_note_${note.id}.png")
+                FileOutputStream(file).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                }
+                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "image/png"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_SUBJECT, note.title)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(intent, "分享笔记图片"))
+            } finally {
+                bitmap.recycle()
             }
-            bitmap.recycle()
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "image/png"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, note.title)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(Intent.createChooser(intent, "分享笔记图片"))
         }.onFailure { e ->
             Timber.tag("NoteShareUtil").e(e, "shareAsImage failed")
-            android.widget.Toast.makeText(
-                context, "生成分享图片失败: ${e.message}", android.widget.Toast.LENGTH_SHORT
-            ).show()
+            context.toastShort("生成分享图片失败: ${e.message}")
         }
     }
 

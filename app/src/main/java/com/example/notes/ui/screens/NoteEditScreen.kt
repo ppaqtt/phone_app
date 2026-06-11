@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -1416,11 +1417,13 @@ private fun NoteBody(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                 ) {
-                    items(imageUris, key = { it }) { uri ->
+                    // P-FIX-001: 使用 itemsIndexed 替代 items + indexOf, 避免 O(n²) 复杂度
+                    val total = imageUris.size
+                    itemsIndexed(imageUris, key = { _, it -> it }) { index, uri ->
                         ImageThumb(
                             uri = uri,
-                            index = imageUris.indexOf(uri),
-                            total = imageUris.size,
+                            index = index,
+                            total = total,
                             onClick = { viewerUri = uri },
                             onRemove = { onRemoveImage(uri) }
                         )

@@ -43,11 +43,12 @@ object OcrHelper {
             val task = recognizer.process(image)
                 .addOnSuccessListener { visionText ->
                     val result = visionText.text
-                    Timber.d("OCR recognized ${result.length} chars from $uri")
+                    // P-FIX-003: 不在日志中输出图片 URI, 避免泄露用户图片路径
+                    Timber.d("OCR recognized ${result.length} chars")
                     continuation.resume(result)
                 }
                 .addOnFailureListener { e ->
-                    Timber.e(e, "OCR failed for $uri")
+                    Timber.e(e, "OCR failed")
                     continuation.resumeWithException(e)
                 }
             continuation.invokeOnCancellation {
