@@ -155,6 +155,14 @@ private val TextFieldValueSaver: Saver<TextFieldValue, Any> = mapSaver(
     restore = { TextFieldValue(it["text"] as String, TextRange(it["selection"] as Int)) }
 )
 
+// P115-FIX: Color 不可序列化到 Bundle, 需要自定义 Saver. 存 ARGB Int 即可
+// 复现: "MutableState containing Color(...) cannot be saved using the current
+// SaveableStateRegistry" — 闪退根因. 这里把 Color 编码成 Int 存到 Bundle
+private val ColorSaver: Saver<Color, Int> = Saver(
+    save = { it.toArgb() },
+    restore = { Color(it) }
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditScreen(
@@ -171,7 +179,8 @@ fun NoteEditScreen(
     var title by rememberSaveable { mutableStateOf("") }
     // 内容改用 TextFieldValue 追踪选区, rememberSaveable 恢复光标位置
     var content by rememberSaveable(stateSaver = TextFieldValueSaver) { mutableStateOf(TextFieldValue("")) }
-    var color by rememberSaveable { mutableStateOf(NoteSwatches.first()) }
+    // P115-FIX: Color 用自定义 Saver 转 ARGB Int 才能塞进 Bundle
+    var color by rememberSaveable(stateSaver = ColorSaver) { mutableStateOf(NoteSwatches.first()) }
     var isPinned by remember { mutableStateOf(false) }
     var categoryId by remember { mutableStateOf<Long?>(null) }
     // 标签: 从 lastSaved.tags 同步过来, 保存时回写
