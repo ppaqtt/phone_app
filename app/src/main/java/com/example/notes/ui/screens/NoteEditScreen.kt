@@ -114,8 +114,10 @@ import coil.compose.AsyncImage
 import com.example.notes.data.NoteEntity
 import com.example.notes.repository.NotesRepository
 import com.example.notes.ui.components.CodeBlock
+import com.example.notes.ui.components.CodeBlockSpan
 import com.example.notes.ui.components.FindBar
 import com.example.notes.ui.components.MarkdownTable
+import com.example.notes.ui.components.TableData
 import com.example.notes.ui.components.findAllMatches
 import com.example.notes.ui.components.findCodeBlocks
 import com.example.notes.ui.components.parseMarkdownTable
@@ -1509,10 +1511,12 @@ private fun NoteBody(
         // 解析整段内容, 找出所有 ```lang ... ``` 块
         // P-FIX: 用 items() 替代 forEach, 保留 LazyListScope receiver,
         // 否则 forEach lambda 内调用 item { } 会报 "@Composable invocations can only happen from the context of a @Composable function"
+        // P-FIX2: 改用位置参数调用, 避免 `items = codeBlocks` 命名参数与函数名 `items` 同名
+        // 引起 Kotlin 1.8.22 类型推断失败, 导致 itemContent lambda 被推断为非 @Composable.
         val codeBlocks = remember(content.text) { findCodeBlocks(content.text) }
         items(
-            items = codeBlocks,
-            key = { span -> "code_${span.text.hashCode()}_${span.code.hashCode()}" }
+            codeBlocks,
+            key = { span: CodeBlockSpan -> "code_${span.text.hashCode()}_${span.code.hashCode()}" }
         ) { span ->
             if (span.code.isNotEmpty()) {
                 CodeBlock(code = span.code, language = span.language)
@@ -1520,9 +1524,10 @@ private fun NoteBody(
         }
         // 每个表格块渲染为可视化 Excel 风格组件
         // P43: key 用 block.text 的 hashCode 替代 startIdx, 避免表格内容变更后 key 残留
+        // P-FIX2: 同上, 使用位置参数 + lambda 显式类型标注
         items(
-            items = tableBlocks,
-            key = { (block, _) -> "tbl_${block.text.hashCode()}" }
+            tableBlocks,
+            key = { pair: Pair<TableBlock, TableData> -> "tbl_${pair.first.text.hashCode()}" }
         ) { (block, data) ->
             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 MarkdownTable(
