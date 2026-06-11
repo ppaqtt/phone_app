@@ -90,6 +90,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.mapSaver
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
@@ -101,8 +104,8 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextFieldValue
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -139,6 +142,12 @@ private enum class ColumnsTab(val label: String) {
     TEXT_STYLE("文字样式"), SYMBOLS("符号"), DIVIDERS("分割线"), TEMPLATES("图文模版")
 }
 
+// P-FIX-003: TextFieldValue 的 rememberSaveable Saver，支持配置变更后恢复光标位置和选区
+private val TextFieldValueSaver: Saver<TextFieldValue, Any> = mapSaver(
+    save = { mapOf("text" to it.text, "selection" to it.selection.start) },
+    restore = { TextFieldValue(it["text"] as String, TextRange(it["selection"] as Int)) }
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NoteEditScreen(
@@ -151,21 +160,22 @@ fun NoteEditScreen(
     val state by viewModel.uiState.collectAsState()
     val isNew = noteId <= 0L
 
-    var title by remember { mutableStateOf("") }
-    // 内容改用 TextFieldValue 追踪选区
-    var content by remember { mutableStateOf(TextFieldValue("")) }
-    var color by remember { mutableStateOf(NoteSwatches.first()) }
+    // P-FIX-003: 关键状态使用 rememberSaveable, 配置变更(旋转/深色模式切换)后自动恢复
+    var title by rememberSaveable { mutableStateOf("") }
+    // 内容改用 TextFieldValue 追踪选区, rememberSaveable 恢复光标位置
+    var content by rememberSaveable(stateSaver = TextFieldValueSaver) { mutableStateOf(TextFieldValue("")) }
+    var color by rememberSaveable { mutableStateOf(NoteSwatches.first()) }
     var isPinned by remember { mutableStateOf(false) }
     var categoryId by remember { mutableStateOf<Long?>(null) }
     // 标签: 从 lastSaved.tags 同步过来, 保存时回写
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
     // 多图
-    val imageUris: SnapshotStateList<String> = remember { mutableStateListOf() }
+    val imageUris: SnapshotStateList<String> = rememberSaveable { mutableStateListOf() }
     // 音频 (作为 URI 列表插入正文, 显示为可点击条目)
-    val audioUris: SnapshotStateList<String> = remember { mutableStateListOf() }
-    var reminderTime by remember { mutableStateOf<Long?>(null) }
+    val audioUris: SnapshotStateList<String> = rememberSaveable { mutableStateListOf() }
+    var reminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
     // F15: 提醒重复模式, 与 NoteEntity.reminderRepeat 字段一一对应
-    var reminderRepeat by remember { mutableStateOf(com.example.notes.util.ReminderRepeat.NONE) }
+    var reminderRepeat by rememberSaveable { mutableStateOf(com.example.notes.util.ReminderRepeat.NONE) }
     var confirmDelete by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(isNew) }
     var lastSaved by remember { mutableStateOf<NoteEntity?>(null) }
@@ -189,7 +199,8 @@ fun NoteEditScreen(
     // F16: 语音转文字
     var speechText by remember { mutableStateOf("") }
     var isListening by remember { mutableStateOf(false) }
-    val speechHelper = remember { com.example.notes.util.SpeechToTextHelper(context) }
+    // P-FIX-002: 使用 applicationContext 避免 Activity 泄漏
+    val speechHelper = remember { com.example.notes.util.SpeechToTextHelper(context.applicationContext) }
     // 收集语音识别状态
     LaunchedEffect(speechHelper) {
         speechHelper.state.collect { state ->
