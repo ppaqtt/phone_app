@@ -15,19 +15,22 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class],
     // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
-    //           给 note_images 加 position 索引
-    // v8 → v9: 给 notes 加 is_pinned / updated_at / deleted_at 单列索引
+    //           给 note_images 加 position 索引 (手动 MIGRATION_9_10)
+    // v8 → v9: 给 notes 加 is_pinned / updated_at / deleted_at 单列索引 (手动 MIGRATION_8_9)
     // F12: v7 → v8 给 categories 加 parent_id 字段 (嵌套分类)
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
     version = 10,
+    // P106-FIX: AutoMigration 和手动 Migration 不能同时覆盖同一路径。
+    // v8→v9 和 v9→v10 都有手动 Migration, 故从 autoMigrations 中移除,
+    // 避免 Room 运行时冲突。保留 v4→v5 到 v7→v8 的 AutoMigration,
+    // 这些版本只有字段增删, Room 可以自动处理。
     autoMigrations = [
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
-        AutoMigration(from = 7, to = 8),
-        AutoMigration(from = 8, to = 9)
+        AutoMigration(from = 7, to = 8)
     ],
     exportSchema = true
 )
