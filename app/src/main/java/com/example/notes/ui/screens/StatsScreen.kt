@@ -422,7 +422,7 @@ private fun bucketByMonth(rows: List<NoteStatsRow>, months: Int): List<Pair<Stri
         cal.set(Calendar.SECOND, 0)
         cal.set(Calendar.MILLISECOND, 0)
         val k = cal.timeInMillis
-        if (buckets.containsKey(k)) buckets[k] = buckets[k]!! + 1
+        buckets[k] = buckets.getOrDefault(k, 0) + 1
     }
     return ordered.map { ts ->
         val c = Calendar.getInstance().apply { timeInMillis = ts }

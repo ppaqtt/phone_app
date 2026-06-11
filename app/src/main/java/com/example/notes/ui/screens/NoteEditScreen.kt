@@ -58,7 +58,6 @@ import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.GridOn
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -272,8 +271,10 @@ fun NoteEditScreen(
             content = lastSaved?.content.orEmpty()
         ) else NoteSnapshot("", "")
     }
-    val isDirty = remember(title, content.text, initialSnapshot) {
-        title != initialSnapshot.title || content.text != initialSnapshot.content
+    val isDirty by remember {
+        derivedStateOf {
+            title != initialSnapshot.title || content.text != initialSnapshot.content
+        }
     }
 
     // === 撤销/重做 ===
@@ -536,6 +537,7 @@ fun NoteEditScreen(
             isPinned = isPinned,
             color = colorArgb,
             reminderTime = reminderTime,
+            reminderRepeat = reminderRepeat.name,
             createdAt = lastSaved?.createdAt ?: now,
             updatedAt = now
         )
