@@ -63,6 +63,39 @@ class NotesApplication : Application() {
 
         // F2: 调度回收站清理 worker, 24h 后跑, 之后 KEEP 策略幂等。
         TrashJanitorWorker.schedule(this)
+
+        // P105-FIX: 应用启动时自动创建数据库本地备份。
+        // 每次启动都复制一份 notes.db 到 cacheDir/auto_backup/,
+        // 保留最近 3 份。如果更新后数据库损坏, 可从最近备份恢复。
+        appScope.launch { autoBackupDatabase() }
+    }
+
+    /**
+     * P105-FIX: 自动备份数据库文件到本地缓存。
+     * - 保留最近 3 份备份, 旧备份自动删除
+     * - 备份文件名包含时间戳, 便于识别
+     * - 备份在 cacheDir 下, 用户清理缓存时会一并清理
+     * - 如果数据库文件被损坏, 可从最近备份恢复
+     */
+    private fun autoBackupDatabase() {
+        runCatching {
+            val dbFile = getDatabasePath("notes.db")
+            if (!dbFile.exists()) return
+
+            val backupDir = File(cacheDir, "auto_backup").apply { mkdirs() }
+            // 清理旧备份, 只保留最近 3 份
+            backupDir.listFiles()
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(3)
+                ?.forEach { it.delete() }
+
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val backupFile = File(backupDir, "notes_backup_$ts.db")
+            dbFile.copyTo(backupFile, overwrite = true)
+            Timber.tag("NotesApplication").d("Auto backup created: ${backupFile.name}")
+        }.onFailure {
+            Timber.tag("NotesApplication").w(it, "Auto backup failed")
+        }
     }
 
     /**

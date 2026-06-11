@@ -77,6 +77,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * P104-FIX: 降级保护 —— 用户安装旧版 APK 时数据库版本号会"降低",
+         * Room 默认抛 IllegalStateException 导致崩溃。
+         * 这里把降级视为"无操作": 保留所有数据, 仅让 SQLite 继续工作。
+         * 旧版代码不认识新版字段/索引, 但 SELECT * 只会返回认识的列,
+         * 不会破坏数据。当用户再次升级回新版时, 字段和索引都在。
+         */
+        private val MIGRATION_10_9 = object : Migration(10, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 降级时删除新版索引, 让旧版 Room 不报错
+                db.execSQL("DROP INDEX IF EXISTS `index_notes_tags`")
+                db.execSQL("DROP INDEX IF EXISTS `index_notes_reminder_time`")
+                db.execSQL("DROP INDEX IF EXISTS `index_notes_priority`")
+                db.execSQL("DROP INDEX IF EXISTS `index_notes_created_at`")
+                db.execSQL("DROP INDEX IF EXISTS `index_note_images_position`")
+            }
+        }
+
         private fun build(context: Context): AppDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
@@ -84,7 +102,7 @@ abstract class AppDatabase : RoomDatabase() {
                 "notes.db"
             )
                 // v8 → v9, v9 → v10 手动迁移: 给 notes/note_images 加查询索引
-                .addMigrations(MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_9)
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
