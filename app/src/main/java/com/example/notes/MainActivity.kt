@@ -132,13 +132,17 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** F3 + F4: 桌面入口对 MainActivity 启动意图的封装, NotesNavGraph 据此决定初始路由 */
+/** F3 + F4: 桌面入口对 MainActivity 启动意图的封装, NotesNavGraph 据此决定初始路由
+ *
+ * P112-FIX: Kotlin 1.8.22 不支持 `data object` (Kotlin 1.9+ 才有), 改用 `object`。
+ * 影响: 失去自动生成的 toString/equals/hashCode, 但 sealed interface 的子类型
+ * 用单例 object 引用 (WidgetIntent.NewNote 等) 不依赖这些, 业务无副作用。 */
 sealed interface WidgetIntent {
-    data object NewNote : WidgetIntent
+    object NewNote : WidgetIntent
     data class OpenNote(val noteId: Long) : WidgetIntent
     // F4: 快捷方式新增 2 个
-    data object OpenSearch : WidgetIntent
-    data object OpenTrash : WidgetIntent
+    object OpenSearch : WidgetIntent
+    object OpenTrash : WidgetIntent
 }
 
 /**
@@ -158,7 +162,10 @@ fun AppLockGate(
     appLockStore: com.example.notes.util.AppLockStore,
     content: @androidx.compose.runtime.Composable () -> Unit
 ) {
-    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    // P112-FIX: 用 androidx.compose.ui.platform.LocalLifecycleOwner, 不依赖
+    // lifecycle-runtime-compose 额外依赖 (项目尚未引入)。
+    // compose-ui 1.5+ 已包含 LocalLifecycleOwner 在 ui.platform 包, 是当前推荐用法。
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
     var locked by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(appLockStore.shouldShowLock())
     }

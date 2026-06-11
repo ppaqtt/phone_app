@@ -7,7 +7,8 @@ package com.example.notes.util
  * 每发一个版本都要改两处 (CHANGELOG.md + Composable), 极易遗漏。
  * 现在统一在这个 data object 里维护, 渲染层只关心结构, 不再关心具体内容。
  */
-data object ChangelogData {
+// P112-FIX: Kotlin 1.8.22 不支持 `data object`, 改用 `object` (失去自动 toString/equals/hashCode, 业务无依赖)
+object ChangelogData {
 
     /** 一条更新日志条目 */
     data class Entry(

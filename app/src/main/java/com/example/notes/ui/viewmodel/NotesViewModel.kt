@@ -298,8 +298,9 @@ class NotesViewModel(
      * 单一 sealed interface 让 SettingsScreen 只需 collect 一次。
      */
     sealed interface BackupState {
-        data object Idle : BackupState
-        data object Working : BackupState
+        // P112-FIX: Kotlin 1.8.22 不支持 `data object`, 改用 `object`
+        object Idle : BackupState
+        object Working : BackupState
         data class Success(val message: String) : BackupState
         data class Error(val message: String) : BackupState
     }
