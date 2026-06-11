@@ -22,16 +22,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
     version = 10,
-    // P106-FIX: AutoMigration 和手动 Migration 不能同时覆盖同一路径。
-    // v8→v9 和 v9→v10 都有手动 Migration, 故从 autoMigrations 中移除,
-    // 避免 Room 运行时冲突。保留 v4→v5 到 v7→v8 的 AutoMigration,
-    // 这些版本只有字段增删, Room 可以自动处理。
-    autoMigrations = [
-        AutoMigration(from = 4, to = 5),
-        AutoMigration(from = 5, to = 6),
-        AutoMigration(from = 6, to = 7),
-        AutoMigration(from = 7, to = 8)
-    ],
+    // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
+    // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
+    // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
+    // 手动 Migration 不依赖 schema 验证, 兼容性更好。
+    autoMigrations = [],
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -98,14 +93,75 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * P98: v4 → v5 给 notes.category_id 加外键约束。
+         * SQLite ALTER TABLE 不支持加外键, 需要重建表。
+         */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 重建 notes 表, 加外键约束
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `notes_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `category_id` INTEGER,
+                        `tags` TEXT NOT NULL,
+                        `is_pinned` INTEGER NOT NULL,
+                        `priority` INTEGER NOT NULL,
+                        `color` INTEGER NOT NULL,
+                        `reminder_time` INTEGER,
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        FOREIGN KEY(`category_id`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                db.execSQL("INSERT INTO notes_new SELECT * FROM notes")
+                db.execSQL("DROP TABLE notes")
+                db.execSQL("ALTER TABLE notes_new RENAME TO notes")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_category_id` ON `notes` (`category_id`)")
+            }
+        }
+
+        /**
+         * F2: v5 → v6 给 notes 加 deleted_at 字段 (回收站功能)。
+         */
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `deleted_at` INTEGER DEFAULT NULL")
+            }
+        }
+
+        /**
+         * F15: v6 → v7 给 notes 加 reminder_repeat 字段 (重复提醒)。
+         */
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `reminder_repeat` TEXT NOT NULL DEFAULT 'NONE'")
+            }
+        }
+
+        /**
+         * F12: v7 → v8 给 categories 加 parent_id 字段 (嵌套分类)。
+         */
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `categories` ADD COLUMN `parent_id` INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_categories_parent_id` ON `categories` (`parent_id`)")
+            }
+        }
+
         private fun build(context: Context): AppDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "notes.db"
             )
-                // v8 → v9, v9 → v10 手动迁移: 给 notes/note_images 加查询索引
-                .addMigrations(MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_9)
+                // 注册所有版本间的迁移。顺序无所谓, Room 会自动选择路径。
+                .addMigrations(
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_9
+                )
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {

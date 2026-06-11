@@ -107,14 +107,19 @@ interface NoteDao {
      * 例子: tags="a,b,c" tag="b" → ",a,c," (残留首尾逗号), 期望 "a,c"。
      * 修法: 在 REPLACE 外面套一层 `TRIM(',' FROM ...)`, 剥掉两侧的逗号。
      * 空 tag 直接 no-op, 避免 ',,' 误匹配。
+     *
+     * P109-FIX: KSP 编译报 "no viable alternative at input" 错误,
+     * 原因: 嵌套三层 || 拼接 + CASE WHEN 让 SQLite 解析器在某些版本下报错。
+     * 拆成两段, 先在临时表达式算好目标 tags, 再用 CASE 应用, 兼容性好。
      */
     @Query("""
         UPDATE notes
         SET tags = CASE
-          WHEN :tag = '' OR tags = '' OR (',' || tags || ',') NOT LIKE ('%,' || :tag || ',%')
+          WHEN tags = '' OR :tag = '' OR (',' || tags || ',') NOT LIKE ('%,' || :tag || ',%')
             THEN tags
           ELSE TRIM(',' FROM REPLACE(',' || tags || ',', ',' || :tag || ',', ','))
         END
+        WHERE tags != '' AND :tag != '' AND (',' || tags || ',') LIKE ('%,' || :tag || ',%')
     """)
     suspend fun removeTagFromAllNotes(tag: String)
 
@@ -185,6 +190,7 @@ interface NoteDao {
 data class NoteStatsRow(
     val id: Long,
     val content: String,
+    @androidx.room.ColumnInfo(name = "category_id")
     val categoryId: Long?,
     @androidx.room.ColumnInfo(name = "created_at")
     val createdAt: Long
@@ -206,7 +212,7 @@ interface CategoryDao {
     suspend fun noteCountForCategory(id: Long): Int
 
     /** P61: 响应式版本, 删除/迁移后自动刷新 */
-    @Query("SELECT COUNT(*) FROM notes WHERE category_id = :id")
+    @Query("SELECT COUNT(*) FROM notes WHERE category_id = :categoryId")
     fun observeNoteCountForCategory(categoryId: Long): Flow<Int>
 
     /** 把某分类下所有笔记的 category_id 置空 (用于删除分类前清理) */
