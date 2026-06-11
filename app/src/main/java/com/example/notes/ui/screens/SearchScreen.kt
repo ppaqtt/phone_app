@@ -65,6 +65,11 @@ fun SearchScreen(
     // P29: 记录最后一次手动入栈的 query, 避免历史项被点击后再次入栈
     var lastRecordedQuery by remember { mutableStateOf("") }
 
+    // P30: 页面打开时自动聚焦到搜索框
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
     // 当用户输入并搜索时，保存到历史
     // P18: trim 后再入历史, 避免 "  test  " 和 "test" 被视为两条
     // P29: 跳过由历史项触发的 query 变化

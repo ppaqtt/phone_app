@@ -155,7 +155,7 @@ interface NoteDao {
     suspend fun purgeOldTrash(before: Long): Int
 
     /** F2: 统计回收站条目数 (UI 显示 "回收站 (3)" 角标) */
-    @Query("SELECT * FROM notes WHERE deleted_at IS NOT NULL")
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NOT NULL")
     fun observeTrashCount(): Flow<Int>
 
     // --- Stats (F13) -----------------------------------------------------

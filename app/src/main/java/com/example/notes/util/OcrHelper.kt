@@ -65,10 +65,37 @@ object OcrHelper {
         }
     }
 
-    /** 从 ContentResolver 加载 Bitmap */
-    private fun loadBitmap(context: Context, uri: Uri): Bitmap {
+    /**
+     * 从 ContentResolver 加载 Bitmap, 自动按 [maxDim] 采样压缩。
+     * P99-FIX: 先用 inJustDecodeBounds 获取尺寸再采样, 避免超大图直接加载导致 OOM。
+     */
+    private fun loadBitmap(context: Context, uri: Uri, maxDim: Int = 1920): Bitmap {
         return context.contentResolver.openInputStream(uri)?.use { stream ->
-            BitmapFactory.decodeStream(stream)
+            // 第一步: 只读取尺寸, 不加载像素
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeStream(stream, null, options)
+            
+            // 第二步: 计算采样率
+            val w = options.outWidth
+            val h = options.outHeight
+            var sampleSize = 1
+            if (w > maxDim || h > maxDim) {
+                val wRatio = Math.ceil(w.toFloat() / maxDim).toInt()
+                val hRatio = Math.ceil(h.toFloat() / maxDim).toInt()
+                sampleSize = maxOf(wRatio, hRatio)
+            }
+            Timber.d("OCR image ${w}x${h}, sampleSize=$sampleSize")
+            
+            // 第三步: 重新打开流并按采样率加载
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val decodeOptions = BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = Bitmap.Config.RGB_565 // 节省内存
+                }
+                BitmapFactory.decodeStream(input, null, decodeOptions)
+            }
         } ?: throw IllegalArgumentException("无法加载图片: $uri")
     }
 

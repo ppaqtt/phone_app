@@ -61,5 +61,10 @@ class UndoRedoState<T>(private val maxDepth: Int = 50) {
 /** 笔记的快照 — 包含所有可被撤销/重做的字段 */
 data class NoteSnapshot(
     val title: String,
-    val content: String
+    val content: String,
+    val color: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    val isPinned: Boolean = false,
+    val categoryId: Long? = null,
+    val tags: List<String> = emptyList(),
+    val reminderTime: Long? = null
 )

@@ -46,6 +46,10 @@ data class NoteBackup(
     val priority: Int,
     val color: Int,
     val reminderTime: Long?,
+    /**
+     * F15: 提醒重复模式。默认 "NONE" 保证与 v1 老备份文件兼容。
+     */
+    val reminderRepeat: String = "NONE",
     val createdAt: Long,
     val updatedAt: Long
 )

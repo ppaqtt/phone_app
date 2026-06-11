@@ -1,6 +1,7 @@
 package com.example.notes.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateItemPlacement
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -327,7 +328,7 @@ fun NotesListScreen(
                             onClick = { onOpenNote(nwc.note.id) },
                             onActionShown = { actionTarget = nwc }
                         )
-                    }
+                    }.animateItemPlacement()
                 }
             }
         }

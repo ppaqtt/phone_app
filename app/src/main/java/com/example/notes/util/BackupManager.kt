@@ -103,6 +103,7 @@ object BackupManager {
                 priority = it.priority,
                 color = it.color,
                 reminderTime = it.reminderTime,
+                reminderRepeat = it.reminderRepeat,
                 createdAt = it.createdAt,
                 updatedAt = it.updatedAt
             )

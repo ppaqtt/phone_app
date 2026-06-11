@@ -310,6 +310,7 @@ class NotesRepository(
                         priority = n.priority,
                         color = n.color,
                         reminderTime = n.reminderTime,
+                        reminderRepeat = n.reminderRepeat,
                         createdAt = n.createdAt,
                         updatedAt = n.updatedAt
                     )

@@ -14,17 +14,20 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class],
-    // v8 → v9 给 notes 加 is_pinned / updated_at / deleted_at 单列索引
+    // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
+    //           给 note_images 加 position 索引
+    // v8 → v9: 给 notes 加 is_pinned / updated_at / deleted_at 单列索引
     // F12: v7 → v8 给 categories 加 parent_id 字段 (嵌套分类)
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
-    version = 9,
+    version = 10,
     autoMigrations = [
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6),
         AutoMigration(from = 6, to = 7),
-        AutoMigration(from = 7, to = 8)
+        AutoMigration(from = 7, to = 8),
+        AutoMigration(from = 8, to = 9)
     ],
     exportSchema = true
 )
@@ -55,17 +58,33 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v9 → v10: 给 notes 表增 4 个单列索引, 给 note_images 增 position 索引。
+         * 加速:
+         * - WHERE tags LIKE '%...%' (标签搜索)
+         * - WHERE reminder_time IS NOT NULL (提醒计数)
+         * - ORDER BY priority DESC (优先级排序)
+         * - ORDER BY created_at DESC/ASC (创建时间排序)
+         * - ORDER BY position ASC (图片顺序查询)
+         */
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_tags` ON `notes` (`tags`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_reminder_time` ON `notes` (`reminder_time`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_priority` ON `notes` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_created_at` ON `notes` (`created_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_images_position` ON `note_images` (`position`)")
+            }
+        }
+
         private fun build(context: Context): AppDatabase =
             Room.databaseBuilder(
                 context.applicationContext,
                 AppDatabase::class.java,
                 "notes.db"
             )
-                // 仅在版本号被人工调低时清空(防止调试时 downgrade 崩溃),
-                // 正常升级路径绝不删数据. v4 → v5 加外键通过 AutoMigration 完成。
-                .fallbackToDestructiveMigrationOnDowngrade()
-                // v8 → v9 手动迁移: 给 notes 加 3 个查询索引
-                .addMigrations(MIGRATION_8_9)
+                // v8 → v9, v9 → v10 手动迁移: 给 notes/note_images 加查询索引
+                .addMigrations(MIGRATION_8_9, MIGRATION_9_10)
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {

@@ -26,15 +26,17 @@ const val DEFAULT_COLOR: Int = 0xFFFFFFFF.toInt()
         childColumns = ["category_id"],
         onDelete = ForeignKey.SET_NULL
     )],
-    // v8 → v9: 增 is_pinned / updated_at / deleted_at 单列索引, 加速
-    // - ORDER BY is_pinned DESC, updated_at DESC (主页)
-    // - WHERE deleted_at IS NULL (主页 / 回收站 / 统计)
-    // - ORDER BY updated_at DESC (桌面小部件 / F3 getRecentNotes)
+    // v8 → v9: 增 is_pinned / updated_at / deleted_at 单列索引
+    // v9 → v10: 增 tags / reminder_time / priority / created_at 索引
     indices = [
         Index("category_id"),
         Index("is_pinned"),
         Index("updated_at"),
-        Index("deleted_at")
+        Index("deleted_at"),
+        Index("tags"),
+        Index("reminder_time"),
+        Index("priority"),
+        Index("created_at")
     ]
 )
 data class NoteEntity(
@@ -127,7 +129,7 @@ data class CategoryEntity(
         childColumns = ["noteId"],
         onDelete = ForeignKey.CASCADE
     )],
-    indices = [Index("noteId")]
+    indices = [Index("noteId"), Index("position")]
 )
 data class NoteImageEntity(
     @PrimaryKey(autoGenerate = true)

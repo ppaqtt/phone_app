@@ -282,19 +282,30 @@ fun NoteEditScreen(
     val initialSnapshot = remember(noteId, loaded) {
         if (loaded) NoteSnapshot(
             title = lastSaved?.title.orEmpty(),
-            content = lastSaved?.content.orEmpty()
+            content = lastSaved?.content.orEmpty(),
+            color = lastSaved?.color ?: NoteSwatches.first(),
+            isPinned = lastSaved?.isPinned ?: false,
+            categoryId = lastSaved?.categoryId,
+            tags = lastSaved?.tags?.split(",")?.filter { it.isNotBlank() } ?: emptyList(),
+            reminderTime = lastSaved?.reminderTime
         ) else NoteSnapshot("", "")
     }
     val isDirty by remember {
         derivedStateOf {
-            title != initialSnapshot.title || content.text != initialSnapshot.content
+            title != initialSnapshot.title ||
+                content.text != initialSnapshot.content ||
+                color != initialSnapshot.color ||
+                isPinned != initialSnapshot.isPinned ||
+                categoryId != initialSnapshot.categoryId ||
+                tags != initialSnapshot.tags ||
+                reminderTime != initialSnapshot.reminderTime
         }
     }
 
     // === 撤销/重做 ===
     val undoRedo = remember { UndoRedoState<NoteSnapshot>(maxDepth = 80) }
     // 启动时记一次基线
-    LaunchedEffect(Unit) { undoRedo.record(NoteSnapshot(title, content.text)) }
+    LaunchedEffect(Unit) { undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime)) }
     val canUndo by remember { derivedStateOf { undoRedo.canUndo } }
     val canRedo by remember { derivedStateOf { undoRedo.canRedo } }
     // P37: 节流, 200ms 内连续输入不重复入栈 (避免 80 步容量被快速耗尽)
@@ -303,7 +314,7 @@ fun NoteEditScreen(
         val now = System.currentTimeMillis()
         if (now - lastPushMs < 200L) return
         lastPushMs = now
-        undoRedo.record(NoteSnapshot(title, content.text))
+        undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))
     }
 
     // === Toast: 选区为空时给提示 ===
@@ -486,7 +497,7 @@ fun NoteEditScreen(
                     lastSaved = nwc.note
                     loaded = true
                     undoRedo.clear()
-                    undoRedo.record(NoteSnapshot(title, content.text))
+                    undoRedo.record(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))
                 }
             }
         }
@@ -659,9 +670,14 @@ fun NoteEditScreen(
                     }
                     IconButton(
                         onClick = {
-                            undoRedo.undo(NoteSnapshot(title, content.text))?.let { snap ->
+                            undoRedo.undo(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))?.let { snap ->
                                 title = snap.title
                                 content = TextFieldValue(snap.content, TextRange(snap.content.length))
+                                color = snap.color.takeIf { it != androidx.compose.ui.graphics.Color.Unspecified } ?: NoteSwatches.first()
+                                isPinned = snap.isPinned
+                                categoryId = snap.categoryId
+                                tags = snap.tags
+                                reminderTime = snap.reminderTime
                             }
                         },
                         enabled = canUndo
@@ -670,9 +686,14 @@ fun NoteEditScreen(
                     }
                     IconButton(
                         onClick = {
-                            undoRedo.redo(NoteSnapshot(title, content.text))?.let { snap ->
+                            undoRedo.redo(NoteSnapshot(title, content.text, color, isPinned, categoryId, tags, reminderTime))?.let { snap ->
                                 title = snap.title
                                 content = TextFieldValue(snap.content, TextRange(snap.content.length))
+                                color = snap.color.takeIf { it != androidx.compose.ui.graphics.Color.Unspecified } ?: NoteSwatches.first()
+                                isPinned = snap.isPinned
+                                categoryId = snap.categoryId
+                                tags = snap.tags
+                                reminderTime = snap.reminderTime
                             }
                         },
                         enabled = canRedo
