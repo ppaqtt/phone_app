@@ -1,9 +1,9 @@
 # Add project specific ProGuard rules here.
--keepattributes *Annotation*, InnerClasses, EnclosingMethod
+-keepattributes *Annotation*, InnerClasses, EnclosingMethod, Signature, SourceFile, LineNumberTable
 -dontnote kotlinx.serialization.AnnotationsKt
 
 # ========================================================================
-# Compose (R8 必须保留 @Composable 函数签名, 否则运行时反射找不到)
+# Compose 核心 — R8 必须保留 @Composable / Saver / mutableStateOf
 # ========================================================================
 -keep class androidx.compose.runtime.Composable { *; }
 -keepclassmembers class * {
@@ -12,10 +12,41 @@
 -keepclassmembers class * {
     @androidx.compose.ui.tooling.preview.Preview <methods>;
 }
+
+# P115-FIX: Saver / rememberSaveable / mutableStateOf 不能被 R8 内联或删除,
+# 否则 release 包运行时找不到 Saver 实现, 报 "cannot be saved" 闪退.
+-keep class androidx.compose.runtime.Saver { *; }
+-keep class androidx.compose.runtime.SaverKt { *; }
+-keep class androidx.compose.runtime.saveable.Saver { *; }
+-keep class androidx.compose.runtime.saveable.SaverKt { *; }
+-keep class androidx.compose.runtime.saveable.MapSaverKt { *; }
+-keep class androidx.compose.runtime.saveable.ListSaverKt { *; }
+-keepclassmembers class * {
+    androidx.compose.runtime.Saver *Saver*;
+}
+-keepclassmembers class * {
+    androidx.compose.runtime.saveable.Saver *Saver*;
+}
+
+# mutableStateOf / mutableStateListOf / rememberSaveable 不能被混淆
+-keep class androidx.compose.runtime.MutableState { *; }
+-keep class androidx.compose.runtime.SnapshotStateList { *; }
+-keep class androidx.compose.runtime.snapshots.SnapshotStateList { *; }
+-keep class androidx.compose.runtime.saveable.RememberSaveableKt { *; }
+
 # Navigation Compose: 保留所有 Composable Screen 函数
 -keepclassmembers class com.example.notes.ui.screens.* {
     @androidx.compose.runtime.Composable <methods>;
 }
+
+# ========================================================================
+# Compose UI — Color / TextStyle / Modifier 等内部类
+# ========================================================================
+-keep class androidx.compose.ui.graphics.Color { *; }
+-keep class androidx.compose.ui.graphics.ColorKt { *; }
+-keep class androidx.compose.ui.text.TextRange { *; }
+-keep class androidx.compose.ui.text.input.TextFieldValue { *; }
+-keep class androidx.compose.ui.text.input.TextFieldValue$Companion { *; }
 
 # ========================================================================
 # Room
