@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.DatePickerDialog
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -24,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -123,6 +123,8 @@ import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.ImageUtils
 import com.example.notes.util.ReminderManager
 import com.example.notes.util.insertAtCursor
+import com.example.notes.util.toastLong
+import com.example.notes.util.toastShort
 import com.example.notes.util.selectionIsEmpty
 import com.example.notes.util.toggleWrap
 import com.example.notes.util.wrapParagraphWithAlign
@@ -229,7 +231,7 @@ fun NoteEditScreen(
                 is com.example.notes.util.SpeechToTextHelper.State.Error -> {
                     isListening = false
                     speechText = "错误: ${state.message}"
-                    Toast.makeText(context, state.message, Toast.LENGTH_SHORT).show()
+                    context.toastShort(state.message)
                 }
                 else -> { /* Idle */ }
             }
@@ -242,7 +244,7 @@ fun NoteEditScreen(
         if (granted) {
             speechHelper.startListening("zh-CN")
         } else {
-            Toast.makeText(context, "需要录音权限才能使用语音转文字", Toast.LENGTH_SHORT).show()
+            context.toastShort("需要录音权限才能使用语音转文字")
         }
     }
 
@@ -263,12 +265,12 @@ fun NoteEditScreen(
                             content.copy(text = content.text + "\n" + text)
                         }
                         pushHistory()
-                        Toast.makeText(context, "识别完成, 已插入 ${text.length} 字", Toast.LENGTH_SHORT).show()
+                        context.toastShort("识别完成, 已插入 ${text.length} 字")
                     } else {
-                        Toast.makeText(context, "未识别到文字", Toast.LENGTH_SHORT).show()
+                        context.toastShort("未识别到文字")
                     }
                 }.onFailure {
-                    Toast.makeText(context, "识别失败: ${it.message}", Toast.LENGTH_LONG).show()
+                    context.toastLong("识别失败: ${it.message}")
                 }
                 isOcrProcessing = false
                 selectedTool = null
@@ -306,7 +308,7 @@ fun NoteEditScreen(
 
     // === Toast: 选区为空时给提示 ===
     fun showSelectFirstHint() {
-        Toast.makeText(context, "请先选中要修改的文字", Toast.LENGTH_SHORT).show()
+        context.toastShort("请先选中要修改的文字")
     }
 
     // === 多图选择器 ===
@@ -398,13 +400,9 @@ fun NoteEditScreen(
                                 .format(Date())
                         }"
                     )
-                    Toast.makeText(
-                        context,
-                        "已导出 PDF ($pages 页)",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    context.toastShort("已导出 PDF ($pages 页)")
                 }.onFailure {
-                    Toast.makeText(context, "导出 PDF 失败: ${it.message}", Toast.LENGTH_LONG).show()
+                    context.toastLong("导出 PDF 失败: ${it.message}")
                 }
             }
         }
@@ -425,13 +423,9 @@ fun NoteEditScreen(
                                 .format(Date())
                         }"
                     )
-                    Toast.makeText(
-                        context,
-                        "已导出长图 (${w}×${h})",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    context.toastShort("已导出长图 (${w}×${h})")
                 }.onFailure {
-                    Toast.makeText(context, "导出长图失败: ${it.message}", Toast.LENGTH_LONG).show()
+                    context.toastLong("导出长图失败: ${it.message}")
                 }
             }
         }
@@ -453,7 +447,12 @@ fun NoteEditScreen(
                         picked.set(Calendar.HOUR_OF_DAY, hour)
                         picked.set(Calendar.MINUTE, minute)
                         picked.set(Calendar.SECOND, 0)
-                        reminderTime = picked.timeInMillis
+                        val chosen = picked.timeInMillis
+                        if (chosen <= System.currentTimeMillis()) {
+                            context.toastShort("提醒时间已过, 请重新选择")
+                        } else {
+                            reminderTime = chosen
+                        }
                     },
                     initialCalendar.get(Calendar.HOUR_OF_DAY),
                     initialCalendar.get(Calendar.MINUTE),
@@ -583,7 +582,7 @@ fun NoteEditScreen(
                 then()
             } catch (e: Exception) {
                 Timber.tag("NoteEditScreen").e(e, "saveNote failed")
-                Toast.makeText(context, "保存失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                context.toastShort("保存失败: ${e.message}")
             } finally {
                 busy = false
             }
@@ -686,7 +685,7 @@ fun NoteEditScreen(
                             busy = true
                             // P52: 协程完成后才 onBack(), 避免 fire-and-forget 数据未入库
                             saveNoteThen {
-                                Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                                context.toastShort("已保存")
                                 onBack()
                             }
                         },
@@ -743,6 +742,7 @@ fun NoteEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
         ) {
             // F5: 笔记内查找条, 展开时插入到顶部
             if (showFindBar) {
@@ -954,7 +954,7 @@ fun NoteEditScreen(
                     // F16: 语音转文字
                     onSpeechClick = {
                         if (!speechHelper.isAvailable()) {
-                            Toast.makeText(context, "设备不支持语音识别", Toast.LENGTH_SHORT).show()
+                            context.toastShort("设备不支持语音识别")
                             selectedTool = null
                             return@ToolPanel
                         }
@@ -1026,7 +1026,7 @@ fun NoteEditScreen(
                                 }
                             } catch (e: Exception) {
                                 Timber.tag("NoteEditScreen").e(e, "delete failed")
-                                Toast.makeText(context, "删除失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                context.toastShort("删除失败: ${e.message}")
                             } finally {
                                 confirmDelete = false
                                 onBack()
@@ -1058,7 +1058,7 @@ fun NoteEditScreen(
                         // P53: 协程完成后再 invoke pendingExitAction, 数据先入库再退出
                         saveNoteThen {
                             showExitConfirm = false
-                            Toast.makeText(context, "已保存", Toast.LENGTH_SHORT).show()
+                            context.toastShort("已保存")
                             pendingExitAction?.invoke()
                         }
                     },

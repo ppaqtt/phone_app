@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.ui.viewmodel.NotesViewModel
+import com.example.notes.util.toastShort
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -63,6 +64,7 @@ fun TrashScreen(
     viewModel: NotesViewModel,
     onBack: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val trash by viewModel.observeTrash().collectAsState(initial = emptyList())
     var showEmptyConfirm by remember { mutableStateOf(false) }
 
@@ -110,8 +112,14 @@ fun TrashScreen(
                     items(trash, key = { it.note.id }) { item ->
                         TrashItemCard(
                             item = item,
-                            onRestore = { viewModel.restoreFromTrash(item.note.id) },
-                            onDeleteForever = { viewModel.permanentlyDeleteTrashed(item.note.id) }
+                            onRestore = {
+                                viewModel.restoreFromTrash(item.note.id)
+                                context.toastShort("已恢复")
+                            },
+                            onDeleteForever = {
+                                viewModel.permanentlyDeleteTrashed(item.note.id)
+                                context.toastShort("已永久删除")
+                            }
                         )
                     }
                 }
@@ -127,6 +135,7 @@ fun TrashScreen(
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.emptyTrash()
+                    context.toastShort("已清空回收站")
                     showEmptyConfirm = false
                 }) {
                     Text("永久删除", color = MaterialTheme.colorScheme.error)
