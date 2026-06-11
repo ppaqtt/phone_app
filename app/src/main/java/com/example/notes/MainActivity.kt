@@ -23,6 +23,7 @@ import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.ui.viewmodel.ViewModelFactory
 import com.example.notes.util.NotificationPermission
 import com.example.notes.util.rememberNotificationPermissionRequest
+import com.example.notes.widget.NotesAppWidget
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
