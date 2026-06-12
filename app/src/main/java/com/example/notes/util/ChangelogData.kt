@@ -23,6 +23,28 @@ object ChangelogData {
      */
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.16.0",
+            date = "2026-06-12",
+            items = listOf(
+                "修复：release 包打开闪退 (16KB 页大小对齐) — Android 15+ 设备拒绝加载未对齐的 .so 库, " +
+                    "打包配置启用 jniLibs.useLegacyPackaging = false, 配合 proguard-rules.pro 完整 keep " +
+                    "Compose @Composable / Saver / rememberSaveable / Room / DataStore / WorkManager / " +
+                    "App Widget / Coil / ML Kit / Timber 等反射点",
+                "修复：release 包打开闪退 (rememberSaveable 类型不兼容) — Color / SnapshotStateList " +
+                    "不能序列化到 Bundle. 新增 ColorSaver (Color ↔ ARGB Int), 把 imageUris / audioUris / " +
+                    "reminderTime / reminderRepeat 改用 remember, 走 ViewModel 流恢复, 不依赖 Activity 重建状态",
+                "修复：主题色 / 深色模式 / 字号切换不生效 — ThemePreference 之前用 remember(context) 每次 " +
+                    "new 一个实例, 状态不共享. 改为 NotesApplication 单例 + rememberThemePreference() 从 " +
+                    "Application 拿同一实例. 关闭 NotesAppTheme 默认 dynamicColor=true (会覆盖自定义色), " +
+                    "改为只有选 ColorTheme.TEAL 才用 Material You 动态色",
+                "清理：19 个 lint warning — 删除未用变量 (CodeBlock.startLine / AppLockScreen.lastClickTime / " +
+                    "StatsScreen.keys / Settings/Theme.context 等) / 未用参数 (onInsertText) / 冗余 cast " +
+                    "((List<String>)) / 不必要 !! (releaseInfo!!) / ThreadLocal 返回可空补 !! (TimeFormat × 4 " +
+                    "处 + ImageUtils)",
+                "升级：版本号 v1.15.0 → v1.16.0 (versionCode 25 → 26)"
+            )
+        ),
+        Entry(
             version = "v1.15.0",
             date = "2026-06-10",
             items = listOf(
@@ -134,6 +156,57 @@ object ChangelogData {
                 "新增：数据备份 / 恢复 — 全部笔记 / 分类 / 图片导出为 JSON, 走 SAF CreateDocument / OpenDocument; " +
                     "DTO 与 Entity 解耦, 兼容老备份; AUTO_INCREMENT 冲突通过「老 id → 新 id」映射表解决",
                 "升级：版本号 v1.3.0 → v1.4.0 (versionCode 13 → 14)"
+            )
+        ),
+        Entry(
+            version = "v1.3.0",
+            date = "2026-05-25",
+            items = listOf(
+                "新增：标签系统 — NoteEntity 加 tags 字段 (String 存储逗号分隔); 笔记编辑页底部 TagChips 显示 + 增删; " +
+                    "列表页顶部加 tag 筛选器 (单选/多选切换); 详情页显示标签云; 备份 JSON 同步导出 tags",
+                "新增：Markdown 表格 — 解析 | col1 | col2 | 表格语法, 渲染为可编辑 Excel 风格组件, " +
+                    "点击单元格编辑后转回 Markdown 写回正文",
+                "新增：图片多选 — 选图时从 ACTION_PICK 改 ACTION_OPEN_DOCUMENT (支持多选); 选完按插入顺序写入正文",
+                "升级：Room v4→v5 AutoMigration; 版本号 v1.2.0 → v1.3.0 (versionCode 12 → 13)"
+            )
+        ),
+        Entry(
+            version = "v1.2.0",
+            date = "2026-05-15",
+            items = listOf(
+                "新增：深色模式 — ThemePreference 持久化用户选择 (跟随系统/浅色/深色), 整个 App 走 Material 3 darkColorScheme",
+                "新增：自定义主题色 — 5 种 primary (青绿/蓝/紫/绿/橙), 设置页 AppearanceCard 提供切换",
+                "新增：字号缩放 — 小/中/大/超大 4 档, Typography.scale() 全局生效",
+                "优化：NotesListScreen 加 LazyColumn stickyHeader 按日期分组 (今天/昨天/本周/更早)",
+                "优化：搜索页加高亮显示匹配片段, 点击搜索结果跳到编辑页光标定位",
+                "升级：版本号 v1.1.0 → v1.2.0 (versionCode 11 → 12)"
+            )
+        ),
+        Entry(
+            version = "v1.1.0",
+            date = "2026-05-01",
+            items = listOf(
+                "新增：分类管理 — CategoryEntity 持久化分类 (id/name/color/order); 分类 CRUD + 排序拖拽; " +
+                    "笔记可关联 categoryId, 列表页顶部 chip 切换",
+                "新增：置顶笔记 — NoteEntity 加 isPinned 字段, 列表按 pinned desc, updated_at desc 排序",
+                "新增：通知提醒 — NoteEntity 加 reminderTime (Long?), 到点通过 ReminderWorker 发通知; " +
+                    "AlarmManager.setExactAndAllowWhileIdle 触发, 通知点击打开笔记",
+                "新增：图片附件 — NoteImageEntity 一对多关联, 图片存到 app internal storage, 列表/编辑页缩略图渲染",
+                "升级：版本号 v1.0.0 → v1.1.0 (versionCode 10 → 11)"
+            )
+        ),
+        Entry(
+            version = "v1.0.0",
+            date = "2026-04-15",
+            items = listOf(
+                "首发：清笺 Android 笔记应用",
+                "核心功能: 笔记 CRUD (创建/查看/编辑/删除), 标题 + 富文本正文 (纯文本/Markdown 渲染), " +
+                    "按时间倒序列表, 本地搜索 (按标题/正文匹配)",
+                "技术栈: Kotlin 1.8.22 + Jetpack Compose (BOM 2023.08.00) + Room 2.5 + Navigation Compose + " +
+                    "Timber + WorkManager + Coil",
+                "数据: 全部本地存储 (SQLite), 无云同步, 无账号登录, 无网络请求 (除未来可能的更新检查)",
+                "权限: 通知 (Android 13+), 摄像头/相册 (图片附件), 麦克风 (语音输入, v1.14+), " +
+                    "存储 (SAF, 无需 broad storage 权限)"
             )
         )
     )
