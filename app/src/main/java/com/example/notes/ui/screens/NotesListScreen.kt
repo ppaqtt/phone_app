@@ -50,6 +50,7 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
@@ -249,7 +250,12 @@ fun NotesListScreen(
             ExtendedFloatingActionButton(
                 onClick = onAddNote,
                 icon = { Icon(Icons.Filled.Add, contentDescription = "新建笔记") },
-                text = { Text("新建笔记") }
+                text = { Text("新建笔记") },
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 6.dp,
+                    pressedElevation = 8.dp
+                ),
+                shape = RoundedCornerShape(16.dp)
             )
         }
     ) { padding ->
