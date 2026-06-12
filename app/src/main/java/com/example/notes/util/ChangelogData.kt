@@ -26,6 +26,9 @@ object ChangelogData {
             version = "v1.16.0",
             date = "2026-06-12",
             items = listOf(
+                "新增：应用锁增强 — 修改 PIN 需先验证旧 PIN (ChangePin 模式); PIN 长度 4-8 位可选; " +
+                    "「立即锁定」一键锁住应用; 「忘记 PIN?」清除所有数据并重置应用锁; " +
+                    "PIN 长度持久化到 SharedPreferences",
                 "修复：release 包打开闪退 (16KB 页大小对齐) — Android 15+ 设备拒绝加载未对齐的 .so 库, " +
                     "打包配置启用 jniLibs.useLegacyPackaging = false, 配合 proguard-rules.pro 完整 keep " +
                     "Compose @Composable / Saver / rememberSaveable / Room / DataStore / WorkManager / " +
