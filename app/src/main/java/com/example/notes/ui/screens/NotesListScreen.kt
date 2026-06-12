@@ -251,6 +251,9 @@ fun NotesListScreen(
                 onClick = onAddNote,
                 icon = { Icon(Icons.Filled.Add, contentDescription = "新建笔记") },
                 text = { Text("新建笔记") },
+                // 用实色 primary + onPrimary 才有足够对比度, 默认 primaryContainer 太淡
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
                 elevation = FloatingActionButtonDefaults.elevation(
                     defaultElevation = 6.dp,
                     pressedElevation = 8.dp
