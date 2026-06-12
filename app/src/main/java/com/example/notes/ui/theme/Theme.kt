@@ -86,7 +86,10 @@ private fun colorThemePrimary(c: ColorTheme): Color = when (c) {
 @Composable
 fun NotesAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    // P115-FIX: 默认关掉动态色, 让用户的 ColorTheme 选择始终生效.
+    // 之前 dynamicColor = true 在 Android 12+ 永远走 Material You 动态色,
+    // 用户选的主题色完全被覆盖, 表现成"切换不生效"
+    dynamicColor: Boolean = false,
     // F7/F8/F11: 通过 [ThemePreference] 注入; 默认取 Composable 上下文中订阅的最新值
     pref: ThemePref = rememberThemePref(),
     content: @Composable () -> Unit
@@ -98,18 +101,20 @@ fun NotesAppTheme(
         DarkMode.DARK -> true
     }
 
-    // F11: 是否使用动态色 (跟随系统取色, 优先 F11 自定义主色; 系统不支持动态色时回落到 F11)
-    val useColorTheme = !dynamicColor ||
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-        pref.colorTheme != ColorTheme.TEAL  // 选了非默认色, 强制走自定义
+    // F11: 选 ColorTheme.TEAL(默认)时, Android 12+ 才尝试 Material You 动态色;
+    // 选其他自定义色则完全忽略系统动态色, 应用用户选的 primary
+    val useDynamicColor = dynamicColor &&
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        pref.colorTheme == ColorTheme.TEAL
 
     val colorScheme = when {
-        useColorTheme -> if (effectiveDark)
-            darkColorsWith(colorThemePrimary(pref.colorTheme))
+        useDynamicColor -> if (effectiveDark)
+            dynamicDarkColorScheme(LocalView.current.context)
         else
-            lightColorsWith(colorThemePrimary(pref.colorTheme))
-        effectiveDark -> DarkColors
-        else -> LightColors
+            dynamicLightColorScheme(LocalView.current.context)
+        pref.colorTheme == ColorTheme.TEAL -> if (effectiveDark) DarkColors else LightColors
+        effectiveDark -> darkColorsWith(colorThemePrimary(pref.colorTheme))
+        else -> lightColorsWith(colorThemePrimary(pref.colorTheme))
     }
 
     // F8: 字号缩放

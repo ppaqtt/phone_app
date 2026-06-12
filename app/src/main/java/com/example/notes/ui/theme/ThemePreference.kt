@@ -5,8 +5,8 @@ import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.example.notes.NotesApplication
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,13 +100,19 @@ enum class ColorTheme(val displayName: String) {
 }
 
 /**
- * F7: 在 Composable 中获取当前 ThemePreference 实例 (单例, Application Context)。
- * 使用 [LocalContext] 解析以保证不会持有 Activity 引用造成泄漏。
+ * F7: 在 Composable 中获取当前 ThemePreference 实例 (单例, Application 持有)。
+ * P115-FIX: 之前用 `remember(context) { ThemePreference(context) }` 每次 new
+ * 一个, 状态不共享. 现在改为从 Application 拿单例, 所有 Composable 订阅同一个 StateFlow。
  */
 @Composable
 fun rememberThemePreference(): ThemePreference {
     val context = LocalContext.current
-    return remember(context) { ThemePreference(context) }
+    val app = context.applicationContext as? NotesApplication
+    // 在 Preview 等非 Application 环境下回落到 new 一个, 避免崩溃
+    return when (app) {
+        null -> ThemePreference(context)
+        else -> app.themePreference
+    }
 }
 
 /** F7: 在 Composable 中订阅 ThemePref 状态 */
