@@ -151,7 +151,7 @@ object ChangelogData {
         ),
         Entry(
             version = "v1.4.0",
-            date = "2026-06-10",
+            date = "2026-06-08",
             items = listOf(
                 "新增：数据备份 / 恢复 — 全部笔记 / 分类 / 图片导出为 JSON, 走 SAF CreateDocument / OpenDocument; " +
                     "DTO 与 Entity 解耦, 兼容老备份; AUTO_INCREMENT 冲突通过「老 id → 新 id」映射表解决",
@@ -184,7 +184,7 @@ object ChangelogData {
         ),
         Entry(
             version = "v1.1.0",
-            date = "2026-05-01",
+            date = "2026-06-05",
             items = listOf(
                 "新增：分类管理 — CategoryEntity 持久化分类 (id/name/color/order); 分类 CRUD + 排序拖拽; " +
                     "笔记可关联 categoryId, 列表页顶部 chip 切换",
@@ -197,7 +197,7 @@ object ChangelogData {
         ),
         Entry(
             version = "v1.0.0",
-            date = "2026-04-15",
+            date = "2026-06-05",
             items = listOf(
                 "首发：清笺 Android 笔记应用",
                 "核心功能: 笔记 CRUD (创建/查看/编辑/删除), 标题 + 富文本正文 (纯文本/Markdown 渲染), " +
