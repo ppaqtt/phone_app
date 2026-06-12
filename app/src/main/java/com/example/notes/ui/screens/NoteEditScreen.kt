@@ -185,13 +185,16 @@ fun NoteEditScreen(
     var categoryId by remember { mutableStateOf<Long?>(null) }
     // 标签: 从 lastSaved.tags 同步过来, 保存时回写
     var tags by remember { mutableStateOf<List<String>>(emptyList()) }
-    // 多图
-    val imageUris: SnapshotStateList<String> = rememberSaveable { mutableStateListOf() }
+    // P115-FIX: SnapshotStateList 不能用 rememberSaveable (cannot be saved using SaveableStateRegistry)
+    // 改用普通 remember, 数据从 viewModel 流恢复, 不依赖 Activity 重建状态保存
+    val imageUris: SnapshotStateList<String> = remember { mutableStateListOf() }
     // 音频 (作为 URI 列表插入正文, 显示为可点击条目)
-    val audioUris: SnapshotStateList<String> = rememberSaveable { mutableStateListOf() }
-    var reminderTime by rememberSaveable { mutableStateOf<Long?>(null) }
+    val audioUris: SnapshotStateList<String> = remember { mutableStateListOf() }
+    // P115-FIX: reminderTime 和 reminderRepeat 改用 remember, 避免 R8 混淆后枚举/Long
+    // 在 SaveableStateRegistry 反序列化时类型不匹配. 这两个状态从 viewModel 流恢复即可
+    var reminderTime by remember { mutableStateOf<Long?>(null) }
     // F15: 提醒重复模式, 与 NoteEntity.reminderRepeat 字段一一对应
-    var reminderRepeat by rememberSaveable { mutableStateOf(com.example.notes.util.ReminderRepeat.NONE) }
+    var reminderRepeat by remember { mutableStateOf(com.example.notes.util.ReminderRepeat.NONE) }
     var confirmDelete by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(isNew) }
     var lastSaved by remember { mutableStateOf<NoteEntity?>(null) }
