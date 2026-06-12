@@ -259,6 +259,18 @@ class NotesRepository(
         return noteDao.purgeOldTrash(threshold)
     }
 
+    /**
+     * F9: 清空笔记相关的全部表 (notes / note_images / categories / trash)
+     * 用于忘记 PIN 后的数据重置流程。在事务中执行, 保证全清或全留。
+     */
+    suspend fun clearAllNotesAndRelated() {
+        database.withTransaction {
+            noteImageDao.clearAll()
+            noteDao.clearAll()
+            categoryDao.clearAll()
+        }
+    }
+
     // --- Backup / Restore (F1) -----------------------------------------
 
     /**

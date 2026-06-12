@@ -199,7 +199,7 @@ fun SettingsScreen(
                 }
             )
             // F9: 应用锁
-            AppLockCard()
+            AppLockCard(viewModel = viewModel)
             UpdateCheckCard(
                 isChecking = isChecking,
                 onCheck = {
@@ -451,54 +451,146 @@ private fun BackupRowButton(
 
 /**
  * F9: 应用锁配置卡片。
- * - 未启用时显示"启用应用锁"按钮, 点击后引导设置 6 位 PIN
- * - 已启用时显示"已启用 · 修改 PIN / 关闭" 选项
+ * - 未启用时显示"启用应用锁"按钮 + PIN 长度选择 (4-8 位)
+ * - 已启用时显示"修改 PIN / 立即锁定 / 忘记 PIN / 关闭" 选项
  */
 @Composable
-private fun AppLockCard() {
+private fun AppLockCard(viewModel: NotesViewModel) {
     val context = LocalContext.current
     val app = context.applicationContext as com.example.notes.NotesApplication
     val store = remember { app.appLockStore }
     val isEnabled by store.isEnabled.collectAsState()
-    var showSetup by remember { mutableStateOf(false) }
-    var showDisableConfirm by remember { mutableStateOf(false) }
+    val currentLen = store.pinLength
 
-    if (showSetup) {
-        AppLockScreen(
+    // 是否正在进入设置 PIN 流程
+    var showSetup by remember { mutableStateOf(false) }
+    // 是否正在修改 PIN
+    var showChange by remember { mutableStateOf(false) }
+    // 确认关闭对话框
+    var showDisableConfirm by remember { mutableStateOf(false) }
+    // 忘记 PIN: 清除数据对话框
+    var showForgotPin by remember { mutableStateOf(false) }
+    // 选择新 PIN 长度对话框
+    var showLengthPicker by remember { mutableStateOf(false) }
+    // 新设置的 PIN 长度 (4-8), 默认与当前一致或 6
+    var newPinLen by remember { mutableStateOf(currentLen.coerceIn(4..8)) }
+
+    when {
+        showSetup -> AppLockScreen(
             store = store,
             mode = Mode.SetPin,
-            onSuccess = { showSetup = false }
+            newPinLength = newPinLen,
+            onSuccess = {
+                showSetup = false
+                context.toastShort("应用锁已启用 (${newPinLen} 位 PIN)")
+            }
         )
-    } else {
-        if (showDisableConfirm) {
-            AlertDialog(
-                onDismissRequest = { showDisableConfirm = false },
-                title = { Text("关闭应用锁?") },
-                text = { Text("关闭后再次打开应用将不再需要输入 PIN") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        store.disable()
-                        showDisableConfirm = false
-                    }) { Text("关闭", color = MaterialTheme.colorScheme.error) }
+        showChange -> AppLockScreen(
+            store = store,
+            mode = Mode.ChangePin,
+            newPinLength = newPinLen,
+            onSuccess = {
+                showChange = false
+                context.toastShort("PIN 已修改 (${newPinLen} 位)")
+            }
+        )
+        else -> {
+            if (showDisableConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showDisableConfirm = false },
+                    title = { Text("关闭应用锁?") },
+                    text = { Text("关闭后再次打开应用将不再需要输入 PIN") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            store.disable()
+                            showDisableConfirm = false
+                        }) { Text("关闭", color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDisableConfirm = false }) { Text("取消") }
+                    }
+                )
+            }
+            if (showForgotPin) {
+                AlertDialog(
+                    onDismissRequest = { showForgotPin = false },
+                    title = { Text("忘记 PIN?") },
+                    text = {
+                        Text("您需要清除所有笔记数据才能重置应用锁。此操作不可恢复，请确认已做好备份。")
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showForgotPin = false
+                            // 在 ViewModel 作用域中清空所有数据
+                            viewModel.clearAllNotesData()
+                            store.disable()
+                            context.toastLong("已清除数据并关闭应用锁，请重新设置")
+                        }) { Text("清除全部数据并重置", color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showForgotPin = false }) { Text("取消") }
+                    }
+                )
+            }
+            if (showLengthPicker) {
+                AlertDialog(
+                    onDismissRequest = { showLengthPicker = false },
+                    title = { Text("选择 PIN 长度 (${newPinLen} 位)") },
+                    text = {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            (4..8).forEach { len ->
+                                androidx.compose.material3.Surface(
+                                    onClick = { newPinLen = len },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    color = if (len == newPinLen)
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    else
+                                        MaterialTheme.colorScheme.surface,
+                                    shape = MaterialTheme.shapes.small
+                                ) {
+                                    Text(
+                                        text = "${len} 位 PIN",
+                                        modifier = Modifier.padding(12.dp),
+                                        fontWeight = if (len == newPinLen) FontWeight.SemiBold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showLengthPicker = false }) { Text("完成") }
+                    }
+                )
+            }
+            AppLockCardContent(
+                isEnabled = isEnabled,
+                pinLength = currentLen,
+                onSetup = { showSetup = true },
+                onChange = { showChange = true },
+                onDisable = { showDisableConfirm = true },
+                onLockNow = {
+                    store.forceRelock()
+                    context.toastShort("已立即锁定")
                 },
-                dismissButton = {
-                    TextButton(onClick = { showDisableConfirm = false }) { Text("取消") }
-                }
+                onForgotPin = { showForgotPin = true },
+                onChangeLength = { showLengthPicker = true }
             )
         }
-        AppLockCardContent(
-            isEnabled = isEnabled,
-            onSetup = { showSetup = true },
-            onDisable = { showDisableConfirm = true }
-        )
     }
 }
 
 @Composable
 private fun AppLockCardContent(
     isEnabled: Boolean,
+    pinLength: Int,
     onSetup: () -> Unit,
-    onDisable: () -> Unit
+    onChange: () -> Unit,
+    onDisable: () -> Unit,
+    onLockNow: () -> Unit,
+    onForgotPin: () -> Unit,
+    onChangeLength: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -514,30 +606,48 @@ private fun AppLockCardContent(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                if (isEnabled) "已启用, 进入应用时需要输入 6 位 PIN"
+                if (isEnabled) "已启用, 当前 PIN 长度 ${pinLength} 位"
                 else "启用后, 进入应用 / 切回前台时需要输入 PIN",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
             if (isEnabled) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onSetup, modifier = Modifier.weight(1f)) {
-                        Text("修改 PIN")
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = onChange, modifier = Modifier.weight(1f)) {
+                            Text("修改 PIN")
+                        }
+                        TextButton(onClick = onLockNow, modifier = Modifier.weight(1f)) {
+                            Text("立即锁定")
+                        }
                     }
-                    TextButton(onClick = onDisable, modifier = Modifier.weight(1f)) {
-                        Text("关闭", color = MaterialTheme.colorScheme.error)
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = onChangeLength, modifier = Modifier.weight(1f)) {
+                            Text("PIN 长度 (${pinLength}位)")
+                        }
+                        TextButton(
+                            onClick = onDisable,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("关闭", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    TextButton(onClick = onForgotPin, modifier = Modifier.fillMaxWidth()) {
+                        Text("忘记 PIN?", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {
-                androidx.compose.material3.Button(
-                    onClick = onSetup,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("启用应用锁")
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.Button(
+                        onClick = onSetup,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("启用应用锁")
+                    }
+                    TextButton(onClick = onChangeLength, modifier = Modifier.fillMaxWidth()) {
+                        Text("PIN 长度: ${pinLength} 位 (点击修改)")
+                    }
                 }
             }
         }

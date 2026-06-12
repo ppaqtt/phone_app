@@ -291,6 +291,16 @@ class NotesViewModel(
         }
     }
 
+    /**
+     * F9: 忘记 PIN 时调用 —— 清空所有笔记/分类/图片数据 (不含用户偏好主题色等)。
+     * 这是故意不做撤销的操作, 配合应用锁重置流程。
+     */
+    fun clearAllNotesData() {
+        launchSafe("clearAllNotesData") {
+            repository.clearAllNotesAndRelated()
+        }
+    }
+
     // --- Backup / Restore (F1) -----------------------------------------
 
     /**

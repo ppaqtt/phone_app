@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,19 +44,25 @@ import kotlinx.coroutines.delay
  * F9: PIN 解锁屏。
  *
  * 模式:
- * - setPin: 用户首次设置 PIN (输入 2 次确认) — 内部用 state 区分 setup / unlock
- * - unlock: 已有 PIN, 输入校验
+ * - SetPin: 用户首次设置 PIN (输入 2 次确认)
+ * - Unlock: 已有 PIN, 输入校验
+ * - ChangePin: 先输入旧 PIN 验证, 再设置新 PIN
  *
  * 通过 onSuccess 回调通知上层切换 NavGraph 显示, 失败会抖动提示。
+ *
+ * @param newPinLength 新设置 PIN 时使用的长度 (4-8), 若为 null 则使用 store.pinLength
  */
 @Composable
 fun AppLockScreen(
     store: AppLockStore,
     mode: Mode,
-    onSuccess: () -> Unit
+    onSuccess: () -> Unit,
+    newPinLength: Int? = null
 ) {
     var entered by remember { mutableStateOf("") }
     var firstPin by remember { mutableStateOf("") }
+    // ChangePin 阶段: true = 正在验证旧 PIN, false = 正在设置新 PIN
+    var verifyPhase by remember { mutableStateOf(mode == Mode.ChangePin) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var isShaking by remember { mutableStateOf(false) }
     var cooldownRemaining by remember { mutableStateOf(0L) }
@@ -72,6 +76,13 @@ fun AppLockScreen(
             }
             errorText = null
         }
+    }
+
+    // 根据当前模式/阶段决定目标 PIN 长度
+    val targetLen: Int = when {
+        mode == Mode.Unlock -> store.pinLength
+        mode == Mode.ChangePin && verifyPhase -> store.pinLength
+        else -> newPinLength ?: store.pinLength
     }
 
     Surface(
@@ -94,9 +105,11 @@ fun AppLockScreen(
             )
             Spacer(Modifier.height(20.dp))
             Text(
-                text = when (mode) {
-                    Mode.SetPin -> if (firstPin.isEmpty()) "设置 PIN" else "再次输入以确认"
-                    Mode.Unlock -> "输入 PIN 解锁"
+                text = when {
+                    mode == Mode.ChangePin && verifyPhase -> "请输入当前 PIN"
+                    mode == Mode.ChangePin -> if (firstPin.isEmpty()) "设置新 PIN (${targetLen}位)" else "再次输入以确认"
+                    mode == Mode.SetPin -> if (firstPin.isEmpty()) "设置 PIN (${targetLen}位)" else "再次输入以确认"
+                    else -> "输入 PIN 解锁"
                 },
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold
@@ -110,13 +123,9 @@ fun AppLockScreen(
             Spacer(Modifier.height(32.dp))
 
             // 圆点指示器
-            val pinLength = if (mode == Mode.SetPin) {
-                if (firstPin.isNotEmpty()) 6 else entered.length
-            } else 6
-            val displayLen = if (mode == Mode.SetPin && firstPin.isNotEmpty()) firstPin.length else entered.length
             PinIndicator(
-                filled = displayLen,
-                total = pinLength,
+                filled = entered.length,
+                total = targetLen,
                 isError = isShaking,
                 modifier = Modifier.then(
                     if (isShaking) Modifier.pointerInput(Unit) { /* shake placeholder */ } else Modifier
@@ -145,7 +154,6 @@ fun AppLockScreen(
             Keypad(
                 onDigit = { d ->
                     if (cooldownRemaining > 0) return@Keypad
-                    val targetLen = pinLength
                     if (entered.length < targetLen) {
                         entered += d
                         errorText = null
@@ -164,19 +172,28 @@ fun AppLockScreen(
     }
 
     // 监听 entered 长度, 达到目标即提交
-    LaunchedEffect(entered, mode) {
-        val target = if (mode == Mode.SetPin) 6 else 6
-        if (entered.length == target) {
+    LaunchedEffect(entered, mode, verifyPhase, targetLen) {
+        if (entered.length == targetLen) {
             handleSubmit(
                 mode = mode,
+                verifyPhase = verifyPhase,
                 entered = entered,
                 store = store,
                 firstPin = firstPin,
+                onVerifyOk = { verifyPhase = false; firstPin = ""; entered = "" },
                 onSetFirst = { firstPin = entered; entered = "" },
                 onSuccess = onSuccess,
                 onFail = {
                     isShaking = true
                     errorText = "PIN 错误, 请重试"
+                    entered = ""
+                    delay(400L)
+                    isShaking = false
+                },
+                onMismatch = {
+                    isShaking = true
+                    errorText = "两次输入不一致, 请重新设置"
+                    firstPin = ""
                     entered = ""
                     delay(400L)
                     isShaking = false
@@ -189,30 +206,39 @@ fun AppLockScreen(
 
 private suspend fun handleSubmit(
     mode: Mode,
+    verifyPhase: Boolean,
     entered: String,
     store: AppLockStore,
     firstPin: String,
+    onVerifyOk: () -> Unit,
     onSetFirst: () -> Unit,
     onSuccess: () -> Unit,
     onFail: suspend () -> Unit,
+    onMismatch: suspend () -> Unit,
     onCooldown: () -> Unit
 ) {
-    when (mode) {
-        Mode.SetPin -> {
+    when {
+        mode == Mode.ChangePin && verifyPhase -> {
+            if (store.checkPin(entered)) {
+                onVerifyOk()
+            } else {
+                onFail()
+                onCooldown()
+            }
+        }
+        mode == Mode.ChangePin /* !verifyPhase */ || mode == Mode.SetPin -> {
             if (firstPin.isEmpty()) {
-                // 第一次输入, 暂存, 等用户输第二次
                 onSetFirst()
             } else {
-                // 第二次输入, 比对
                 if (firstPin == entered) {
                     store.setPin(entered)
                     onSuccess()
                 } else {
-                    onFail()
+                    onMismatch()
                 }
             }
         }
-        Mode.Unlock -> {
+        mode == Mode.Unlock -> {
             if (store.checkPin(entered)) {
                 onSuccess()
             } else {
@@ -223,7 +249,7 @@ private suspend fun handleSubmit(
     }
 }
 
-enum class Mode { SetPin, Unlock }
+enum class Mode { SetPin, Unlock, ChangePin }
 
 @Composable
 private fun PinIndicator(

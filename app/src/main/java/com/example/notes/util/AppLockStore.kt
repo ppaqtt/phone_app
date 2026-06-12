@@ -31,6 +31,10 @@ class AppLockStore(context: Context) {
     private val _hasPin = MutableStateFlow(prefs.contains(KEY_PIN_HASH))
     val hasPin: StateFlow<Boolean> = _hasPin.asStateFlow()
 
+    /** 当前已设置 PIN 的长度, 4-8 位; 未启用时默认为 6 (作为新设置推荐值)。 */
+    val pinLength: Int
+        get() = prefs.getInt(KEY_PIN_LENGTH, 6)
+
     /** 上次成功解锁时间 (System.currentTimeMillis), 0L = 从未解锁 / 锁住 */
     @Volatile
     private var lastUnlockTime: Long = prefs.getLong(KEY_LAST_UNLOCK, 0L)
@@ -48,6 +52,7 @@ class AppLockStore(context: Context) {
         prefs.edit {
             putString(KEY_PIN_HASH, hash)
             putBoolean(KEY_ENABLED, true)
+            putInt(KEY_PIN_LENGTH, clean.length)
         }
         _hasPin.value = true
         _isEnabled.value = true
@@ -75,6 +80,7 @@ class AppLockStore(context: Context) {
     fun disable() {
         prefs.edit {
             remove(KEY_PIN_HASH)
+            remove(KEY_PIN_LENGTH)
             putBoolean(KEY_ENABLED, false)
             putLong(KEY_LAST_UNLOCK, 0L)
         }
@@ -115,6 +121,7 @@ class AppLockStore(context: Context) {
         private const val PREFS = "app_lock_prefs"
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_ENABLED = "lock_enabled"
+        private const val KEY_PIN_LENGTH = "pin_length"
         private const val KEY_LAST_UNLOCK = "last_unlock_time"
 
         /** P100-FIX: 固定盐值, 防止彩虹表攻击 */
