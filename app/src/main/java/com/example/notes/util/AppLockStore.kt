@@ -35,6 +35,10 @@ class AppLockStore(context: Context) {
     val pinLength: Int
         get() = prefs.getInt(KEY_PIN_LENGTH, 6)
 
+    /** 是否启用了生物识别解锁 (仅在设备支持且已录入时有效) */
+    val isBiometricEnabled: Boolean
+        get() = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)
+
     /** 上次成功解锁时间 (System.currentTimeMillis), 0L = 从未解锁 / 锁住 */
     @Volatile
     private var lastUnlockTime: Long = prefs.getLong(KEY_LAST_UNLOCK, 0L)
@@ -74,19 +78,28 @@ class AppLockStore(context: Context) {
     }
 
     /**
-     * 关闭应用锁, 清除 PIN 哈希。
+     * 关闭应用锁, 清除 PIN 哈希和生物识别设置。
      * 注: 业务上应由用户在设置页"关闭应用锁"按钮触发, 同时校验旧 PIN。
      */
     fun disable() {
         prefs.edit {
             remove(KEY_PIN_HASH)
             remove(KEY_PIN_LENGTH)
+            remove(KEY_BIOMETRIC_ENABLED)
             putBoolean(KEY_ENABLED, false)
             putLong(KEY_LAST_UNLOCK, 0L)
         }
         _hasPin.value = false
         _isEnabled.value = false
         lastUnlockTime = 0L
+    }
+
+    /**
+     * 启用/禁用生物识别解锁。
+     * 调用方需先通过 [BiometricHelper.canAuthenticate] 确认设备可用。
+     */
+    fun setBiometricEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_BIOMETRIC_ENABLED, enabled) }
     }
 
     /**
@@ -106,6 +119,12 @@ class AppLockStore(context: Context) {
         prefs.edit { putLong(KEY_LAST_UNLOCK, 0L) }
     }
 
+    /** 更新解锁时间 (生物识别成功后调用, 等同于 PIN 解锁成功) */
+    fun updateUnlockTime() {
+        lastUnlockTime = System.currentTimeMillis()
+        prefs.edit { putLong(KEY_LAST_UNLOCK, lastUnlockTime) }
+    }
+
     /**
      * P100-FIX: 添加固定盐值防止彩虹表攻击。
      * 更安全的做法是每次安装生成随机盐并存储, 但这会增加复杂度。
@@ -123,6 +142,7 @@ class AppLockStore(context: Context) {
         private const val KEY_ENABLED = "lock_enabled"
         private const val KEY_PIN_LENGTH = "pin_length"
         private const val KEY_LAST_UNLOCK = "last_unlock_time"
+        private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
 
         /** P100-FIX: 固定盐值, 防止彩虹表攻击 */
         private const val SALT = "QingJian_AppLock_Salt_v1_2024"

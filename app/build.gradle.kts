@@ -16,8 +16,8 @@ android {
         applicationId = "com.example.notes"
         minSdk = 24
         targetSdk = 34
-        versionCode = 28
-        versionName = "1.18.0"
+        versionCode = 29
+        versionName = "1.19.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -167,6 +167,9 @@ dependencies {
 
     // F17: ML Kit 中文 OCR
     implementation(libs.mlkit.text.recognition.chinese)
+
+    // Biometric (指纹/人脸解锁)
+    implementation(libs.androidx.biometric)
 
     // Kotlin
     implementation(libs.kotlinx.coroutines.android)

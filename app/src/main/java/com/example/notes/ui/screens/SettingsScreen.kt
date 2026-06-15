@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
@@ -39,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -67,6 +69,7 @@ import com.example.notes.ui.theme.rememberThemePreference
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.AppLockStore
 import com.example.notes.util.AppUpdateChecker
+import com.example.notes.util.BiometricHelper
 import com.example.notes.util.ChangelogData
 import com.example.notes.util.NoUpdateDialog
 import com.example.notes.util.UpdateAvailableDialog
@@ -474,6 +477,12 @@ private fun AppLockCard(viewModel: NotesViewModel) {
     var showLengthPicker by remember { mutableStateOf(false) }
     // 新设置的 PIN 长度 (4-8), 默认与当前一致或 6
     var newPinLen by remember { mutableStateOf(currentLen.coerceIn(4..8)) }
+    // F19: 生物识别开关状态
+    var biometricEnabled by remember { mutableStateOf(store.isBiometricEnabled) }
+    val biometricStatus = remember {
+        if (isEnabled) BiometricHelper.canAuthenticate(context) else BiometricHelper.Status.NoHardware
+    }
+    val canUseBiometric = biometricStatus == BiometricHelper.Status.Available
 
     when {
         showSetup -> AppLockScreen(
@@ -567,6 +576,26 @@ private fun AppLockCard(viewModel: NotesViewModel) {
             AppLockCardContent(
                 isEnabled = isEnabled,
                 pinLength = currentLen,
+                canUseBiometric = canUseBiometric,
+                biometricEnabled = biometricEnabled,
+                biometricStatus = biometricStatus,
+                onBiometricToggle = { enabled ->
+                    if (enabled && !canUseBiometric) {
+                        val msg = when (biometricStatus) {
+                            BiometricHelper.Status.NoneEnrolled -> "请先前往系统设置录入指纹/人脸"
+                            BiometricHelper.Status.NoHardware -> "该设备不支持生物识别"
+                            BiometricHelper.Status.HwUnavailable -> "生物识别硬件当前不可用"
+                            else -> "无法启用生物识别"
+                        }
+                        context.toastLong(msg)
+                    } else {
+                        store.setBiometricEnabled(enabled)
+                        biometricEnabled = enabled
+                        context.toastShort(
+                            if (enabled) "已启用指纹/人脸解锁" else "已关闭生物识别解锁"
+                        )
+                    }
+                },
                 onSetup = { showSetup = true },
                 onChange = { showChange = true },
                 onDisable = { showDisableConfirm = true },
@@ -585,6 +614,10 @@ private fun AppLockCard(viewModel: NotesViewModel) {
 private fun AppLockCardContent(
     isEnabled: Boolean,
     pinLength: Int,
+    canUseBiometric: Boolean,
+    biometricEnabled: Boolean,
+    biometricStatus: BiometricHelper.Status,
+    onBiometricToggle: (Boolean) -> Unit,
     onSetup: () -> Unit,
     onChange: () -> Unit,
     onDisable: () -> Unit,
@@ -612,6 +645,52 @@ private fun AppLockCardContent(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
+
+            // F19: 生物识别开关 (仅应用锁已启用时显示)
+            if (isEnabled) {
+                val bioStatusText = when (biometricStatus) {
+                    BiometricHelper.Status.Available -> "可用"
+                    BiometricHelper.Status.NoneEnrolled -> "未录入"
+                    BiometricHelper.Status.NoHardware -> "不支持"
+                    BiometricHelper.Status.HwUnavailable -> "不可用"
+                    BiometricHelper.Status.Unknown -> "未知"
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Fingerprint,
+                        contentDescription = "生物识别",
+                        tint = if (canUseBiometric)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "指纹/人脸解锁",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            "状态: $bioStatusText",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        onCheckedChange = onBiometricToggle,
+                        enabled = canUseBiometric
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+
             if (isEnabled) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(modifier = Modifier.fillMaxWidth()) {

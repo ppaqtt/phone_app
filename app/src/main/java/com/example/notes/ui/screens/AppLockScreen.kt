@@ -17,8 +17,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,10 +36,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.notes.util.AppLockStore
+import com.example.notes.util.BiometricHelper
 import kotlinx.coroutines.delay
 
 /**
@@ -59,6 +63,7 @@ fun AppLockScreen(
     onSuccess: () -> Unit,
     newPinLength: Int? = null
 ) {
+    val context = LocalContext.current
     var entered by remember { mutableStateOf("") }
     var firstPin by remember { mutableStateOf("") }
     // ChangePin 阶段: true = 正在验证旧 PIN, false = 正在设置新 PIN
@@ -66,6 +71,17 @@ fun AppLockScreen(
     var errorText by remember { mutableStateOf<String?>(null) }
     var isShaking by remember { mutableStateOf(false) }
     var cooldownRemaining by remember { mutableStateOf(0L) }
+
+    // F19: 生物识别相关状态 (仅在 Unlock 模式且用户启用了生物识别时)
+    val biometricStatus = remember {
+        if (mode == Mode.Unlock && store.isBiometricEnabled)
+            BiometricHelper.canAuthenticate(context)
+        else
+            BiometricHelper.Status.NoHardware
+    }
+    val showBiometric = mode == Mode.Unlock &&
+        store.isBiometricEnabled &&
+        biometricStatus == BiometricHelper.Status.Available
 
     // 失败 N 次进入冷却
     LaunchedEffect(cooldownRemaining) {
@@ -149,6 +165,38 @@ fun AppLockScreen(
             }
 
             Spacer(Modifier.height(24.dp))
+
+            // F19: 生物识别按钮 (仅在 Unlock 模式且设备支持时显示)
+            if (showBiometric) {
+                IconButton(
+                    onClick = {
+                        val activity = context as? androidx.fragment.app.FragmentActivity
+                        activity?.let {
+                            BiometricHelper.authenticate(
+                                activity = it,
+                                title = "指纹/人脸解锁",
+                                subtitle = "验证身份以解锁清笺",
+                                negativeButtonText = "使用 PIN 解锁",
+                                onSuccess = {
+                                    // 生物识别成功 = 等同于 PIN 解锁成功
+                                    store.updateUnlockTime()
+                                    onSuccess()
+                                },
+                                onCancel = { /* 用户选择 PIN, 不做任何事, 继续显示 PIN 键盘 */ }
+                            )
+                        }
+                    },
+                    modifier = Modifier.size(56.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Fingerprint,
+                        contentDescription = "指纹/人脸解锁",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+            }
 
             // 数字键盘
             Keypad(

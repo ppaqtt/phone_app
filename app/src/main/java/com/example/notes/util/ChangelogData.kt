@@ -23,6 +23,20 @@ object ChangelogData {
      */
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.19.0",
+            date = "2026-06-15",
+            items = listOf(
+                "新增：应用锁生物识别解锁 — 支持指纹/人脸 (2D/3D) 解锁, 自动检测设备能力; " +
+                    "设置页新增「指纹/人脸解锁」开关, 显示设备支持状态 (可用/未录入/不支持/不可用); " +
+                    "解锁页新增指纹图标按钮, 点击唤起 BiometricPrompt; " +
+                    "生物识别失败时自动回退到 PIN 输入, PIN 始终作为兜底方案",
+                "新增：BiometricHelper 工具类 — 封装 BiometricManager.canAuthenticate (BIOMETRIC_WEAK) " +
+                    "检测 + BiometricPrompt 认证流程, 支持 onSuccess/onError/onCancel 回调",
+                "升级：版本号 v1.18.0 → v1.19.0 (versionCode 28 → 29); " +
+                    "新增 androidx.biometric:biometric:1.2.0-alpha05 依赖"
+            )
+        ),
+        Entry(
             version = "v1.18.0",
             date = "2026-06-15",
             items = listOf(
