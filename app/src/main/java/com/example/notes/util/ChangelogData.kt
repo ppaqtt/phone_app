@@ -23,6 +23,18 @@ object ChangelogData {
      */
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.18.0",
+            date = "2026-06-15",
+            items = listOf(
+                "优化：列表项操作入口 — 移除不可靠的右滑手势 (detectHorizontalDragGestures), " +
+                    "改为卡片右上角「⋮」MoreVert 按钮, 点击弹出操作弹层 (置顶/标签/删除/移动/重要度/分享); " +
+                    "NoteCard 新增 onMoreClick 可选参数, 列表 items 直接渲染 NoteCard + onMoreClick",
+                "修复：NotesListScreen 编译错误 — 清理 SwipeableNoteRow 相关 import 时遗漏 NoteSortOrder, " +
+                    "导致 SortOrderDialog 内 9 处引用 Unresolved reference, 补回 import 后恢复正常",
+                "升级：版本号 v1.17.0 → v1.18.0 (versionCode 27 → 28)"
+            )
+        ),
+        Entry(
             version = "v1.17.0",
             date = "2026-06-15",
             items = listOf(
