@@ -173,6 +173,10 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.datetime)
 
+    // CommonMark (Markdown parsing)
+    implementation("org.commonmark:commonmark:0.21.0")
+    implementation("org.commonmark:commonmark-ext-gfm-tables:0.21.0")
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

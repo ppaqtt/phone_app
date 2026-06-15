@@ -17,11 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import com.example.notes.nav.NotesNavGraph
 import com.example.notes.ui.screens.AboutLegalScreen
+import com.example.notes.ui.screens.PermissionIntroScreen
 import com.example.notes.ui.screens.SplashScreen
 import com.example.notes.ui.theme.NotesAppTheme
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.ui.viewmodel.ViewModelFactory
 import com.example.notes.util.NotificationPermission
+import com.example.notes.util.PermissionIntroPrefs
 import com.example.notes.util.rememberNotificationPermissionRequest
 import com.example.notes.widget.NotesAppWidget
 import timber.log.Timber
@@ -44,6 +46,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     var showSplash by remember { mutableStateOf(true) }
+                    var showPermissionIntro by remember { mutableStateOf(false) }
                     // 从 intent.data 解析深链接, host == "privacy" 时跳隐私政策页
                     val pendingLegalUri = remember { parseLegalUri(intent) }
                     var showLegal by remember { mutableStateOf(pendingLegalUri != null) }
@@ -51,10 +54,17 @@ class MainActivity : ComponentActivity() {
                     // F3: 解析桌面小部件的 "新建笔记" / "打开笔记" intent
                     val widgetIntent = remember { parseWidgetIntent(intent) }
 
-                    // P95: 启动页结束后, 若未授通知权限 (Android 13+) 自动弹申请
-                    val permRequest = rememberNotificationPermissionRequest()
+                    // Splash 结束后判断是否需要展示权限引导
                     LaunchedEffect(showSplash) {
-                        if (!showSplash && !NotificationPermission.hasPermission(this@MainActivity)) {
+                        if (!showSplash) {
+                            showPermissionIntro = !PermissionIntroPrefs.isShown(this@MainActivity)
+                        }
+                    }
+
+                    // P95: 启动页结束且权限引导完成后, 若未授通知权限 (Android 13+) 自动弹申请
+                    val permRequest = rememberNotificationPermissionRequest()
+                    LaunchedEffect(showSplash, showPermissionIntro) {
+                        if (!showSplash && !showPermissionIntro && !NotificationPermission.hasPermission(this@MainActivity)) {
                             permRequest.value = true
                         }
                     }
@@ -67,6 +77,12 @@ class MainActivity : ComponentActivity() {
                         )
                     } else if (showSplash) {
                         SplashScreen(onAnimationComplete = { showSplash = false })
+                    } else if (showPermissionIntro) {
+                        PermissionIntroScreen(
+                            onComplete = {
+                                showPermissionIntro = false
+                            }
+                        )
                     } else {
                         // F9: 应用锁 gate — 已锁时显示 AppLockScreen, 否则直接进 NavGraph
                         AppLockGate(
