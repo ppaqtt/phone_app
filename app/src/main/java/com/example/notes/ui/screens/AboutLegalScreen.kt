@@ -415,7 +415,7 @@ private fun buildInlineAnnotatedString(
     }
 }
 
-private fun androidx.compose.ui.text.buildAnnotatedString.Builder.appendInlineNodes(
+private fun androidx.compose.ui.text.AnnotatedString.Builder.appendInlineNodes(
     nodes: List<InlineNode>
 ) {
     for (node in nodes) {
