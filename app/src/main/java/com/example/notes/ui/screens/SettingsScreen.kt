@@ -87,6 +87,9 @@ private const val FEEDBACK_URL =
 private const val QQ_GROUP_URL =
     "https://qm.qq.com/q/rbxVPtqTD"
 
+/** 官方QQ群号 (用于 mqqapi:// 唤起手Q加群卡片) */
+private const val QQ_GROUP_UIN = "859392473"
+
 /** 内部法律页面枚举 (用于本地切换 AboutLegalScreen) */
 private enum class LegalPage { PRIVACY, TERMS }
 
@@ -992,6 +995,11 @@ private fun FeedbackCard() {
 
 /**
  * P102: 官方QQ群入口卡片。
+ *
+ * 点击后优先尝试唤起手Q原生加群卡片 (mqqapi://card/show_pslcard),
+ * 体验等同于"点按钮 → 手Q弹出群资料卡 → 一键加群", 你的示例代码用的就是这种;
+ * 若设备未安装手Q / 拉起失败, 则回退到通用 https 链接, 浏览器会跳转到
+ * h5 群资料页或应用商店下载手Q。
  */
 @Composable
 private fun QQGroupCard() {
@@ -1000,11 +1008,21 @@ private fun QQGroupCard() {
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                val intent = Intent(Intent.ACTION_VIEW, QQ_GROUP_URL.toUri())
-                runCatching { context.startActivity(intent) }
-                    .onFailure { e ->
-                        context.toastShort("无法打开链接: ${e.message}")
-                    }
+                // 仿照 MainActivity 的写法: mqqapi:// 唤起原生加群卡片
+                val qqIntent = Intent(
+                    Intent.ACTION_VIEW,
+                    "mqqapi://card/show_pslcard?src_type=internal&version=1" +
+                        "&uin=$QQ_GROUP_UIN&card_type=group&source=qrcode".toUri()
+                )
+                val launched = runCatching { context.startActivity(qqIntent) }.isSuccess
+                if (!launched) {
+                    // 兜底: 没装手Q时跳通用 https 链接
+                    val fallback = Intent(Intent.ACTION_VIEW, QQ_GROUP_URL.toUri())
+                    runCatching { context.startActivity(fallback) }
+                        .onFailure { e ->
+                            context.toastShort("无法打开链接: ${e.message}")
+                        }
+                }
             },
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
