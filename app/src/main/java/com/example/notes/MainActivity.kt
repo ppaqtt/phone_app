@@ -121,7 +121,8 @@ class MainActivity : ComponentActivity() {
         return when (intent.action) {
             ACTION_NEW_NOTE -> WidgetIntent.NewNote
             ACTION_OPEN_NOTE -> {
-                val id = intent.getLongExtra(NotesAppWidget.EXTRA_NOTE_ID, 0L)
+                val id = intent.getLongExtra(
+                    NotesAppWidget.EXTRA_NOTE_ID, 0L)
                 if (id > 0L) WidgetIntent.OpenNote(id) else null
             }
             // F4: 快捷方式入口
