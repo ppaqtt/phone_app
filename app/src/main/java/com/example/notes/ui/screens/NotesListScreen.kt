@@ -79,6 +79,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.ui.components.NoteCard
+import com.example.notes.ui.viewmodel.NoteSortOrder
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.NoteShareUtil
