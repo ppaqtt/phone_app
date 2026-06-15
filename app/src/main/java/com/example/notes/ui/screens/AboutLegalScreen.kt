@@ -119,7 +119,6 @@ fun AboutLegalScreen(
                 items(blocks) { block ->
                     RenderedBlockView(
                         block = block,
-                        context = context,
                         modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
@@ -133,15 +132,14 @@ fun AboutLegalScreen(
 @Composable
 private fun RenderedBlockView(
     block: RenderedBlock,
-    context: Context,
     modifier: Modifier = Modifier
 ) {
     when (block) {
         is RenderedBlock.Heading -> HeadingView(block, modifier)
-        is RenderedBlock.Paragraph -> InlineTextView(block.inlineNodes, context, modifier)
-        is RenderedBlock.BulletList -> BulletListView(block, context, modifier)
-        is RenderedBlock.OrderedList -> OrderedListView(block, context, modifier)
-        is RenderedBlock.BlockQuote -> BlockQuoteView(block, context, modifier)
+        is RenderedBlock.Paragraph -> InlineTextView(block.inlineNodes, modifier)
+        is RenderedBlock.BulletList -> BulletListView(block, modifier)
+        is RenderedBlock.OrderedList -> OrderedListView(block, modifier)
+        is RenderedBlock.BlockQuote -> BlockQuoteView(block, modifier)
         is RenderedBlock.CodeBlock -> CodeBlockView(block, modifier)
         is RenderedBlock.Table -> MarkdownTable(block.headers, block.rows, modifier)
         is RenderedBlock.HorizontalRule -> Divider(modifier = modifier.padding(top = 8.dp, bottom = 8.dp))
@@ -171,7 +169,6 @@ private fun HeadingView(block: RenderedBlock.Heading, modifier: Modifier = Modif
 @Composable
 private fun InlineTextView(
     inlineNodes: List<InlineNode>,
-    context: Context,
     modifier: Modifier = Modifier
 ) {
     val uriHandler = LocalUriHandler.current
@@ -209,7 +206,6 @@ private fun InlineTextView(
 @Composable
 private fun BulletListView(
     block: RenderedBlock.BulletList,
-    context: Context,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)) {
@@ -256,7 +252,6 @@ private fun BulletListView(
 @Composable
 private fun OrderedListView(
     block: RenderedBlock.OrderedList,
-    context: Context,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)) {
@@ -303,11 +298,9 @@ private fun OrderedListView(
 @Composable
 private fun BlockQuoteView(
     block: RenderedBlock.BlockQuote,
-    context: Context,
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.padding(top = 4.dp, bottom = 4.dp)) {
-        // 左侧竖线
         Box(
             modifier = Modifier
                 .width(3.dp)
@@ -318,7 +311,6 @@ private fun BlockQuoteView(
             block.blocks.forEach { childBlock ->
                 RenderedBlockView(
                     block = childBlock,
-                    context = context,
                     modifier = Modifier.padding(vertical = 1.dp)
                 )
             }
