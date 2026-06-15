@@ -175,7 +175,7 @@ private fun InlineTextView(
     modifier: Modifier = Modifier
 ) {
     val uriHandler = LocalUriHandler.current
-    val annotatedText = buildInlineAnnotatedString(inlineNodes, context)
+    val annotatedText = buildInlineAnnotatedString(inlineNodes)
 
     if (annotatedText.getStringAnnotations(LINK_ANNOTATION_KEY, 0, annotatedText.length).isNotEmpty()) {
         ClickableText(
@@ -214,7 +214,7 @@ private fun BulletListView(
 ) {
     Column(modifier = modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)) {
         block.items.forEachIndexed { _, inlines ->
-            val annotatedText = buildInlineAnnotatedString(inlines, context)
+            val annotatedText = buildInlineAnnotatedString(inlines)
             val uriHandler = LocalUriHandler.current
             val bulletPrefix = "\u2022 "
 
@@ -261,7 +261,7 @@ private fun OrderedListView(
 ) {
     Column(modifier = modifier.padding(start = 4.dp, top = 2.dp, bottom = 2.dp)) {
         block.items.forEachIndexed { index, inlines ->
-            val annotatedText = buildInlineAnnotatedString(inlines, context)
+            val annotatedText = buildInlineAnnotatedString(inlines)
             val uriHandler = LocalUriHandler.current
             val prefix = "${block.startNumber + index}. "
 
@@ -407,8 +407,7 @@ private fun MarkdownTable(
 // ────────────────────────── Inline 渲染 ──────────────────────────
 
 private fun buildInlineAnnotatedString(
-    nodes: List<InlineNode>,
-    context: Context
+    nodes: List<InlineNode>
 ): AnnotatedString {
     return buildAnnotatedString {
         appendInlineNodes(nodes)
