@@ -482,7 +482,7 @@ private fun SwipeableNoteRow(
             .fillMaxWidth()
             .onSizeChanged { size -> widthPx.floatValue = size.width.toFloat() }
     ) {
-        // 背景层: 5 个动作的彩色条 (卡片右滑时露出)
+        // 背景层: 6 个动作的彩色条 (卡片左滑时露出)
         NoteActionsBackground()
         // 前景层: 卡片 (可水平拖动, 始终跟手)
         // P96: 优化手势冲突 — 用单个 Job 处理 snapTo, 避免每帧 launch
@@ -498,7 +498,8 @@ private fun SwipeableNoteRow(
                         onDragEnd = {
                             scope.launch {
                                 val w = widthPx.floatValue
-                                if (w > 0f && -offsetX.value > w * threshold) {
+                                // 手指从右向左滑 -> offsetX 为负, 露出右侧动作条
+                                if (w > 0f && offsetX.value < -w * threshold) {
                                     onActionShown()
                                 }
                                 offsetX.animateTo(0f, tween(durationMillis = 220))
@@ -509,6 +510,7 @@ private fun SwipeableNoteRow(
                         // P96: 用单一 snapTo 协程, 取消上一次未完成的 snap, 避免积压
                         snapJob.cancel()
                         scope.launch(snapJob) {
+                            // 只允许向左拖 (offsetX 变负)
                             val target = (offsetX.value + dragAmount)
                                 .coerceIn(-widthPx.floatValue, 0f)
                             offsetX.snapTo(target)
