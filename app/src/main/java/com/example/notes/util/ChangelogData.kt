@@ -23,6 +23,28 @@ object ChangelogData {
      */
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.17.0",
+            date = "2026-06-15",
+            items = listOf(
+                "新增：启动权限引导页 — 首次启动列出 7 项核心权限 (通知 / 图片 / 视频 / 音频 / 相机 / 麦克风 / 存储), " +
+                    "支持「同意并继续」一次性申请全部或「稍后再说」跳过; 引导页仅展示一次, 状态持久化到 SharedPreferences",
+                "新增：Markdown 渲染升级 — 引入 commonmark-java (org.commonmark:commonmark:0.21.0 + " +
+                    "commonmark-ext-gfm-tables:0.21.0) 解析完整 CommonMark 语法, 支持标题 / 段落 / " +
+                    "无序有序列表 / 引用 / 代码块 / GFM 表格 / 链接 / 粗体 / 斜体 / 行内代码; " +
+                    "LegalDocumentRenderer 统一管理解析与渲染",
+                "优化：关于 → 隐私政策 / 使用条款渲染 — 从手写简化解析器切换为 CommonMark 解析器, " +
+                    "表格带边框对齐, 链接可点击跳浏览器 (LocalUriHandler), AnnotatedString.Builder 扩展函数 " +
+                    "appendInlineNodes 递归渲染所有行内节点",
+                "修复：AboutLegalScreen 编译错误 — 扩展函数接收者误写为 androidx.compose.ui.text.buildAnnotatedString.Builder " +
+                    "(函数名), 修正为 androidx.compose.ui.text.AnnotatedString.Builder (类名)",
+                "修复：移除 buildInlineAnnotatedString 未使用的 context 参数 (消除 lint warning)",
+                "优化：.gitignore 补全 — 新增忽略 aliyun.gradle (个人镜像安装脚本) / app/release/ " +
+                    "(APK 产物) / app/schemas/ (Room schema) / crash.log / gradle-*-bin.zip / gradle-*/ " +
+                    "等构建产物, 避免污染提交历史",
+                "升级：版本号 v1.16.0 → v1.17.0 (versionCode 26 → 27)"
+            )
+        ),
+        Entry(
             version = "v1.16.0",
             date = "2026-06-12",
             items = listOf(
