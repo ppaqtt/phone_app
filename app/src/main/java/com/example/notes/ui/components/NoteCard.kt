@@ -19,11 +19,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,6 +47,7 @@ fun NoteCard(
     noteWithCategory: NoteWithCategory,
     onClick: () -> Unit,
     onPinClick: (() -> Unit)? = null,
+    onMoreClick: (() -> Unit)? = null,
     coverImageUri: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -105,6 +108,21 @@ fun NoteCard(
                                 .size(16.dp)
                                 .clickable(enabled = onPinClick != null) { onPinClick?.invoke() }
                         )
+                    }
+                    // 三个点按钮: 列表项的二级入口, 弹操作弹层 (替代原来的右滑手势)
+                    if (onMoreClick != null) {
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(
+                            onClick = onMoreClick,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MoreVert,
+                                contentDescription = "更多操作",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
                 if (note.content.isNotBlank()) {
