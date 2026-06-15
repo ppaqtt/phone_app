@@ -1,12 +1,39 @@
-*.iml
-.gradle
-/local.properties
-/.idea/
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-app/build/
+# Gradle
+.gradle/
+gradle-*.zip
+gradle-8.2/
+gradle-8.7/
 **/build/
+build/
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+app/release/
+app/release/*.apk
+app/release/output-metadata.json
+app/schemas/
+
+# Logs
+*.log
+crash.log
+hs_err_pid*
+
+# IDE
+*.iml
+.idea/
+.vscode/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+local.properties
+*.hprof
