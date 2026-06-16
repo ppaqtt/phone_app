@@ -1011,8 +1011,8 @@ private fun QQGroupCard() {
                 // 仿照 MainActivity 的写法: mqqapi:// 唤起原生加群卡片
                 val qqIntent = Intent(
                     Intent.ACTION_VIEW,
-                    "mqqapi://card/show_pslcard?src_type=internal&version=1" +
-                        "&uin=$QQ_GROUP_UIN&card_type=group&source=qrcode".toUri()
+                    ("mqqapi://card/show_pslcard?src_type=internal&version=1" +
+                        "&uin=$QQ_GROUP_UIN&card_type=group&source=qrcode").toUri()
                 )
                 val launched = runCatching { context.startActivity(qqIntent) }.isSuccess
                 if (!launched) {

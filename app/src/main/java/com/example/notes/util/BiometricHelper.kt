@@ -76,7 +76,7 @@ object BiometricHelper {
             activity,
             executor,
             object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: AuthenticationResult) {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     Timber.tag("Biometric").d("Authentication succeeded")
                     onSuccess()
                 }
