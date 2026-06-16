@@ -10,6 +10,16 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.15",
+            date = "2026-06-16",
+            items = listOf(
+                "新增：vivo 应用锁设置跳转 — openAppBiometricPermissionSettings() 打开应用详情页, " +
+                    "用户需在此开启'使用指纹/面部解锁'开关; " +
+                    "openBiometricSettings() 增强 vivo/iQOO 应用锁 Activity 检测",
+                "升级：版本号 v1.20.14 → v1.20.15 (versionCode 44 → 45)"
+            )
+        ),
+        Entry(
             version = "v1.20.14",
             date = "2026-06-16",
             items = listOf(

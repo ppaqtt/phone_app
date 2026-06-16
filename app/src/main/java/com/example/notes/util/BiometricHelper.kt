@@ -343,13 +343,29 @@ object BiometricHelper {
     fun openBiometricSettings(context: Context): Boolean {
         return try {
             val manufacturer = Build.MANUFACTURER.lowercase()
+            val brand = Build.BRAND.lowercase()
             val intent = when {
-                // vivo: 尝试打开指纹/面部设置
-                manufacturer.contains("vivo") -> {
-                    Intent().setClassName(
-                        "com.android.settings",
-                        "com.android.settings.biometrics.BiometricSettings"
-                    )
+                // vivo / iQOO: 打开应用锁设置 (这是 vivo 允许第三方应用使用生物识别的关键设置)
+                manufacturer.contains("vivo") || brand.contains("vivo") ||
+                manufacturer.contains("iqoo") || brand.contains("iqoo") -> {
+                    // vivo 应用锁通常在 i管家 或 设置 → 安全与隐私 → 应用锁
+                    // 尝试多种可能的 Intent
+                    try {
+                        Intent().setClassName(
+                            "com.vivo.abe",
+                            "com.vivo.applicationLock.ApplicationLockListActivity"
+                        )
+                    } catch (e: Exception) {
+                        try {
+                            Intent().setClassName(
+                                "com.iqoo.secure",
+                                "com.iqoo.secure.ui.phoneoptimize.AddAppToSosActivity"
+                            )
+                        } catch (e2: Exception) {
+                            // 兜底到通用设置
+                            Intent("android.settings.SECURITY_SETTINGS")
+                        }
+                    }
                 }
                 // 小米: 打开密码与安全
                 manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") -> {
@@ -378,6 +394,40 @@ object BiometricHelper {
                 Timber.tag("Biometric").w(e2, "Failed to open biometric settings")
                 false
             }
+        }
+    }
+
+    /**
+     * F21: 尝试打开应用的生物识别权限设置页面。
+     * 在部分厂商 (如 vivo) 上, 需要单独为每个应用开启生物识别权限。
+     */
+    fun openAppBiometricPermissionSettings(context: Context, packageName: String): Boolean {
+        return try {
+            val manufacturer = Build.MANUFACTURER.lowercase()
+            val brand = Build.BRAND.lowercase()
+            
+            val intent = when {
+                // vivo / iQOO: 打开应用信息页面, 用户需要手动找到"使用指纹/面部解锁"开关
+                manufacturer.contains("vivo") || brand.contains("vivo") ||
+                manufacturer.contains("iqoo") || brand.contains("iqoo") -> {
+                    // vivo 8.0+ 需要通过应用详情页开启生物识别
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = android.net.Uri.parse("package:$packageName")
+                    }
+                }
+                // 其他厂商: 同样打开应用详情页
+                else -> {
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = android.net.Uri.parse("package:$packageName")
+                    }
+                }
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "Failed to open app biometric permission settings")
+            false
         }
     }
 

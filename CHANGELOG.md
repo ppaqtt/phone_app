@@ -5,6 +5,13 @@
 
 ---
 
+## v1.20.15 (2026-06-16)
+
+- ✨ **新增**：vivo 应用锁设置跳转 — `openAppBiometricPermissionSettings()` 打开应用详情页，用户需在此开启"使用指纹/面部解锁"开关；`openBiometricSettings()` 增强 vivo/iQOO 应用锁 Activity 检测
+- 🔖 **升级**：版本号 v1.20.14 → v1.20.15 (versionCode 44 → 45)
+
+---
+
 ## v1.20.14 (2026-06-16)
 
 - 🔧 **优化**：vivo 人脸识别 — DC=0 时只使用 `DEVICE_CREDENTIAL`（不再混合 `BIOMETRIC_WEAK`），强制显示系统凭证选择界面；添加 `setConfirmationRequired(false)` 减少确认步骤
