@@ -66,7 +66,15 @@ object BiometricHelper {
         Timber.tag("Biometric").d(
             "canAuthenticate(BIOMETRIC_STRONG) raw=$strongCode (SUCCESS=0) → mapped=$strongResult"
         )
-        return strongResult
+        if (strongResult == Status.Available) return Status.Available
+
+        // 3) 兜底: 尝试 DEVICE_CREDENTIAL (密码/图案/PIN)
+        val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
+        val dcResult = mapResult(dcCode)
+        Timber.tag("Biometric").d(
+            "canAuthenticate(DEVICE_CREDENTIAL) raw=$dcCode (SUCCESS=0) → mapped=$dcResult"
+        )
+        return dcResult
     }
 
     private fun mapResult(code: Int): Status = when (code) {
@@ -78,29 +86,41 @@ object BiometricHelper {
     }
 
     /**
-     * 详细诊断信息, 用于排错。包含 WEAK/STRONG 两种 authenticator 的原始 code。
+     * 详细诊断信息, 用于排错。包含 WEAK/STRONG/DEVICE_CREDENTIAL 三种 authenticator 的原始 code。
      * 供 SettingsScreen 的"显示详细状态"使用; 也可通过 Timber 日志在 logcat 中查看。
      */
     data class Diagnostics(
         val status: Status,
         val weakCode: Int,
         val strongCode: Int,
+        val dcCode: Int,
         val weakStatus: Status,
-        val strongStatus: Status
+        val strongStatus: Status,
+        val dcStatus: Status
     )
 
     /**
-     * 详细诊断: 返回 WEAK/STRONG 两种 authenticator 各自的原始状态码, 便于排错。
+     * 详细诊断: 返回 WEAK/STRONG/DEVICE_CREDENTIAL 三种 authenticator 各自的原始状态码, 便于排错。
      * 例如当 status=NoHardware 时, 可看 weakCode 究竟是 12 (NO_HARDWARE) 还是 1 (UNKNOWN)。
+     * 
+     * vivo X200s 等机型的人脸识别可能只在 DEVICE_CREDENTIAL 模式下返回 SUCCESS,
+     * 因此必须包含 DC 的检测结果。
      */
     fun diagnose(context: Context): Diagnostics {
         val manager = BiometricManager.from(context)
         val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
         val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
+        val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
         val weakStatus = mapResult(weakCode)
         val strongStatus = mapResult(strongCode)
-        val status = if (weakStatus == Status.Available) weakStatus else strongStatus
-        return Diagnostics(status, weakCode, strongCode, weakStatus, strongStatus)
+        val dcStatus = mapResult(dcCode)
+        val status = when {
+            weakStatus == Status.Available -> weakStatus
+            strongStatus == Status.Available -> strongStatus
+            dcStatus == Status.Available -> dcStatus
+            else -> weakStatus
+        }
+        return Diagnostics(status, weakCode, strongCode, dcCode, weakStatus, strongStatus, dcStatus)
     }
 
     /**

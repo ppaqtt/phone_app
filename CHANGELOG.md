@@ -5,6 +5,20 @@
 
 ---
 
+## v1.20.10 (2026-06-16)
+
+- 🔧 **优化**：vivo X200s 人脸识别诊断 — `diagnose()` 方法增加 `DEVICE_CREDENTIAL` 检测，设置页显示 WEAK/STRONG/DC 三种认证器的原始状态码；`canAuthenticate` 已包含完整的 WEAK→STRONG→DEVICE_CREDENTIAL 三级检测链，确保 OriginOS 4 设备能正确识别生物识别能力
+- 🔖 **升级**：版本号 v1.20.9 → v1.20.10 (versionCode 39 → 40)
+
+---
+
+## v1.20.9 (2026-06-16)
+
+- 🔧 **优化**：vivo X200s 人脸识别支持 — `canAuthenticate` 增加 `DEVICE_CREDENTIAL` 检测，认证器配置已包含 `BIOMETRIC_WEAK | BIOMETRIC_STRONG | DEVICE_CREDENTIAL`；OriginOS 4 应支持标准 Biometric API，人脸识别能否触发取决于系统设置
+- 🔖 **升级**：版本号 v1.20.8 → v1.20.9 (versionCode 38 → 39)
+
+---
+
 ## v1.20.8 (2026-06-16)
 
 - 🔧 **优化**：生物识别认证器配置 — 添加 `DEVICE_CREDENTIAL`（系统密码/图案/PIN），使认证器支持范围更完整；指纹已可用，人脸识别取决于设备是否通过标准 Biometric API 暴露人脸能力

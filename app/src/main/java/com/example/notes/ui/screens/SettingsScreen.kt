@@ -686,7 +686,7 @@ private fun AppLockCardContent(
                         )
                         Text(
                             "状态: $bioStatusText  " +
-                                "(WEAK=${diagnostics.weakCode}, STRONG=${diagnostics.strongCode})",
+                                "(WEAK=${diagnostics.weakCode}, STRONG=${diagnostics.strongCode}, DC=${diagnostics.dcCode})",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
