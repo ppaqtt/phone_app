@@ -10,6 +10,15 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.8",
+            date = "2026-06-16",
+            items = listOf(
+                "优化：生物识别认证器配置 — 添加 DEVICE_CREDENTIAL (系统密码/图案/ PIN), " +
+                    "使认证器支持范围更完整; 指纹已可用, 人脸识别取决于设备是否通过标准 Biometric API 暴露人脸能力",
+                "升级：版本号 v1.20.7 → v1.20.8 (versionCode 37 → 38)"
+            )
+        ),
+        Entry(
             version = "v1.20.7",
             date = "2026-06-16",
             items = listOf(
