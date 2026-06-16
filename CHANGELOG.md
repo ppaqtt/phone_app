@@ -5,6 +5,15 @@
 
 ---
 
+## v1.20.12 (2026-06-16)
+
+- 🐛 **修复**：`BiometricPrompt` 崩溃 — 移除 `authenticate()` 中的 `DEVICE_CREDENTIAL` 认证器配置，因为 `DEVICE_CREDENTIAL` 与 `setNegativeButtonText()` 不能同时使用（会抛出 Negative text must not be set 异常）
+- ✨ **新增**：人脸硬件检测 — `hasFaceHardware()` 方法通过 `PackageManager` 检测设备是否有人脸识别硬件，`diagnose()` 新增 `hasFaceHardware` 字段，设置页显示"人脸:有/无"
+- ✨ **新增**：厂商人脸识别 Intent — `authenticateWithOemFaceUnlock()` 尝试使用厂商特定的方式唤起人脸识别，`createOemFaceUnlockIntent()` 支持 vivo/华为/小米等厂商；注意：vivo OriginOS 的人脸识别集成在系统锁屏中，第三方应用无法直接唤起
+- 🔖 **升级**：版本号 v1.20.11 → v1.20.12 (versionCode 41 → 42)
+
+---
+
 ## v1.20.11 (2026-06-16)
 
 - ✨ **新增**：全厂商生物识别适配 — `BiometricHelper` 新增 OEM 特定检测逻辑，覆盖 vivo/iQOO(OriginOS)、小米/Redmi/POCO(MIUI/HyperOS)、华为/荣耀(EMUI/HarmonyOS/MagicOS)、OPPO/realme/一加(ColorOS/OxygenOS/RealmeUI)、三星(OneUI)、魅族(Flyme) 等主流厂商

@@ -694,8 +694,8 @@ private fun AppLockCardContent(
                         )
                         Text(
                             "状态: $bioStatusText  " +
-                                "(WEAK=${diagnostics.weakCode}, STRONG=${diagnostics.strongCode}, DC=${diagnostics.dcCode})" +
-                                " | ${diagnostics.manufacturer} | 锁屏:${if (diagnostics.hasKeyguard) "已设" else "未设"}",
+                                "(W=${diagnostics.weakCode}, S=${diagnostics.strongCode}, DC=${diagnostics.dcCode})" +
+                                " | ${diagnostics.manufacturer} | 锁屏:${if (diagnostics.hasKeyguard) "已设" else "未设"} | 人脸:${if (diagnostics.hasFaceHardware) "有" else "无"}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

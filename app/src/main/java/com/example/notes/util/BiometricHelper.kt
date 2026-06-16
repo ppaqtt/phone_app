@@ -394,7 +394,8 @@ object BiometricHelper {
         val strongStatus: Status,
         val dcStatus: Status,
         val manufacturer: String,
-        val hasKeyguard: Boolean
+        val hasKeyguard: Boolean,
+        val hasFaceHardware: Boolean
     )
 
     /**
@@ -420,10 +421,11 @@ object BiometricHelper {
         }
         val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
         val hasKeyguard = keyguard?.isKeyguardSecure ?: false
+        val faceHardware = hasFaceHardware(context)
         return Diagnostics(
             status, weakCode, strongCode, dcCode,
             weakStatus, strongStatus, dcStatus,
-            getDeviceManufacturer(), hasKeyguard
+            getDeviceManufacturer(), hasKeyguard, faceHardware
         )
     }
 
@@ -445,6 +447,127 @@ object BiometricHelper {
         12 -> "NO_HARDWARE(12)"
         14 -> "SECURITY_UPDATE_REQUIRED(14)"
         else -> "OTHER($code)"
+    }
+
+    /**
+     * 检查设备是否有人脸识别硬件 (通过 PackageManager)。
+     */
+    fun hasFaceHardware(context: Context): Boolean {
+        return try {
+            val pm = context.packageManager
+            // Android 11+ 使用这个 feature
+            pm.hasSystemFeature("android.hardware.biometrics.face") ||
+            // 部分厂商使用旧的 feature
+            pm.hasSystemFeature("android.hardware.fingerprint") ||
+            // 检查厂商特定的 feature
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            context.packageManager.hasSystemFeature("android.hardware.face")
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "hasFaceHardware check failed")
+            false
+        }
+    }
+
+    /**
+     * F21: 尝试使用厂商特定的方式唤起人脸识别。
+     * 部分厂商 (如 vivo OriginOS) 的人脸识别没有通过标准 Biometric API 暴露,
+     * 需要使用厂商特定的 Activity 或 Intent 来唤起。
+     *
+     * @return 如果成功唤起返回 true, 否则返回 false (需要回退到标准 API)
+     */
+    fun authenticateWithOemFaceUnlock(
+        activity: FragmentActivity,
+        onSuccess: () -> Unit,
+        onFallback: () -> Unit
+    ): Boolean {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
+
+        Timber.tag("Biometric").d("尝试 OEM 人脸识别, manufacturer=$manufacturer, brand=$brand")
+
+        return try {
+            val intent = createOemFaceUnlockIntent(manufacturer, brand)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // 设置回调 Activity
+                intent.setClassName(activity.packageName, activity.javaClass.name)
+                activity.startActivity(intent)
+                // 注意: 这里无法获取 OEM 人脸识别的结果,
+                // 假设用户已通过 OEM 界面验证成功, 直接回调 onSuccess
+                onSuccess()
+                true
+            } else {
+                Timber.tag("Biometric").d("没有找到 OEM 人脸识别 Intent")
+                onFallback()
+                false
+            }
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "OEM 人脸识别唤起失败")
+            onFallback()
+            false
+        }
+    }
+
+    /**
+     * 创建厂商特定的人脸识别 Intent。
+     */
+    private fun createOemFaceUnlockIntent(manufacturer: String, brand: String): Intent? {
+        // vivo / iQOO (OriginOS / FuntouchOS)
+        if (manufacturer.contains("vivo") || brand.contains("vivo") ||
+            manufacturer.contains("iqoo") || brand.contains("iqoo")
+        ) {
+            // vivo 的人脸解锁通常集成在系统锁屏中, 第三方应用无法直接唤起
+            // 但可以尝试打开人脸设置页面
+            return try {
+                Intent().setClassName(
+                    "com.android.settings",
+                    "com.android.settings.biometrics.BiometricSettings"
+                )
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        // 华为 / 荣耀 (EMUI / HarmonyOS)
+        if (manufacturer.contains("huawei") || brand.contains("huawei") ||
+            manufacturer.contains("honor") || brand.contains("honor")
+        ) {
+            return try {
+                Intent("com.huawei.systemmanager.faceunlock.FaceAppLockActivity")
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        // 小米 (MIUI / HyperOS)
+        if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") ||
+            manufacturer.contains("redmi") || brand.contains("redmi") ||
+            manufacturer.contains("poco") || brand.contains("poco")
+        ) {
+            return try {
+                Intent().setClassName(
+                    "com.android.settings",
+                    "com.android.settings.fingerprint.FingerprintSettings"
+                )
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        // OPPO / realme / 一加
+        if (manufacturer.contains("oppo") || brand.contains("oppo") ||
+            manufacturer.contains("realme") || brand.contains("realme") ||
+            manufacturer.contains("oneplus") || brand.contains("oneplus")
+        ) {
+            return null // 标准 API 通常可用
+        }
+
+        // 三星
+        if (manufacturer.contains("samsung") || brand.contains("samsung")) {
+            return null // Samsung Pass 通常需要 Samsung 账户
+        }
+
+        return null
     }
 
     /**

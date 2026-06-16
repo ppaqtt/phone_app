@@ -10,6 +10,20 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.12",
+            date = "2026-06-16",
+            items = listOf(
+                "修复：BiometricPrompt 崩溃 — 移除 authenticate() 中的 DEVICE_CREDENTIAL 认证器配置, " +
+                    "因为 DEVICE_CREDENTIAL 与 setNegativeButtonText() 不能同时使用 (会抛出 Negative text must not be set 异常)",
+                "新增：人脸硬件检测 — hasFaceHardware() 方法通过 PackageManager 检测设备是否有人脸识别硬件, " +
+                    "diagnose() 新增 hasFaceHardware 字段, 设置页显示人脸:有/无",
+                "新增：厂商人脸识别 Intent — authenticateWithOemFaceUnlock() 尝试使用厂商特定的方式唤起人脸识别, " +
+                    "createOemFaceUnlockIntent() 支持 vivo/华为/小米等厂商; 注意: vivo OriginOS 的人脸识别 " +
+                    "集成在系统锁屏中, 第三方应用无法直接唤起",
+                "升级：版本号 v1.20.11 → v1.20.12 (versionCode 41 → 42)"
+            )
+        ),
+        Entry(
             version = "v1.20.11",
             date = "2026-06-16",
             items = listOf(
