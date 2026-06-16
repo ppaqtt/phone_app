@@ -137,3 +137,14 @@
 # ========================================================================
 -keepattributes SourceFile,LineNumberTable
 -keep class timber.log.Timber { *; }
+
+# ========================================================================
+# F20: Native Security — 保留 JNI 桥接类 (不能被混淆, 否则找不到 native 方法)
+# ========================================================================
+-keep class com.example.notes.util.NativeSecurity { *; }
+-keepclassmembers class com.example.notes.util.NativeSecurity { *; }
+
+# ========================================================================
+# F20: SecurityChecker — 运行时安全检测
+# ========================================================================
+-keepclassmembers class com.example.notes.util.SecurityChecker$SecurityReport { *; }

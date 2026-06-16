@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelProvider
 import com.example.notes.nav.NotesNavGraph
 import com.example.notes.ui.screens.AboutLegalScreen
+import com.example.notes.ui.screens.AppLockScreen
 import com.example.notes.ui.screens.PermissionIntroScreen
 import com.example.notes.ui.screens.SplashScreen
 import com.example.notes.ui.theme.NotesAppTheme
@@ -24,14 +25,29 @@ import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.ui.viewmodel.ViewModelFactory
 import com.example.notes.util.NotificationPermission
 import com.example.notes.util.PermissionIntroPrefs
+import com.example.notes.util.SecurityChecker
 import com.example.notes.util.rememberNotificationPermissionRequest
 import com.example.notes.widget.NotesAppWidget
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // F20: 运行时安全检测 (后台线程, 不阻塞 UI)
+        GlobalScope.launch(Dispatchers.IO) {
+            val report = SecurityChecker.check(this@MainActivity)
+            if (report.hasThreats) {
+                Timber.tag("Security").w(
+                    "安全威胁检测: %s", report.warnings.joinToString("; ")
+                )
+            }
+        }
+
         // 透明状态栏 / 导航栏由主题的 windowTranslucentStatus 配置,
         // 不调用 enableEdgeToEdge (它在 activity-ktx 1.8+ 才有)。
         val app = application as NotesApplication
@@ -157,53 +173,6 @@ class MainActivity : ComponentActivity() {
 sealed interface WidgetIntent {
     object NewNote : WidgetIntent
     data class OpenNote(val noteId: Long) : WidgetIntent
-    // F4: 快捷方式新增 2 个
     object OpenSearch : WidgetIntent
     object OpenTrash : WidgetIntent
-}
-
-/**
- * F9: 应用锁 gate composable。
- *
- * 行为:
- * 1) 应用启动 / 切回前台时, 检查 [AppLockStore.shouldShowLock]
- * 2) 若需要锁: 显示 [AppLockScreen] (Unlock 模式)
- * 3) 解锁成功后渲染 [content]
- * 4) 未启用应用锁 / 5 分钟内已解锁: 直接渲染 [content]
- *
- * 通过 DisposableEffect 监听 Lifecycle, onPause 切后台超过 5 分钟回前台自动锁;
- * 简化: 每次 onResume 都让 store.shouldShowLock() 决定, store 内部维护时间窗。
- */
-@androidx.compose.runtime.Composable
-fun AppLockGate(
-    appLockStore: com.example.notes.util.AppLockStore,
-    content: @androidx.compose.runtime.Composable () -> Unit
-) {
-    // P112-FIX: 用 androidx.compose.ui.platform.LocalLifecycleOwner, 不依赖
-    // lifecycle-runtime-compose 额外依赖 (项目尚未引入)。
-    // compose-ui 1.5+ 已包含 LocalLifecycleOwner 在 ui.platform 包, 是当前推荐用法。
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
-    var locked by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf(appLockStore.shouldShowLock())
-    }
-
-    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                locked = appLockStore.shouldShowLock()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    if (locked) {
-        com.example.notes.ui.screens.AppLockScreen(
-            store = appLockStore,
-            mode = com.example.notes.ui.screens.Mode.Unlock,
-            onSuccess = { locked = false }
-        )
-    } else {
-        content()
-    }
 }

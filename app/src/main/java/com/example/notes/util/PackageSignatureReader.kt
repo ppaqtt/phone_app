@@ -117,3 +117,12 @@ private fun digestHex(bytes: ByteArray, algorithm: String): String {
         "%02X".format(byte.toInt() and 0xFF)
     }
 }
+
+/**
+ * 获取当前 APK 签名的 SHA1 (无冒号, 大写十六进制)。
+ * 用于 SecurityChecker 签名校验。
+ */
+fun getSha1Hex(context: Context): String {
+    val meta = readApkMetadata(context)
+    return meta.signature?.sha1?.replace(":", "") ?: ""
+}

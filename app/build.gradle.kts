@@ -16,11 +16,16 @@ android {
         applicationId = "com.example.notes"
         minSdk = 24
         targetSdk = 34
-        versionCode = 29
-        versionName = "1.19.0"
+        versionCode = 30
+        versionName = "1.20.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+
+        // F20: NDK 支持的 ABI (排除 x86_64 减小包体积)
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a")
+        }
     }
 
     testOptions {
@@ -98,6 +103,17 @@ android {
         arg("room.schemaLocation", "$projectDir/schemas")
         arg("room.incremental", "true")
     }
+
+    // F20: NDK — PIN 哈希逻辑移到 native 层
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
+
+    ndkVersion = "25.2.9519653"
+
     lint {
         // lint 错误不阻塞 release 打包, 输出警告即可
         abortOnError = false
@@ -136,12 +152,6 @@ dependencies {
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)
-
-    // Hilt: P112-FIX 整个项目未使用 Hilt (无 @HiltAndroidApp 注解),
-    // 但旧 build.gradle.kts 仍带 hilt-android / hilt-compiler 依赖, 导致
-    // Hilt KSP 处理器启动后找不到入口而失败, 进而阻断 Room KSP 进程,
-    // 引发 84 个 cascade 编译错误。完全移除 Hilt 依赖和插件。
-    // (若后续要接 Hilt, 需要先在 Application 类加 @HiltAndroidApp, 再恢复插件)
 
     // Network
     implementation(libs.retrofit)

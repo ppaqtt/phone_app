@@ -6,16 +6,15 @@ import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.security.MessageDigest
+import timber.log.Timber
 
 /**
  * F9: 应用锁配置 + 状态管理。
  *
  * 设计:
  * 1) PIN 哈希后存到 SharedPreferences, 不留明文 (即使 Root 也难反推)。
- *    用 SHA-256 即可, 我们仅防"捡到手机 → 偷看 SharedPreferences"这种场景;
- *    高安全需求场景应结合 EncryptedSharedPreferences (项目当前不引入 androidx.security 依赖,
- *    避免增量体积)。
+ *    F20: 哈希算法已移到 native 层 (NativeSecurity.hashPin), 盐值以异或混淆存储,
+ *    反编译 .so 比 dex 难得多。
  * 2) StateFlow 让 UI 实时反映"已启用 / 已禁用"。
  * 3) 解锁成功 5 分钟内不重复弹, 由 [lastUnlockTime] 控制; 切到后台再回前台时
  *    [shouldShowLock] 返回 true 时 MainActivity 重置为 LOCKED。
@@ -47,12 +46,13 @@ class AppLockStore(context: Context) {
      * 设置 PIN。
      * - 至少 4 位, 至多 8 位 (避免用户手抖输入超长)。
      * - 自动 trim 空白, 仅允许数字 (英数混编 PIN 易混, 这里强制数字)。
+     * - F20: 哈希通过 NativeSecurity.hashPin 在 native 层计算。
      */
     fun setPin(pin: String): Boolean {
         val clean = pin.trim()
         if (clean.length !in 4..8) return false
         if (!clean.all { it.isDigit() }) return false
-        val hash = sha256(clean)
+        val hash = nativeHashPin(clean)
         prefs.edit {
             putString(KEY_PIN_HASH, hash)
             putBoolean(KEY_ENABLED, true)
@@ -65,11 +65,12 @@ class AppLockStore(context: Context) {
 
     /**
      * 校验 PIN。成功时更新 lastUnlockTime。
+     * F20: 哈希通过 NativeSecurity.hashPin 在 native 层计算。
      */
     fun checkPin(pin: String): Boolean {
         val clean = pin.trim()
         val expected = prefs.getString(KEY_PIN_HASH, null) ?: return false
-        if (sha256(clean) == expected) {
+        if (nativeHashPin(clean) == expected) {
             lastUnlockTime = System.currentTimeMillis()
             prefs.edit { putLong(KEY_LAST_UNLOCK, lastUnlockTime) }
             return true
@@ -126,13 +127,26 @@ class AppLockStore(context: Context) {
     }
 
     /**
-     * P100-FIX: 添加固定盐值防止彩虹表攻击。
-     * 更安全的做法是每次安装生成随机盐并存储, 但这会增加复杂度。
-     * 固定盐已足够防止简单的预计算攻击。
+     * F20: 调用 native 层 SHA-256 加盐哈希。
+     * 若 native 库加载失败 (极端情况), 回退到 JVM 实现。
      */
-    private fun sha256(text: String): String {
+    private fun nativeHashPin(pin: String): String {
+        return try {
+            NativeSecurity.hashPin(pin)
+        } catch (e: UnsatisfiedLinkError) {
+            Timber.tag("AppLock").w(e, "Native library not available, falling back to JVM SHA-256")
+            jvmSha256(pin)
+        }
+    }
+
+    /**
+     * JVM 回退 SHA-256 (仅在 native 库不可用时使用)。
+     * 盐值仍保留在代码中作为兜底, 但正常路径走 native。
+     */
+    private fun jvmSha256(text: String): String {
         val salted = SALT + text
-        val bytes = MessageDigest.getInstance("SHA-256").digest(salted.toByteArray(Charsets.UTF_8))
+        val bytes = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(salted.toByteArray(Charsets.UTF_8))
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
@@ -144,7 +158,7 @@ class AppLockStore(context: Context) {
         private const val KEY_LAST_UNLOCK = "last_unlock_time"
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
 
-        /** P100-FIX: 固定盐值, 防止彩虹表攻击 */
+        /** P100-FIX: 固定盐值, 防止彩虹表攻击 (native 层以异或混淆存储) */
         private const val SALT = "QingJian_AppLock_Salt_v1_2024"
 
         /** 解锁后 5 分钟内不重复弹 */
