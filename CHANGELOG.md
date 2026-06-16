@@ -5,6 +5,13 @@
 
 ---
 
+## v1.20.5 (2026-06-16)
+
+- 🐛 **修复**：`AppCompatActivity` 主题冲突导致应用崩溃 — 改回 `ComponentActivity`，并修改 `BiometricHelper.authenticate()` 参数从 `FragmentActivity` 改为 `ComponentActivity`；`androidx.biometric:biometric` 1.2.0-alpha05 已支持 `ComponentActivity`（通过 `LifecycleOwner` 构造函数），无需强制使用 `AppCompatActivity/FragmentActivity`
+- 🔖 **升级**：版本号 v1.20.4 → v1.20.5 (versionCode 34 → 35)
+
+---
+
 ## v1.20.4 (2026-06-16)
 
 - 🐛 **修复**：生物识别点击无反应 — 根本原因是 `MainActivity` 继承自 `ComponentActivity`，而非 `BiometricPrompt` 必需的 `FragmentActivity`（`AppCompatActivity` 继承自它）；改为继承 `AppCompatActivity`，并在 `AppLockScreen` 中新增 `findFragmentActivity()` 递归向上 unwrap `ContextWrapper` 链，避免 `LocalContext.current` 包装 Context 导致 `context as? FragmentActivity` 拿到 null

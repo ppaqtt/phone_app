@@ -10,6 +10,17 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.5",
+            date = "2026-06-16",
+            items = listOf(
+                "修复：AppCompatActivity 主题冲突导致应用崩溃 — 改回 ComponentActivity, " +
+                    "并修改 BiometricHelper.authenticate() 参数从 FragmentActivity 改为 ComponentActivity; " +
+                    "androidx.biometric:biometric 1.2.0-alpha05 已支持 ComponentActivity (通过 LifecycleOwner 构造函数), " +
+                    "无需强制使用 AppCompatActivity/FragmentActivity",
+                "升级：版本号 v1.20.4 → v1.20.5 (versionCode 34 → 35)"
+            )
+        ),
+        Entry(
             version = "v1.20.4",
             date = "2026-06-16",
             items = listOf(
