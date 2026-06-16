@@ -5,6 +5,13 @@
 
 ---
 
+## v1.20.7 (2026-06-16)
+
+- 🐛 **修复**：`mapResult` 中 `BiometricManager.BIOMETRIC_SUCCESS` 常量在某些 ROM 上可能不是 0，导致 `WEAK=0 STRONG=0` 但显示「不支持」；改为直接用数字 0 判断 `code == 0 → Status.Available`
+- 🔖 **升级**：版本号 v1.20.6 → v1.20.7 (versionCode 36 → 37)
+
+---
+
 ## v1.20.6 (2026-06-16)
 
 - 🐛 **修复**：`BiometricPrompt` 仅支持 `FragmentActivity/Fragment` — 改回 `AppCompatActivity`，并将 `themes.xml` 的 parent 从 `android:Theme.Material.Light.NoActionBar` 改为 `Theme.AppCompat.Light.NoActionBar`；`androidx.biometric` 1.2.x 的 `BiometricPrompt` 构造函数仍然只接受 `FragmentActivity`，不支持 `ComponentActivity`

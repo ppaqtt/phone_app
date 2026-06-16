@@ -10,6 +10,15 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.7",
+            date = "2026-06-16",
+            items = listOf(
+                "修复：mapResult 中 BiometricManager.BIOMETRIC_SUCCESS 常量在某些 ROM 上可能不是 0, " +
+                    "导致 WEAK=0 STRONG=0 但显示「不支持」; 改为直接用数字 0 判断 code == 0 → Status.Available",
+                "升级：版本号 v1.20.6 → v1.20.7 (versionCode 36 → 37)"
+            )
+        ),
+        Entry(
             version = "v1.20.6",
             date = "2026-06-16",
             items = listOf(

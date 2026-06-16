@@ -53,18 +53,23 @@ object BiometricHelper {
         // 1) 优先尝试 WEAK (覆盖更广, 2D 人脸也算)
         val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
         val weakResult = mapResult(weakCode)
-        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_WEAK) code=$weakCode → $weakResult")
+        Timber.tag("Biometric").d(
+            "canAuthenticate(BIOMETRIC_WEAK) raw=$weakCode (SUCCESS=0) → mapped=$weakResult; " +
+                "BIOMETRIC_SUCCESS const=${BiometricManager.BIOMETRIC_SUCCESS}"
+        )
         if (weakResult == Status.Available) return Status.Available
 
         // 2) 兜底: 尝试 STRONG (部分设备只支持 Class 3)
         val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
         val strongResult = mapResult(strongCode)
-        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_STRONG) code=$strongCode → $strongResult")
+        Timber.tag("Biometric").d(
+            "canAuthenticate(BIOMETRIC_STRONG) raw=$strongCode (SUCCESS=0) → mapped=$strongResult"
+        )
         return strongResult
     }
 
     private fun mapResult(code: Int): Status = when (code) {
-        BiometricManager.BIOMETRIC_SUCCESS -> Status.Available
+        0 -> Status.Available
         BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> Status.NoHardware
         BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> Status.HwUnavailable
         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Status.NoneEnrolled
