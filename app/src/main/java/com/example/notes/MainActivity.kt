@@ -29,8 +29,8 @@ import com.example.notes.util.SecurityChecker
 import com.example.notes.util.rememberNotificationPermissionRequest
 import com.example.notes.widget.NotesAppWidget
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import timber.log.Timber
 
 class MainActivity : ComponentActivity() {
@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // F20: 运行时安全检测 (后台线程, 不阻塞 UI)
-        GlobalScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO) {
             val report = SecurityChecker.check(this@MainActivity)
             if (report.hasThreats) {
                 Timber.tag("Security").w(

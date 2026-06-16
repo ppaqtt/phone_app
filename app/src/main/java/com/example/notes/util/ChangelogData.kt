@@ -10,6 +10,20 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.1",
+            date = "2026-06-16",
+            items = listOf(
+                "修复：MainActivity GlobalScope DelicateCoroutinesApi warning — " +
+                    "改用 lifecycleScope.launch(Dispatchers.IO) 启动安全检测, " +
+                    "协程绑定到 Activity 生命周期, Activity 销毁时自动取消",
+                "修复：AppLockGate 函数缺失导致的编译错误 — 在 MainActivity.kt 末尾补回 AppLockGate Composable, " +
+                    "使用 LocalLifecycleOwner + LifecycleEventObserver 监听前后台切换",
+                "修复：SecurityChecker 签名校验编译错误 — getSha1Hex() 是 PackageSignatureReader.kt 的顶层函数, " +
+                    "直接调用而非 PackageSignatureReader.getSha1Hex()",
+                "升级：版本号 v1.20.0 → v1.20.1 (versionCode 30 → 31)"
+            )
+        ),
+        Entry(
             version = "v1.20.0",
             date = "2026-06-16",
             items = listOf(
