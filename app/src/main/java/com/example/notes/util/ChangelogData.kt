@@ -10,6 +10,24 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.11",
+            date = "2026-06-16",
+            items = listOf(
+                "新增：全厂商生物识别适配 — BiometricHelper 新增 OEM 特定检测逻辑, " +
+                    "覆盖 vivo/iQOO(OriginOS)、小米/Redmi/POCO(MIUI/HyperOS)、华为/荣耀(EMUI/HarmonyOS/MagicOS)、" +
+                    "OPPO/realme/一加(ColorOS/OxygenOS/RealmeUI)、三星(OneUI)、魅族(Flyme) 等主流厂商",
+                "新增：锁屏状态检测 — canAuthenticate 优先检查 KeyguardManager.isKeyguardSecure(), " +
+                    "未设置锁屏密码时返回新状态 NoKeyguard, 设置页引导用户前往系统设置",
+                "新增：旧设备兼容 — API 23-28 设备使用 FingerprintManager 检测指纹支持, " +
+                    "兼容 Android 6-9 无 BiometricManager 的老机型",
+                "新增：厂商设置跳转 — openBiometricSettings() 方法, 根据厂商自动选择正确的系统设置 Intent, " +
+                    "未录入指纹/人脸或未设锁屏密码时一键跳转",
+                "优化：诊断信息增强 — diagnose() 新增 manufacturer 和 hasKeyguard 字段, " +
+                    "设置页显示厂商名称和锁屏状态, 方便远程排错",
+                "升级：版本号 v1.20.10 → v1.20.11 (versionCode 40 → 41)"
+            )
+        ),
+        Entry(
             version = "v1.20.10",
             date = "2026-06-16",
             items = listOf(

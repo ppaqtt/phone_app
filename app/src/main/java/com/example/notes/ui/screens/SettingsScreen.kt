@@ -590,9 +590,16 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                             BiometricHelper.Status.NoneEnrolled -> "请先前往系统设置录入指纹/人脸"
                             BiometricHelper.Status.NoHardware -> "该设备不支持生物识别"
                             BiometricHelper.Status.HwUnavailable -> "生物识别硬件当前不可用"
+                            BiometricHelper.Status.NoKeyguard -> "请先设置锁屏密码/图案/PIN"
                             else -> "无法启用生物识别"
                         }
                         context.toastLong(msg)
+                        // F21: 未设置锁屏密码时引导用户去设置
+                        if (biometricStatus == BiometricHelper.Status.NoKeyguard ||
+                            biometricStatus == BiometricHelper.Status.NoneEnrolled
+                        ) {
+                            BiometricHelper.openBiometricSettings(context)
+                        }
                     } else {
                         store.setBiometricEnabled(enabled)
                         biometricEnabled = enabled
@@ -659,6 +666,7 @@ private fun AppLockCardContent(
                     BiometricHelper.Status.NoneEnrolled -> "未录入"
                     BiometricHelper.Status.NoHardware -> "不支持"
                     BiometricHelper.Status.HwUnavailable -> "不可用"
+                    BiometricHelper.Status.NoKeyguard -> "未设锁屏密码"
                     BiometricHelper.Status.Unknown -> "未知"
                 }
                 // F20: 详细诊断 — 展示 WEAK/STRONG 两种 authenticator 的原始 code, 方便排错
@@ -686,7 +694,8 @@ private fun AppLockCardContent(
                         )
                         Text(
                             "状态: $bioStatusText  " +
-                                "(WEAK=${diagnostics.weakCode}, STRONG=${diagnostics.strongCode}, DC=${diagnostics.dcCode})",
+                                "(WEAK=${diagnostics.weakCode}, STRONG=${diagnostics.strongCode}, DC=${diagnostics.dcCode})" +
+                                " | ${diagnostics.manufacturer} | 锁屏:${if (diagnostics.hasKeyguard) "已设" else "未设"}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

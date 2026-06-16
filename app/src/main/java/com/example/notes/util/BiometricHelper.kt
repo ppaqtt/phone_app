@@ -1,6 +1,11 @@
 package com.example.notes.util
 
+import android.app.KeyguardManager
 import android.content.Context
+import android.content.Intent
+import android.hardware.fingerprint.FingerprintManager
+import android.os.Build
+import android.provider.Settings
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
@@ -33,6 +38,8 @@ object BiometricHelper {
         HwUnavailable,
         /** 有硬件但未录入生物特征 */
         NoneEnrolled,
+        /** 未设置锁屏密码 */
+        NoKeyguard,
         /** 未知错误 */
         Unknown
     }
@@ -41,16 +48,24 @@ object BiometricHelper {
      * 检查设备是否支持并启用了生物识别。
      * 返回 [Status.Available] 时才可调用 [authenticate]。
      *
-     * 策略: 先尝试 WEAK (兼容 2D 人脸/低端指纹), 如果失败再尝试 STRONG (3D 指纹/人脸);
-     * 两次都不通过才返回真实状态。某些 ROM (MIUI/EMUI) 在 WEAK 下报 NO_HARDWARE,
-     * 但 STRONG 下能正常识别 — 这里把这种"只支持强认证"的设备也判定为可用。
-     *
-     * 同时检查 Keyguard 状态: 设备虽支持生物识别, 但如果当前未设置锁屏 (None/Swipe),
-     * 出于安全考虑 Android 不会允许使用 BiometricPrompt — 此时也返回 NoneEnrolled,
-     * 提示用户先设置屏幕锁。
+     * 策略:
+     * 1. 先检查 KeyguardManager — 未设置锁屏密码时返回 [Status.NoKeyguard]
+     * 2. 尝试 WEAK (兼容 2D 人脸/低端指纹)
+     * 3. 兜底: 尝试 STRONG (部分设备只支持 Class 3)
+     * 4. 兜底: 尝试 DEVICE_CREDENTIAL (密码/图案/PIN)
+     * 5. 厂商特定适配 (vivo/小米/华为/OPPO/三星/一加)
+     * 6. 旧设备兼容 (API 23-28 使用 FingerprintManager)
      */
     fun canAuthenticate(context: Context): Status {
+        // F21: 先检查锁屏状态 — 未设置锁屏密码时 BiometricPrompt 不可用
+        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        if (keyguard != null && !keyguard.isKeyguardSecure) {
+            Timber.tag("Biometric").d("Keyguard not secure, returning NoKeyguard")
+            return Status.NoKeyguard
+        }
+
         val manager = BiometricManager.from(context)
+
         // 1) 优先尝试 WEAK (覆盖更广, 2D 人脸也算)
         val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
         val weakResult = mapResult(weakCode)
@@ -74,7 +89,30 @@ object BiometricHelper {
         Timber.tag("Biometric").d(
             "canAuthenticate(DEVICE_CREDENTIAL) raw=$dcCode (SUCCESS=0) → mapped=$dcResult"
         )
-        return dcResult
+        if (dcResult == Status.Available) return Status.Available
+
+        // 4) 厂商特定适配
+        val oemResult = checkOemBiometricSupport(context)
+        if (oemResult == Status.Available) {
+            Timber.tag("Biometric").d("OEM biometric check returned Available")
+            return Status.Available
+        }
+
+        // 5) 旧设备兼容 (API 23-28)
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val legacyResult = checkLegacyFingerprintSupport(context)
+            Timber.tag("Biometric").d("Legacy fingerprint check: $legacyResult")
+            if (legacyResult == Status.Available) return Status.Available
+            if (legacyResult != Status.Unknown) return legacyResult
+        }
+
+        // 返回最具体的状态 (优先 NoneEnrolled, 其次 NoHardware)
+        return when {
+            weakResult == Status.NoneEnrolled || strongResult == Status.NoneEnrolled -> Status.NoneEnrolled
+            weakResult == Status.NoHardware && strongResult == Status.NoHardware -> Status.NoHardware
+            weakResult == Status.HwUnavailable || strongResult == Status.HwUnavailable -> Status.HwUnavailable
+            else -> weakResult
+        }
     }
 
     private fun mapResult(code: Int): Status = when (code) {
@@ -83,6 +121,264 @@ object BiometricHelper {
         BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> Status.HwUnavailable
         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Status.NoneEnrolled
         else -> Status.Unknown
+    }
+
+    /**
+     * F21: 厂商特定生物识别能力检测。
+     *
+     * 各厂商 ROM 对 Biometric API 的实现差异:
+     * - vivo (OriginOS): 2D 人脸可能只在 DEVICE_CREDENTIAL 下暴露
+     * - 小米 (MIUI): 部分机型 WEAK 报 NO_HARDWARE 但 STRONG 正常
+     * - 华为 (EMUI/HarmonyOS): 老机型可能不支持 Class 3
+     * - OPPO (ColorOS): 标准实现, 个别版本常量值异常
+     * - 三星 (OneUI): 安全策略严格, 依赖 Keyguard
+     * - 一加 (OxygenOS): 接近原生
+     */
+    private fun checkOemBiometricSupport(context: Context): Status {
+        val manufacturer = Build.MANUFACTURER.lowercase()
+        val brand = Build.BRAND.lowercase()
+        val model = Build.MODEL.lowercase()
+
+        Timber.tag("Biometric").d("OEM check: manufacturer=$manufacturer, brand=$brand, model=$model")
+
+        return when {
+            // vivo / iQOO (OriginOS / FuntouchOS)
+            manufacturer.contains("vivo") || brand.contains("vivo") ||
+                manufacturer.contains("iqoo") || brand.contains("iqoo") -> {
+                checkVivoBiometric(context)
+            }
+            // 小米 / Redmi / POCO (MIUI / HyperOS)
+            manufacturer.contains("xiaomi") || brand.contains("xiaomi") ||
+                manufacturer.contains("redmi") || brand.contains("redmi") ||
+                manufacturer.contains("poco") || brand.contains("poco") -> {
+                checkXiaomiBiometric(context)
+            }
+            // 华为 / 荣耀 (EMUI / HarmonyOS / MagicOS)
+            manufacturer.contains("huawei") || brand.contains("huawei") ||
+                manufacturer.contains("honor") || brand.contains("honor") -> {
+                checkHuaweiBiometric(context)
+            }
+            // OPPO / Realme / 一加 (ColorOS / OxygenOS / RealmeUI)
+            manufacturer.contains("oppo") || brand.contains("oppo") ||
+                manufacturer.contains("realme") || brand.contains("realme") ||
+                manufacturer.contains("oneplus") || brand.contains("oneplus") -> {
+                checkOppoBiometric(context)
+            }
+            // 三星 (OneUI)
+            manufacturer.contains("samsung") || brand.contains("samsung") -> {
+                checkSamsungBiometric(context)
+            }
+            // 魅族 (Flyme)
+            manufacturer.contains("meizu") || brand.contains("meizu") -> {
+                checkMeizuBiometric(context)
+            }
+            // 其他厂商: 不做特殊处理, 依赖标准 API
+            else -> Status.Unknown
+        }
+    }
+
+    /** vivo 设备: 尝试通过系统设置判断人脸/指纹是否已录入 */
+    private fun checkVivoBiometric(context: Context): Status {
+        return try {
+            // vivo 设备通常有 com.android.settings 下的生物识别设置
+            // 如果 DEVICE_CREDENTIAL 可用, 且系统有指纹/人脸硬件, 尝试判定为可用
+            val manager = BiometricManager.from(context)
+            val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
+            if (dcCode == 0) {
+                // 检查是否有指纹或人脸硬件 (通过 PackageManager)
+                val pm = context.packageManager
+                val hasFingerprint = pm.hasSystemFeature("android.hardware.fingerprint")
+                val hasFace = pm.hasSystemFeature("android.hardware.biometrics.face")
+                if (hasFingerprint || hasFace) {
+                    Timber.tag("Biometric").d("vivo: DC=0 + has hardware → Available")
+                    Status.Available
+                } else {
+                    Status.Unknown
+                }
+            } else {
+                Status.Unknown
+            }
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "vivo OEM check failed")
+            Status.Unknown
+        }
+    }
+
+    /** 小米设备: MIUI 部分机型 STRONG 可用但 WEAK 不可用 */
+    private fun checkXiaomiBiometric(context: Context): Status {
+        return try {
+            val manager = BiometricManager.from(context)
+            // 小米通常对 STRONG 支持较好
+            val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
+            if (strongCode == 0) Status.Available else Status.Unknown
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "Xiaomi OEM check failed")
+            Status.Unknown
+        }
+    }
+
+    /** 华为设备: 老机型可能只支持 FingerprintManager */
+    private fun checkHuaweiBiometric(context: Context): Status {
+        return try {
+            val manager = BiometricManager.from(context)
+            val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
+            val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
+            when {
+                strongCode == 0 || weakCode == 0 -> Status.Available
+                else -> Status.Unknown
+            }
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "Huawei OEM check failed")
+            Status.Unknown
+        }
+    }
+
+    /** OPPO / 一加设备: 标准实现, 检查 PackageManager */
+    private fun checkOppoBiometric(context: Context): Status {
+        return try {
+            val pm = context.packageManager
+            val hasBiometric = pm.hasSystemFeature("android.hardware.biometrics")
+            val hasFingerprint = pm.hasSystemFeature("android.hardware.fingerprint")
+            if (hasBiometric || hasFingerprint) {
+                val manager = BiometricManager.from(context)
+                val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
+                if (dcCode == 0) Status.Available else Status.Unknown
+            } else {
+                Status.Unknown
+            }
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "OPPO OEM check failed")
+            Status.Unknown
+        }
+    }
+
+    /** 三星设备: OneUI 安全策略严格, 依赖 Keyguard + STRONG */
+    private fun checkSamsungBiometric(context: Context): Status {
+        return try {
+            val manager = BiometricManager.from(context)
+            val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
+            if (strongCode == 0) Status.Available else Status.Unknown
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "Samsung OEM check failed")
+            Status.Unknown
+        }
+    }
+
+    /** 魅族设备: Flyme 对 Biometric API 支持有限 */
+    private fun checkMeizuBiometric(context: Context): Status {
+        return try {
+            val pm = context.packageManager
+            val hasFingerprint = pm.hasSystemFeature("android.hardware.fingerprint")
+            if (hasFingerprint) {
+                val manager = BiometricManager.from(context)
+                val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
+                if (dcCode == 0) Status.Available else Status.Unknown
+            } else {
+                Status.Unknown
+            }
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "Meizu OEM check failed")
+            Status.Unknown
+        }
+    }
+
+    /**
+     * F21: 旧设备兼容 (API 23-28)。
+     * Android 9 及以下没有 BiometricManager, 使用 FingerprintManager 检测。
+     */
+    @Suppress("DEPRECATION")
+    private fun checkLegacyFingerprintSupport(context: Context): Status {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val fingerprintManager = context.getSystemService(Context.FINGERPRINT_SERVICE)
+                    as? FingerprintManager
+                if (fingerprintManager == null) {
+                    Status.NoHardware
+                } else if (!fingerprintManager.isHardwareDetected) {
+                    Status.NoHardware
+                } else if (!fingerprintManager.hasEnrolledFingerprints()) {
+                    Status.NoneEnrolled
+                } else {
+                    Status.Available
+                }
+            } else {
+                // API < 23: 完全不支持指纹
+                Status.NoHardware
+            }
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "Legacy fingerprint check failed")
+            Status.Unknown
+        }
+    }
+
+    /**
+     * F21: 获取厂商友好的显示名称。
+     */
+    fun getDeviceManufacturer(): String {
+        val manufacturer = Build.MANUFACTURER
+        val brand = Build.BRAND
+        val model = Build.MODEL
+        return when {
+            manufacturer.contains("vivo", ignoreCase = true) || brand.contains("vivo", ignoreCase = true) -> "vivo"
+            manufacturer.contains("iqoo", ignoreCase = true) || brand.contains("iqoo", ignoreCase = true) -> "iQOO"
+            manufacturer.contains("xiaomi", ignoreCase = true) || brand.contains("xiaomi", ignoreCase = true) -> "小米"
+            manufacturer.contains("redmi", ignoreCase = true) || brand.contains("redmi", ignoreCase = true) -> "Redmi"
+            manufacturer.contains("poco", ignoreCase = true) || brand.contains("poco", ignoreCase = true) -> "POCO"
+            manufacturer.contains("huawei", ignoreCase = true) || brand.contains("huawei", ignoreCase = true) -> "华为"
+            manufacturer.contains("honor", ignoreCase = true) || brand.contains("honor", ignoreCase = true) -> "荣耀"
+            manufacturer.contains("oppo", ignoreCase = true) || brand.contains("oppo", ignoreCase = true) -> "OPPO"
+            manufacturer.contains("realme", ignoreCase = true) || brand.contains("realme", ignoreCase = true) -> "realme"
+            manufacturer.contains("oneplus", ignoreCase = true) || brand.contains("oneplus", ignoreCase = true) -> "一加"
+            manufacturer.contains("samsung", ignoreCase = true) || brand.contains("samsung", ignoreCase = true) -> "三星"
+            manufacturer.contains("meizu", ignoreCase = true) || brand.contains("meizu", ignoreCase = true) -> "魅族"
+            manufacturer.contains("google", ignoreCase = true) || brand.contains("google", ignoreCase = true) -> "Google"
+            else -> "$manufacturer $model"
+        }
+    }
+
+    /**
+     * F21: 尝试打开系统生物识别设置页面。
+     * 不同厂商的设置页面路径不同, 这里提供通用 Intent + 厂商特定 Intent。
+     */
+    fun openBiometricSettings(context: Context): Boolean {
+        return try {
+            val manufacturer = Build.MANUFACTURER.lowercase()
+            val intent = when {
+                // vivo: 尝试打开指纹/面部设置
+                manufacturer.contains("vivo") -> {
+                    Intent().setClassName(
+                        "com.android.settings",
+                        "com.android.settings.biometrics.BiometricSettings"
+                    )
+                }
+                // 小米: 打开密码与安全
+                manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") -> {
+                    Intent("android.settings.SECURITY_SETTINGS")
+                }
+                // 华为: 打开生物识别和密码
+                manufacturer.contains("huawei") || manufacturer.contains("honor") -> {
+                    Intent("android.settings.SECURITY_SETTINGS")
+                }
+                // 通用: 打开安全设置
+                else -> {
+                    Intent(Settings.ACTION_SECURITY_SETTINGS)
+                }
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            // 兜底: 打开通用安全设置
+            try {
+                val fallback = Intent(Settings.ACTION_SECURITY_SETTINGS)
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(fallback)
+                true
+            } catch (e2: Exception) {
+                Timber.tag("Biometric").w(e2, "Failed to open biometric settings")
+                false
+            }
+        }
     }
 
     /**
@@ -96,13 +392,15 @@ object BiometricHelper {
         val dcCode: Int,
         val weakStatus: Status,
         val strongStatus: Status,
-        val dcStatus: Status
+        val dcStatus: Status,
+        val manufacturer: String,
+        val hasKeyguard: Boolean
     )
 
     /**
      * 详细诊断: 返回 WEAK/STRONG/DEVICE_CREDENTIAL 三种 authenticator 各自的原始状态码, 便于排错。
      * 例如当 status=NoHardware 时, 可看 weakCode 究竟是 12 (NO_HARDWARE) 还是 1 (UNKNOWN)。
-     * 
+     *
      * vivo X200s 等机型的人脸识别可能只在 DEVICE_CREDENTIAL 模式下返回 SUCCESS,
      * 因此必须包含 DC 的检测结果。
      */
@@ -120,7 +418,13 @@ object BiometricHelper {
             dcStatus == Status.Available -> dcStatus
             else -> weakStatus
         }
-        return Diagnostics(status, weakCode, strongCode, dcCode, weakStatus, strongStatus, dcStatus)
+        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val hasKeyguard = keyguard?.isKeyguardSecure ?: false
+        return Diagnostics(
+            status, weakCode, strongCode, dcCode,
+            weakStatus, strongStatus, dcStatus,
+            getDeviceManufacturer(), hasKeyguard
+        )
     }
 
     /**
