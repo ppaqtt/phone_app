@@ -5,6 +5,13 @@
 
 ---
 
+## v1.20.13 (2026-06-16)
+
+- 🔧 **优化**：vivo 人脸识别适配 — 根据 DC 状态动态选择认证器配置：DC=0 时使用 `BIOMETRIC_WEAK | DEVICE_CREDENTIAL`（系统显示凭证按钮，用户可选择人脸）；DC≠0 时使用 `BIOMETRIC_WEAK | BIOMETRIC_STRONG`（显示负向按钮回退到应用内 PIN）
+- 🔖 **升级**：版本号 v1.20.12 → v1.20.13 (versionCode 42 → 43)
+
+---
+
 ## v1.20.12 (2026-06-16)
 
 - 🐛 **修复**：`BiometricPrompt` 崩溃 — 移除 `authenticate()` 中的 `DEVICE_CREDENTIAL` 认证器配置，因为 `DEVICE_CREDENTIAL` 与 `setNegativeButtonText()` 不能同时使用（会抛出 Negative text must not be set 异常）

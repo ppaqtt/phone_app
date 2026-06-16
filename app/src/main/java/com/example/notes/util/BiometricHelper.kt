@@ -621,14 +621,30 @@ object BiometricHelper {
 
         // F21-FIX: DEVICE_CREDENTIAL 与 setNegativeButtonText() 不能同时使用
         // Android 会自动显示设备凭证按钮, 此时调用 setNegativeButtonText() 会抛出异常
-        // 解决方案: 只使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG, 用户通过负向按钮回退到应用内 PIN
-        val info = BiometricPrompt.PromptInfo.Builder()
+        // 解决方案: 
+        // - 如果 DEVICE_CREDENTIAL 可用 (DC=0), 使用 DEVICE_CREDENTIAL | BIOMETRIC_WEAK (不显示负向按钮)
+        // - 否则只使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG (显示负向按钮)
+        val manager = BiometricManager.from(activity)
+        val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
+
+        val infoBuilder = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG)
-            .setNegativeButtonText(negativeButtonText)
-            .build()
 
-        prompt.authenticate(info)
+        if (dcCode == 0) {
+            // DEVICE_CREDENTIAL 可用: 使用复合认证器 (WEAK + DC)
+            // 系统会显示设备凭证按钮, 用户可以选择指纹/人脸/密码
+            // 注意: 此时不能调用 setNegativeButtonText()
+            Timber.tag("Biometric").d("使用 DEVICE_CREDENTIAL | BIOMETRIC_WEAK 复合认证")
+            infoBuilder.setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
+        } else {
+            // DEVICE_CREDENTIAL 不可用: 只使用 WEAK | STRONG
+            // 显示负向按钮, 用户可以选择使用应用内 PIN
+            Timber.tag("Biometric").d("使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG 复合认证")
+            infoBuilder.setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG)
+            infoBuilder.setNegativeButtonText(negativeButtonText)
+        }
+
+        prompt.authenticate(infoBuilder.build())
     }
 }
