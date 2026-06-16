@@ -1,12 +1,12 @@
 package com.example.notes.util
 
 import android.content.Context
-import androidx.activity.ComponentActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import timber.log.Timber
 
 /**
@@ -120,7 +120,7 @@ object BiometricHelper {
     /**
      * 启动生物识别认证弹窗。
      *
-     * @param activity 必须是 [ComponentActivity] (支持 LifecycleOwner)
+     * @param activity 必须是 [FragmentActivity] (AppCompatActivity 继承自它)
      * @param title 弹窗标题
      * @param subtitle 弹窗副标题
      * @param negativeButtonText 负向按钮文字 (如 "使用 PIN 解锁")
@@ -129,7 +129,7 @@ object BiometricHelper {
      * @param onCancel 用户主动取消回调
      */
     fun authenticate(
-        activity: ComponentActivity,
+        activity: FragmentActivity,
         title: String = "生物识别解锁",
         subtitle: String = "请验证您的身份",
         negativeButtonText: String = "使用 PIN 解锁",

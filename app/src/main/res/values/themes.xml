@@ -2,7 +2,8 @@
 <resources>
     <!-- Bridge theme used while Compose takes over. The real colors come from
          the Material 3 ColorScheme in ui/theme/Color.kt. -->
-    <style name="Theme.NotesApp" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- F20: 改为 Theme.AppCompat 以支持 AppCompatActivity (BiometricPrompt 必需) -->
+    <style name="Theme.NotesApp" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

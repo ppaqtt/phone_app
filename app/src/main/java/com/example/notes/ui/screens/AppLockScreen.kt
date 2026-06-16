@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -173,8 +174,8 @@ fun AppLockScreen(
             if (showBiometric) {
                 IconButton(
                     onClick = {
-                        // F20: 向上递归查找 ComponentActivity (支持 LifecycleOwner)
-                        val activity = findComponentActivity(context)
+                        // F20: 向上递归查找 FragmentActivity (AppCompatActivity 间接继承自它)
+                        val activity = findFragmentActivity(context)
                         if (activity != null) {
                             BiometricHelper.authenticate(
                                 activity = activity,
@@ -309,22 +310,22 @@ private suspend fun handleSubmit(
 enum class Mode { SetPin, Unlock, ChangePin }
 
 /**
- * F20: 向上递归查找 [ComponentActivity]。
+ * F20: 向上递归查找 [FragmentActivity]。
  *
  * 背景: 在 Compose 中, `LocalContext.current` 通常返回的是 Compose 内部包装的 Context,
- * 它*继承*自 Activity 的 Context, 但本身不是 Activity。
- * 直接 `context as? ComponentActivity` 会得到 null, 导致生物识别无法启动。
+ * 它*继承*自 Activity 的 Context, 但本身不是 Activity 也不是 FragmentActivity。
+ * 直接 `context as? FragmentActivity` 会得到 null, 导致生物识别无法启动。
  *
  * 通过 ContextWrapper 链一路向上 unwrap, 找到真正的 Activity 实例。
  */
-private fun findComponentActivity(context: Context): ComponentActivity? {
+private fun findFragmentActivity(context: Context): FragmentActivity? {
     var c: Context? = context
     while (c is ContextWrapper) {
-        if (c is ComponentActivity) return c
+        if (c is FragmentActivity) return c
         c = c.baseContext
     }
     // 兜底: 如果上面没找到, 再尝试 unwrap 一次 (某些 ROM 会用不同的 wrapper)
-    return c as? ComponentActivity
+    return c as? FragmentActivity
 }
 
 @Composable

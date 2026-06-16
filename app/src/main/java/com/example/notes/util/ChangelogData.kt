@@ -10,6 +10,18 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.6",
+            date = "2026-06-16",
+            items = listOf(
+                "修复：BiometricPrompt 仅支持 FragmentActivity/Fragment — " +
+                    "改回 AppCompatActivity, 并将 themes.xml 的 parent 从 android:Theme.Material.Light.NoActionBar " +
+                    "改为 Theme.AppCompat.Light.NoActionBar; " +
+                    "androidx.biometric 1.2.x 的 BiometricPrompt 构造函数仍然只接受 FragmentActivity, " +
+                    "不支持 ComponentActivity",
+                "升级：版本号 v1.20.5 → v1.20.6 (versionCode 35 → 36)"
+            )
+        ),
+        Entry(
             version = "v1.20.5",
             date = "2026-06-16",
             items = listOf(

@@ -5,6 +5,13 @@
 
 ---
 
+## v1.20.6 (2026-06-16)
+
+- 🐛 **修复**：`BiometricPrompt` 仅支持 `FragmentActivity/Fragment` — 改回 `AppCompatActivity`，并将 `themes.xml` 的 parent 从 `android:Theme.Material.Light.NoActionBar` 改为 `Theme.AppCompat.Light.NoActionBar`；`androidx.biometric` 1.2.x 的 `BiometricPrompt` 构造函数仍然只接受 `FragmentActivity`，不支持 `ComponentActivity`
+- 🔖 **升级**：版本号 v1.20.5 → v1.20.6 (versionCode 35 → 36)
+
+---
+
 ## v1.20.5 (2026-06-16)
 
 - 🐛 **修复**：`AppCompatActivity` 主题冲突导致应用崩溃 — 改回 `ComponentActivity`，并修改 `BiometricHelper.authenticate()` 参数从 `FragmentActivity` 改为 `ComponentActivity`；`androidx.biometric:biometric` 1.2.0-alpha05 已支持 `ComponentActivity`（通过 `LifecycleOwner` 构造函数），无需强制使用 `AppCompatActivity/FragmentActivity`
