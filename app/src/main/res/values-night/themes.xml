@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.NotesApp" parent="android:Theme.Material.NoActionBar">
+    <!-- F21-FIX: 夜间模式也必须使用 Theme.AppCompat, 否则 AppCompatActivity 崩溃 -->
+    <style name="Theme.NotesApp" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
