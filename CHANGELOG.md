@@ -5,6 +5,14 @@
 
 ---
 
+## v1.20.3 (2026-06-16)
+
+- 🐛 **调试**：生物识别状态显示增加详细诊断 — 状态行后面追加 WEAK/STRONG 两种 authenticator 的原始 code，方便排错；例如 `(WEAK=12, STRONG=12)` 即 NO_HARDWARE，`(WEAK=9, STRONG=9)` 即 NONE_ENROLLED
+- 🐛 **调试**：`BiometricHelper` 新增 `diagnose()` 详细诊断 API，包含 WEAK 和 STRONG 的 code 与映射状态
+- 🔖 **升级**：版本号 v1.20.2 → v1.20.3 (versionCode 32 → 33)
+
+---
+
 ## v1.20.2 (2026-06-16)
 
 - 🐛 **修复**：生物识别状态误判为「不支持」 — 根本原因是 AndroidManifest.xml 缺失 `USE_BIOMETRIC` 权限声明，导致 `BiometricManager.canAuthenticate()` 恒返回 NO_HARDWARE；补上 `USE_BIOMETRIC`（Android 10+）+ `USE_FINGERPRINT`（Android 9 及以下兼容）两条权限后恢复正常

@@ -43,17 +43,23 @@ object BiometricHelper {
      * 策略: 先尝试 WEAK (兼容 2D 人脸/低端指纹), 如果失败再尝试 STRONG (3D 指纹/人脸);
      * 两次都不通过才返回真实状态。某些 ROM (MIUI/EMUI) 在 WEAK 下报 NO_HARDWARE,
      * 但 STRONG 下能正常识别 — 这里把这种"只支持强认证"的设备也判定为可用。
+     *
+     * 同时检查 Keyguard 状态: 设备虽支持生物识别, 但如果当前未设置锁屏 (None/Swipe),
+     * 出于安全考虑 Android 不会允许使用 BiometricPrompt — 此时也返回 NoneEnrolled,
+     * 提示用户先设置屏幕锁。
      */
     fun canAuthenticate(context: Context): Status {
         val manager = BiometricManager.from(context)
         // 1) 优先尝试 WEAK (覆盖更广, 2D 人脸也算)
-        val weakResult = mapResult(manager.canAuthenticate(BIOMETRIC_WEAK))
-        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_WEAK) = $weakResult")
+        val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
+        val weakResult = mapResult(weakCode)
+        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_WEAK) code=$weakCode → $weakResult")
         if (weakResult == Status.Available) return Status.Available
 
         // 2) 兜底: 尝试 STRONG (部分设备只支持 Class 3)
-        val strongResult = mapResult(manager.canAuthenticate(BIOMETRIC_STRONG))
-        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_STRONG) = $strongResult")
+        val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
+        val strongResult = mapResult(strongCode)
+        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_STRONG) code=$strongCode → $strongResult")
         return strongResult
     }
 
@@ -63,6 +69,52 @@ object BiometricHelper {
         BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> Status.HwUnavailable
         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Status.NoneEnrolled
         else -> Status.Unknown
+    }
+
+    /**
+     * 详细诊断信息, 用于排错。包含 WEAK/STRONG 两种 authenticator 的原始 code。
+     * 供 SettingsScreen 的"显示详细状态"使用; 也可通过 Timber 日志在 logcat 中查看。
+     */
+    data class Diagnostics(
+        val status: Status,
+        val weakCode: Int,
+        val strongCode: Int,
+        val weakStatus: Status,
+        val strongStatus: Status
+    )
+
+    /**
+     * 详细诊断: 返回 WEAK/STRONG 两种 authenticator 各自的原始状态码, 便于排错。
+     * 例如当 status=NoHardware 时, 可看 weakCode 究竟是 12 (NO_HARDWARE) 还是 1 (UNKNOWN)。
+     */
+    fun diagnose(context: Context): Diagnostics {
+        val manager = BiometricManager.from(context)
+        val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
+        val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
+        val weakStatus = mapResult(weakCode)
+        val strongStatus = mapResult(strongCode)
+        val status = if (weakStatus == Status.Available) weakStatus else strongStatus
+        return Diagnostics(status, weakCode, strongCode, weakStatus, strongStatus)
+    }
+
+    /**
+     * 把原始 code 翻译成人话 (用于排错提示)。
+     * BiometricManager 返回码:
+     *  0 = BIOMETRIC_SUCCESS
+     *  1 = BIOMETRIC_ERROR_UNKNOWN
+     *  7 = BIOMETRIC_ERROR_HW_UNAVAILABLE
+     *  9 = BIOMETRIC_ERROR_NONE_ENROLLED
+     *  12 = BIOMETRIC_ERROR_NO_HARDWARE
+     *  14 = BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED
+     */
+    private fun describeCode(code: Int): String = when (code) {
+        BiometricManager.BIOMETRIC_SUCCESS -> "SUCCESS(0)"
+        BiometricManager.BIOMETRIC_ERROR_UNKNOWN -> "UNKNOWN(1)"
+        BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "HW_UNAVAILABLE(7)"
+        BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "NONE_ENROLLED(9)"
+        BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "NO_HARDWARE(12)"
+        BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED -> "SECURITY_UPDATE_REQUIRED(14)"
+        else -> "OTHER($code)"
     }
 
     /**

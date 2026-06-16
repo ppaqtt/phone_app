@@ -658,6 +658,8 @@ private fun AppLockCardContent(
                     BiometricHelper.Status.HwUnavailable -> "不可用"
                     BiometricHelper.Status.Unknown -> "未知"
                 }
+                // F20: 详细诊断 — 展示 WEAK/STRONG 两种 authenticator 的原始 code, 方便排错
+                val diagnostics = remember { BiometricHelper.diagnose(context) }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -680,7 +682,8 @@ private fun AppLockCardContent(
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "状态: $bioStatusText",
+                            "状态: $bioStatusText  " +
+                                "(WEAK=${diagnostics.weakCode}, STRONG=${diagnostics.strongCode})",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

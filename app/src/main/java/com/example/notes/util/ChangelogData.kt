@@ -10,6 +10,16 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.3",
+            date = "2026-06-16",
+            items = listOf(
+                "调试：生物识别状态显示增加详细诊断 — 状态行后面追加 WEAK/STRONG 两种 authenticator 的原始 code, " +
+                    "方便排错; 例如 (WEAK=12, STRONG=12) 即 NO_HARDWARE, (WEAK=9, STRONG=9) 即 NONE_ENROLLED",
+                "调试：BiometricHelper 新增 diagnose() 详细诊断 API, 包含 WEAK 和 STRONG 的 code 与映射状态",
+                "升级：版本号 v1.20.2 → v1.20.3 (versionCode 32 → 33)"
+            )
+        ),
+        Entry(
             version = "v1.20.2",
             date = "2026-06-16",
             items = listOf(
