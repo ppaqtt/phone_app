@@ -10,6 +10,16 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.16",
+            date = "2026-06-16",
+            items = listOf(
+                "新增：openVivoAppLockSettings() — 尝试打开 vivo i管家 应用锁设置, " +
+                    "尝试多种 Activity: com.vivo.permissionmanager / com.iqoo.secure / com.vivo.abe / " +
+                    "com.android.settings 隐私设置, 用户可在本应用开启系统级应用锁",
+                "升级：版本号 v1.20.15 → v1.20.16 (versionCode 45 → 46)"
+            )
+        ),
+        Entry(
             version = "v1.20.15",
             date = "2026-06-16",
             items = listOf(

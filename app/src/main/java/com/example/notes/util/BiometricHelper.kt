@@ -398,37 +398,45 @@ object BiometricHelper {
     }
 
     /**
-     * F21: 尝试打开应用的生物识别权限设置页面。
-     * 在部分厂商 (如 vivo) 上, 需要单独为每个应用开启生物识别权限。
+     * F21: 尝试打开 vivo 应用锁设置页面, 让用户为本应用开启应用锁。
+     * vivo 设备必须先在系统应用锁中添加本应用, 才能使用人脸/指纹解锁。
      */
-    fun openAppBiometricPermissionSettings(context: Context, packageName: String): Boolean {
-        return try {
-            val manufacturer = Build.MANUFACTURER.lowercase()
-            val brand = Build.BRAND.lowercase()
-            
-            val intent = when {
-                // vivo / iQOO: 打开应用信息页面, 用户需要手动找到"使用指纹/面部解锁"开关
-                manufacturer.contains("vivo") || brand.contains("vivo") ||
-                manufacturer.contains("iqoo") || brand.contains("iqoo") -> {
-                    // vivo 8.0+ 需要通过应用详情页开启生物识别
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = android.net.Uri.parse("package:$packageName")
-                    }
-                }
-                // 其他厂商: 同样打开应用详情页
-                else -> {
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = android.net.Uri.parse("package:$packageName")
-                    }
-                }
+    fun openVivoAppLockSettings(context: Context): Boolean {
+        val packageName = context.packageName
+        // vivo 应用锁的多种可能 Activity
+        val candidates = listOf(
+            // i管家 → 应用锁
+            "com.vivo.permissionmanager/.activity.SettingsActivity" to "com.vivo.permissionmanager",
+            "com.vivo.permissionmanager/.activity.MainActivity" to "com.vivo.permissionmanager",
+            // 应用锁列表
+            "com.iqoo.secure/.ui.phoneoptimize.AddAppToSosActivity" to "com.iqoo.secure",
+            "com.iqoo.secure/.ui.SecurityMainActivity" to "com.iqoo.secure",
+            // vivo abe (应用锁管理器)
+            "com.vivo.abe/.applicationLock.ApplicationLockListActivity" to "com.vivo.abe",
+            // 设置 → 隐私 → 应用锁
+            "com.android.settings/.Settings\$PrivacySettingsActivity" to "com.android.settings"
+        )
+
+        for ((component, pkg) in candidates) {
+            try {
+                val intent = Intent().setComponent(
+                    android.content.ComponentName(
+                        pkg,
+                        component.substringAfter("$pkg/")
+                    )
+                )
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                Timber.tag("Biometric").d("成功打开 vivo 应用锁设置: $component")
+                return true
+            } catch (e: Exception) {
+                Timber.tag("Biometric").d("尝试打开 $component 失败: ${e.message}")
+                // 继续尝试下一个
             }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "Failed to open app biometric permission settings")
-            false
         }
+
+        // 兜底: 打开应用详情页, 用户可以手动跳转到 vivo 设置
+        return openAppBiometricPermissionSettings(context, packageName)
     }
 
     /**

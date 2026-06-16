@@ -5,6 +5,13 @@
 
 ---
 
+## v1.20.16 (2026-06-16)
+
+- ✨ **新增**：`openVivoAppLockSettings()` — 尝试打开 vivo i管家 应用锁设置，尝试多种 Activity：`com.vivo.permissionmanager` / `com.iqoo.secure` / `com.vivo.abe` / `com.android.settings` 隐私设置，用户可在本应用开启系统级应用锁
+- 🔖 **升级**：版本号 v1.20.15 → v1.20.16 (versionCode 45 → 46)
+
+---
+
 ## v1.20.15 (2026-06-16)
 
 - ✨ **新增**：vivo 应用锁设置跳转 — `openAppBiometricPermissionSettings()` 打开应用详情页，用户需在此开启"使用指纹/面部解锁"开关；`openBiometricSettings()` 增强 vivo/iQOO 应用锁 Activity 检测
