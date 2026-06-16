@@ -108,12 +108,12 @@ object BiometricHelper {
      *  14 = BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED
      */
     private fun describeCode(code: Int): String = when (code) {
-        BiometricManager.BIOMETRIC_SUCCESS -> "SUCCESS(0)"
-        BiometricManager.BIOMETRIC_ERROR_UNKNOWN -> "UNKNOWN(1)"
-        BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> "HW_UNAVAILABLE(7)"
-        BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> "NONE_ENROLLED(9)"
-        BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> "NO_HARDWARE(12)"
-        BiometricManager.BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED -> "SECURITY_UPDATE_REQUIRED(14)"
+        0 -> "SUCCESS(0)"
+        1 -> "UNKNOWN(1)"
+        7 -> "HW_UNAVAILABLE(7)"
+        9 -> "NONE_ENROLLED(9)"
+        12 -> "NO_HARDWARE(12)"
+        14 -> "SECURITY_UPDATE_REQUIRED(14)"
         else -> "OTHER($code)"
     }
 

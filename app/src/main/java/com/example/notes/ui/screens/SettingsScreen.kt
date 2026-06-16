@@ -577,6 +577,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                 )
             }
             AppLockCardContent(
+                context = context,
                 isEnabled = isEnabled,
                 pinLength = currentLen,
                 canUseBiometric = canUseBiometric,
@@ -615,6 +616,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
 
 @Composable
 private fun AppLockCardContent(
+    context: Context,
     isEnabled: Boolean,
     pinLength: Int,
     canUseBiometric: Boolean,
