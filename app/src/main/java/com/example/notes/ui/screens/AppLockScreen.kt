@@ -1,5 +1,7 @@
 package com.example.notes.ui.screens
 
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import com.example.notes.util.AppLockStore
 import com.example.notes.util.BiometricHelper
 import kotlinx.coroutines.delay
@@ -170,10 +173,11 @@ fun AppLockScreen(
             if (showBiometric) {
                 IconButton(
                     onClick = {
-                        val activity = context as? androidx.fragment.app.FragmentActivity
-                        activity?.let {
+                        // F20: 向上递归查找 FragmentActivity (AppCompatActivity 间接继承自它)
+                        val activity = findFragmentActivity(context)
+                        if (activity != null) {
                             BiometricHelper.authenticate(
-                                activity = it,
+                                activity = activity,
                                 title = "指纹/人脸解锁",
                                 subtitle = "验证身份以解锁清笺",
                                 negativeButtonText = "使用 PIN 解锁",
@@ -182,8 +186,13 @@ fun AppLockScreen(
                                     store.updateUnlockTime()
                                     onSuccess()
                                 },
-                                onCancel = { /* 用户选择 PIN, 不做任何事, 继续显示 PIN 键盘 */ }
+                                onCancel = { /* 用户选择 PIN, 不做任何事, 继续显示 PIN 键盘 */ },
+                                onError = { code, msg ->
+                                    errorText = "生物识别失败 ($code): $msg"
+                                }
                             )
+                        } else {
+                            errorText = "无法启动生物识别: 当前 Activity 不支持"
                         }
                     },
                     modifier = Modifier.size(56.dp)
@@ -298,6 +307,25 @@ private suspend fun handleSubmit(
 }
 
 enum class Mode { SetPin, Unlock, ChangePin }
+
+/**
+ * F20: 向上递归查找 [FragmentActivity]。
+ *
+ * 背景: 在 Compose 中, `LocalContext.current` 通常返回的是 Compose 内部包装的 Context,
+ * 它*继承*自 Activity 的 Context, 但本身不是 Activity 也不是 FragmentActivity。
+ * 直接 `context as? FragmentActivity` 会得到 null, 导致生物识别无法启动。
+ *
+ * 通过 ContextWrapper 链一路向上 unwrap, 找到真正的 Activity 实例。
+ */
+private fun findFragmentActivity(context: Context): FragmentActivity? {
+    var c: Context? = context
+    while (c is ContextWrapper) {
+        if (c is FragmentActivity) return c
+        c = c.baseContext
+    }
+    // 兜底: 如果上面没找到, 再尝试 unwrap 一次 (某些 ROM 会用不同的 wrapper)
+    return c as? FragmentActivity
+}
 
 @Composable
 private fun PinIndicator(

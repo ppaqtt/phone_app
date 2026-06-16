@@ -5,6 +5,13 @@
 
 ---
 
+## v1.20.4 (2026-06-16)
+
+- 🐛 **修复**：生物识别点击无反应 — 根本原因是 `MainActivity` 继承自 `ComponentActivity`，而非 `BiometricPrompt` 必需的 `FragmentActivity`（`AppCompatActivity` 继承自它）；改为继承 `AppCompatActivity`，并在 `AppLockScreen` 中新增 `findFragmentActivity()` 递归向上 unwrap `ContextWrapper` 链，避免 `LocalContext.current` 包装 Context 导致 `context as? FragmentActivity` 拿到 null
+- 🔖 **升级**：版本号 v1.20.3 → v1.20.4 (versionCode 33 → 34)
+
+---
+
 ## v1.20.3 (2026-06-16)
 
 - 🐛 **调试**：生物识别状态显示增加详细诊断 — 状态行后面追加 WEAK/STRONG 两种 authenticator 的原始 code，方便排错；例如 `(WEAK=12, STRONG=12)` 即 NO_HARDWARE，`(WEAK=9, STRONG=9)` 即 NONE_ENROLLED
