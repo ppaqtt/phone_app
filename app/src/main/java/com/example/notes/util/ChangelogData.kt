@@ -10,6 +10,15 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.14",
+            date = "2026-06-16",
+            items = listOf(
+                "优化：vivo 人脸识别 — DC=0 时只使用 DEVICE_CREDENTIAL (不再混合 BIOMETRIC_WEAK), " +
+                    "强制显示系统凭证选择界面; 添加 setConfirmationRequired(false) 减少确认步骤",
+                "升级：版本号 v1.20.13 → v1.20.14 (versionCode 43 → 44)"
+            )
+        ),
+        Entry(
             version = "v1.20.13",
             date = "2026-06-16",
             items = listOf(

@@ -620,27 +620,29 @@ object BiometricHelper {
         )
 
         // F21-FIX: DEVICE_CREDENTIAL 与 setNegativeButtonText() 不能同时使用
-        // Android 会自动显示设备凭证按钮, 此时调用 setNegativeButtonText() 会抛出异常
-        // 解决方案: 
-        // - 如果 DEVICE_CREDENTIAL 可用 (DC=0), 使用 DEVICE_CREDENTIAL | BIOMETRIC_WEAK (不显示负向按钮)
-        // - 否则只使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG (显示负向按钮)
+        // 根据 DC 状态选择认证策略:
+        // - DC=0: 只使用 DEVICE_CREDENTIAL, 不显示负向按钮
+        // - DC≠0: 使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG, 显示负向按钮
         val manager = BiometricManager.from(activity)
         val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
+
+        Timber.tag("Biometric").d("DC code = $dcCode, negativeButtonText = $negativeButtonText")
 
         val infoBuilder = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
 
         if (dcCode == 0) {
-            // DEVICE_CREDENTIAL 可用: 使用复合认证器 (WEAK + DC)
-            // 系统会显示设备凭证按钮, 用户可以选择指纹/人脸/密码
-            // 注意: 此时不能调用 setNegativeButtonText()
-            Timber.tag("Biometric").d("使用 DEVICE_CREDENTIAL | BIOMETRIC_WEAK 复合认证")
-            infoBuilder.setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
+            // DC=0: 只使用 DEVICE_CREDENTIAL
+            // 系统会显示完整的凭证选择界面 (人脸/指纹/PIN)
+            // 注意: 不能调用 setNegativeButtonText()
+            Timber.tag("Biometric").d(">>> 使用 DEVICE_CREDENTIAL 认证 (DC=0)")
+            infoBuilder.setAllowedAuthenticators(DEVICE_CREDENTIAL)
+            // 设置 confirmationRequired = false 让用户可以直接选择人脸
+            infoBuilder.setConfirmationRequired(false)
         } else {
-            // DEVICE_CREDENTIAL 不可用: 只使用 WEAK | STRONG
-            // 显示负向按钮, 用户可以选择使用应用内 PIN
-            Timber.tag("Biometric").d("使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG 复合认证")
+            // DC≠0: 使用 WEAK | STRONG, 显示负向按钮回退到应用内 PIN
+            Timber.tag("Biometric").d(">>> 使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG 认证 (DC=$dcCode)")
             infoBuilder.setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG)
             infoBuilder.setNegativeButtonText(negativeButtonText)
         }
