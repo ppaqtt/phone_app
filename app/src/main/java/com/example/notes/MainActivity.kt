@@ -176,3 +176,34 @@ sealed interface WidgetIntent {
     object OpenSearch : WidgetIntent
     object OpenTrash : WidgetIntent
 }
+
+@androidx.compose.runtime.Composable
+fun AppLockGate(
+    appLockStore: com.example.notes.util.AppLockStore,
+    content: @androidx.compose.runtime.Composable () -> Unit
+) {
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var locked by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(appLockStore.shouldShowLock())
+    }
+
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                locked = appLockStore.shouldShowLock()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (locked) {
+        com.example.notes.ui.screens.AppLockScreen(
+            store = appLockStore,
+            mode = com.example.notes.ui.screens.Mode.Unlock,
+            onSuccess = { locked = false }
+        )
+    } else {
+        content()
+    }
+}

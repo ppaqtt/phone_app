@@ -230,7 +230,7 @@ object SecurityChecker {
     private fun checkSignature(context: Context, warnings: MutableList<String>): Boolean {
         return try {
             val expected = "78D54DA9C3536987FC80F09F8BDF3474C4E51148"
-            val actual = PackageSignatureReader.getSha1Hex(context)
+            val actual = getSha1Hex(context)
             if (actual != expected) {
                 warnings.add("APK 签名不匹配! 期望=$expected 实际=$actual")
                 false
