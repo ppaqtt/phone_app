@@ -496,10 +496,13 @@ object BiometricHelper {
             }
         )
 
+        // F21-FIX: DEVICE_CREDENTIAL 与 setNegativeButtonText() 不能同时使用
+        // Android 会自动显示设备凭证按钮, 此时调用 setNegativeButtonText() 会抛出异常
+        // 解决方案: 只使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG, 用户通过负向按钮回退到应用内 PIN
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+            .setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG)
             .setNegativeButtonText(negativeButtonText)
             .build()
 
