@@ -10,6 +10,10 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- F19: 生物识别 (指纹/人脸) — 必需, 否则 BiometricManager.canAuthenticate 恒返回 NO_HARDWARE -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- F19: 兼容 Android 9 及以下 (它们用 USE_FINGERPRINT, 10+ 已废弃) -->
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" android:maxSdkVersion="28" />
 
     <application
         android:name=".NotesApplication"

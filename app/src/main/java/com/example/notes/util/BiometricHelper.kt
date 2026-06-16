@@ -39,16 +39,30 @@ object BiometricHelper {
     /**
      * 检查设备是否支持并启用了生物识别。
      * 返回 [Status.Available] 时才可调用 [authenticate]。
+     *
+     * 策略: 先尝试 WEAK (兼容 2D 人脸/低端指纹), 如果失败再尝试 STRONG (3D 指纹/人脸);
+     * 两次都不通过才返回真实状态。某些 ROM (MIUI/EMUI) 在 WEAK 下报 NO_HARDWARE,
+     * 但 STRONG 下能正常识别 — 这里把这种"只支持强认证"的设备也判定为可用。
      */
     fun canAuthenticate(context: Context): Status {
         val manager = BiometricManager.from(context)
-        return when (manager.canAuthenticate(BIOMETRIC_WEAK)) {
-            BiometricManager.BIOMETRIC_SUCCESS -> Status.Available
-            BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> Status.NoHardware
-            BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> Status.HwUnavailable
-            BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Status.NoneEnrolled
-            else -> Status.Unknown
-        }
+        // 1) 优先尝试 WEAK (覆盖更广, 2D 人脸也算)
+        val weakResult = mapResult(manager.canAuthenticate(BIOMETRIC_WEAK))
+        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_WEAK) = $weakResult")
+        if (weakResult == Status.Available) return Status.Available
+
+        // 2) 兜底: 尝试 STRONG (部分设备只支持 Class 3)
+        val strongResult = mapResult(manager.canAuthenticate(BIOMETRIC_STRONG))
+        Timber.tag("Biometric").d("canAuthenticate(BIOMETRIC_STRONG) = $strongResult")
+        return strongResult
+    }
+
+    private fun mapResult(code: Int): Status = when (code) {
+        BiometricManager.BIOMETRIC_SUCCESS -> Status.Available
+        BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> Status.NoHardware
+        BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> Status.HwUnavailable
+        BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Status.NoneEnrolled
+        else -> Status.Unknown
     }
 
     /**
@@ -103,7 +117,7 @@ object BiometricHelper {
         val info = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-            .setAllowedAuthenticators(BIOMETRIC_WEAK)
+            .setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG)
             .setNegativeButtonText(negativeButtonText)
             .build()
 

@@ -10,6 +10,19 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.2",
+            date = "2026-06-16",
+            items = listOf(
+                "修复：生物识别状态误判为「不支持」 — 根本原因是 AndroidManifest.xml 缺失 " +
+                    "USE_BIOMETRIC 权限声明, 导致 BiometricManager.canAuthenticate() 恒返回 NO_HARDWARE; " +
+                    "补上 USE_BIOMETRIC (Android 10+) + USE_FINGERPRINT (Android 9 及以下兼容) 两条权限后恢复正常",
+                "优化：生物识别设备能力检测 — canAuthenticate() 增加 BIOMETRIC_STRONG 兜底检测, " +
+                    "部分 ROM (MIUI/EMUI) 在 WEAK 下报 NO_HARDWARE 但 STRONG 下能识别, " +
+                    "两次都不通过才返回真实 NoHardware; authenticate() 同样改为 WEAK or STRONG 双认证",
+                "升级：版本号 v1.20.1 → v1.20.2 (versionCode 31 → 32)"
+            )
+        ),
+        Entry(
             version = "v1.20.1",
             date = "2026-06-16",
             items = listOf(
