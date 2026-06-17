@@ -10,6 +10,22 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.19",
+            date = "2026-06-17",
+            items = listOf(
+                "新增：待办任务功能 — 独立的待办列表, 支持设置提醒时间、优先级(普通/重要/紧急)",
+                "新增：个性化铃声 — 每个待办可单独设置提醒铃声, 通过系统铃声选择器选择",
+                "新增：TodoListScreen 待办列表界面, 支持待完成/已完成分区、左滑删除、过期提醒标识",
+                "新增：TodoEditDialog 编辑对话框, 支持日期/时间选择器和铃声选择",
+                "新增：TodoWorker 提醒工作器(支持自定义铃声播放)",
+                "新增：TodoReminderManager 待办提醒调度管理器",
+                "新增：TodoEntity / TodoDao / TodoRepository 数据层",
+                "升级：数据库 v10 → v11, 新增 todos 表",
+                "升级：NotesNavGraph 添加 TODOS 路由, NotesListScreen 更多菜单添加待办入口",
+                "升级：版本号 v1.20.18 → v1.20.19 (versionCode 48 → 49)"
+            )
+        ),
+        Entry(
             version = "v1.20.18",
             date = "2026-06-17",
             items = listOf(
