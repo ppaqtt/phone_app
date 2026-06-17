@@ -587,11 +587,11 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                 onBiometricToggle = { enabled ->
                     if (enabled && !canUseBiometric) {
                         val msg = when (biometricStatus) {
-                            BiometricHelper.Status.NoneEnrolled -> "请先前往系统设置录入指纹/人脸"
-                            BiometricHelper.Status.NoHardware -> "该设备不支持生物识别"
-                            BiometricHelper.Status.HwUnavailable -> "生物识别硬件当前不可用"
+                            BiometricHelper.Status.NoneEnrolled -> "请先前往系统设置录入指纹"
+                            BiometricHelper.Status.NoHardware -> "该设备不支持指纹识别"
+                            BiometricHelper.Status.HwUnavailable -> "指纹识别硬件当前不可用"
                             BiometricHelper.Status.NoKeyguard -> "请先设置锁屏密码/图案/PIN"
-                            else -> "无法启用生物识别"
+                            else -> "无法启用指纹识别"
                         }
                         context.toastLong(msg)
                         // F21: 未设置锁屏密码时引导用户去设置
@@ -604,7 +604,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                         store.setBiometricEnabled(enabled)
                         biometricEnabled = enabled
                         context.toastShort(
-                            if (enabled) "已启用指纹/人脸解锁" else "已关闭生物识别解锁"
+                            if (enabled) "已启用指纹解锁" else "已关闭指纹解锁"
                         )
                     }
                 },
@@ -659,7 +659,7 @@ private fun AppLockCardContent(
             )
             Spacer(Modifier.height(12.dp))
 
-            // F19: 生物识别开关 (仅应用锁已启用时显示)
+            // F19: 指纹解锁开关 (仅应用锁已启用时显示)
             if (isEnabled) {
                 val bioStatusText = when (biometricStatus) {
                     BiometricHelper.Status.Available -> "可用"
@@ -669,8 +669,6 @@ private fun AppLockCardContent(
                     BiometricHelper.Status.NoKeyguard -> "未设锁屏密码"
                     BiometricHelper.Status.Unknown -> "未知"
                 }
-                // F20: 详细诊断 — 展示 WEAK/STRONG 两种 authenticator 的原始 code, 方便排错
-                val diagnostics = remember { BiometricHelper.diagnose(context) }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -679,7 +677,7 @@ private fun AppLockCardContent(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Fingerprint,
-                        contentDescription = "生物识别",
+                        contentDescription = "指纹解锁",
                         tint = if (canUseBiometric)
                             MaterialTheme.colorScheme.primary
                         else
@@ -689,13 +687,11 @@ private fun AppLockCardContent(
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "指纹/人脸解锁",
+                            "指纹解锁",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            "状态: $bioStatusText  " +
-                                "(W=${diagnostics.weakCode}, S=${diagnostics.strongCode}, DC=${diagnostics.dcCode})" +
-                                " | ${diagnostics.manufacturer} | 锁屏:${if (diagnostics.hasKeyguard) "已设" else "未设"} | 人脸:${if (diagnostics.hasFaceHardware) "有" else "无"}",
+                            "状态: $bioStatusText",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

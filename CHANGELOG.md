@@ -5,6 +5,15 @@
 
 ---
 
+## v1.20.17 (2026-06-17)
+
+- 🗑️ **移除**：人脸识别功能 — vivo 等厂商不通过标准 Android Biometric API 暴露人脸识别能力，第三方应用无法使用；现仅保留指纹解锁 + PIN 解锁
+- 🔧 **简化**：`BiometricHelper` 移除 `DEVICE_CREDENTIAL` / OEM 适配 / 诊断信息 / `hasFaceHardware` 等代码，`authenticate()` 直接使用 `BIOMETRIC_WEAK | BIOMETRIC_STRONG`
+- 🔧 **简化**：`SettingsScreen` 移除人脸相关 UI 和详细诊断信息，文案改为"指纹解锁"
+- 🔖 **升级**：版本号 v1.20.16 → v1.20.17 (versionCode 46 → 47)
+
+---
+
 ## v1.20.16 (2026-06-16)
 
 - ✨ **新增**：`openVivoAppLockSettings()` — 尝试打开 vivo i管家 应用锁设置，尝试多种 Activity：`com.vivo.permissionmanager` / `com.iqoo.secure` / `com.vivo.abe` / `com.android.settings` 隐私设置，用户可在本应用开启系统级应用锁

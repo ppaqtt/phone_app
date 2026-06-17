@@ -9,22 +9,20 @@ import android.provider.Settings
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
-import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import timber.log.Timber
 
 /**
- * F19: 生物识别解锁辅助类。
+ * F19: 生物识别解锁辅助类 (指纹 + PIN)。
  *
  * 职责:
- * 1) 检测设备是否支持生物识别 (指纹/人脸) — [canAuthenticate]
+ * 1) 检测设备是否支持指纹识别 — [canAuthenticate]
  * 2) 启动 BiometricPrompt 进行认证 — [authenticate]
  * 3) 与 AppLockStore 配合, 生物识别成功后更新解锁时间
  *
- * 使用 BIOMETRIC_WEAK (Class 2) 以兼容更多设备 (包含 2D 人脸识别);
- * 若需要更高安全性可用 BIOMETRIC_STRONG (Class 3, 仅指纹/3D 人脸)。
+ * 注意: 人脸识别已在 v1.20.17 中移除, 因为 vivo 等厂商不通过标准 API 暴露人脸识别能力。
  */
 object BiometricHelper {
 
@@ -36,7 +34,7 @@ object BiometricHelper {
         NoHardware,
         /** 硬件当前不可用 */
         HwUnavailable,
-        /** 有硬件但未录入生物特征 */
+        /** 有硬件但未录入指纹 */
         NoneEnrolled,
         /** 未设置锁屏密码 */
         NoKeyguard,
@@ -45,16 +43,14 @@ object BiometricHelper {
     }
 
     /**
-     * 检查设备是否支持并启用了生物识别。
+     * 检查设备是否支持并启用了指纹识别。
      * 返回 [Status.Available] 时才可调用 [authenticate]。
      *
      * 策略:
      * 1. 先检查 KeyguardManager — 未设置锁屏密码时返回 [Status.NoKeyguard]
-     * 2. 尝试 WEAK (兼容 2D 人脸/低端指纹)
+     * 2. 尝试 WEAK (兼容低端指纹)
      * 3. 兜底: 尝试 STRONG (部分设备只支持 Class 3)
-     * 4. 兜底: 尝试 DEVICE_CREDENTIAL (密码/图案/PIN)
-     * 5. 厂商特定适配 (vivo/小米/华为/OPPO/三星/一加)
-     * 6. 旧设备兼容 (API 23-28 使用 FingerprintManager)
+     * 4. 旧设备兼容 (API 23-28 使用 FingerprintManager)
      */
     fun canAuthenticate(context: Context): Status {
         // F21: 先检查锁屏状态 — 未设置锁屏密码时 BiometricPrompt 不可用
@@ -66,7 +62,7 @@ object BiometricHelper {
 
         val manager = BiometricManager.from(context)
 
-        // 1) 优先尝试 WEAK (覆盖更广, 2D 人脸也算)
+        // 1) 优先尝试 WEAK (覆盖更广)
         val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
         val weakResult = mapResult(weakCode)
         Timber.tag("Biometric").d(
@@ -83,22 +79,7 @@ object BiometricHelper {
         )
         if (strongResult == Status.Available) return Status.Available
 
-        // 3) 兜底: 尝试 DEVICE_CREDENTIAL (密码/图案/PIN)
-        val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
-        val dcResult = mapResult(dcCode)
-        Timber.tag("Biometric").d(
-            "canAuthenticate(DEVICE_CREDENTIAL) raw=$dcCode (SUCCESS=0) → mapped=$dcResult"
-        )
-        if (dcResult == Status.Available) return Status.Available
-
-        // 4) 厂商特定适配
-        val oemResult = checkOemBiometricSupport(context)
-        if (oemResult == Status.Available) {
-            Timber.tag("Biometric").d("OEM biometric check returned Available")
-            return Status.Available
-        }
-
-        // 5) 旧设备兼容 (API 23-28)
+        // 3) 旧设备兼容 (API 23-28)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             val legacyResult = checkLegacyFingerprintSupport(context)
             Timber.tag("Biometric").d("Legacy fingerprint check: $legacyResult")
@@ -121,165 +102,6 @@ object BiometricHelper {
         BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> Status.HwUnavailable
         BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> Status.NoneEnrolled
         else -> Status.Unknown
-    }
-
-    /**
-     * F21: 厂商特定生物识别能力检测。
-     *
-     * 各厂商 ROM 对 Biometric API 的实现差异:
-     * - vivo (OriginOS): 2D 人脸可能只在 DEVICE_CREDENTIAL 下暴露
-     * - 小米 (MIUI): 部分机型 WEAK 报 NO_HARDWARE 但 STRONG 正常
-     * - 华为 (EMUI/HarmonyOS): 老机型可能不支持 Class 3
-     * - OPPO (ColorOS): 标准实现, 个别版本常量值异常
-     * - 三星 (OneUI): 安全策略严格, 依赖 Keyguard
-     * - 一加 (OxygenOS): 接近原生
-     */
-    private fun checkOemBiometricSupport(context: Context): Status {
-        val manufacturer = Build.MANUFACTURER.lowercase()
-        val brand = Build.BRAND.lowercase()
-        val model = Build.MODEL.lowercase()
-
-        Timber.tag("Biometric").d("OEM check: manufacturer=$manufacturer, brand=$brand, model=$model")
-
-        return when {
-            // vivo / iQOO (OriginOS / FuntouchOS)
-            manufacturer.contains("vivo") || brand.contains("vivo") ||
-                manufacturer.contains("iqoo") || brand.contains("iqoo") -> {
-                checkVivoBiometric(context)
-            }
-            // 小米 / Redmi / POCO (MIUI / HyperOS)
-            manufacturer.contains("xiaomi") || brand.contains("xiaomi") ||
-                manufacturer.contains("redmi") || brand.contains("redmi") ||
-                manufacturer.contains("poco") || brand.contains("poco") -> {
-                checkXiaomiBiometric(context)
-            }
-            // 华为 / 荣耀 (EMUI / HarmonyOS / MagicOS)
-            manufacturer.contains("huawei") || brand.contains("huawei") ||
-                manufacturer.contains("honor") || brand.contains("honor") -> {
-                checkHuaweiBiometric(context)
-            }
-            // OPPO / Realme / 一加 (ColorOS / OxygenOS / RealmeUI)
-            manufacturer.contains("oppo") || brand.contains("oppo") ||
-                manufacturer.contains("realme") || brand.contains("realme") ||
-                manufacturer.contains("oneplus") || brand.contains("oneplus") -> {
-                checkOppoBiometric(context)
-            }
-            // 三星 (OneUI)
-            manufacturer.contains("samsung") || brand.contains("samsung") -> {
-                checkSamsungBiometric(context)
-            }
-            // 魅族 (Flyme)
-            manufacturer.contains("meizu") || brand.contains("meizu") -> {
-                checkMeizuBiometric(context)
-            }
-            // 其他厂商: 不做特殊处理, 依赖标准 API
-            else -> Status.Unknown
-        }
-    }
-
-    /** vivo 设备: 尝试通过系统设置判断人脸/指纹是否已录入 */
-    private fun checkVivoBiometric(context: Context): Status {
-        return try {
-            // vivo 设备通常有 com.android.settings 下的生物识别设置
-            // 如果 DEVICE_CREDENTIAL 可用, 且系统有指纹/人脸硬件, 尝试判定为可用
-            val manager = BiometricManager.from(context)
-            val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
-            if (dcCode == 0) {
-                // 检查是否有指纹或人脸硬件 (通过 PackageManager)
-                val pm = context.packageManager
-                val hasFingerprint = pm.hasSystemFeature("android.hardware.fingerprint")
-                val hasFace = pm.hasSystemFeature("android.hardware.biometrics.face")
-                if (hasFingerprint || hasFace) {
-                    Timber.tag("Biometric").d("vivo: DC=0 + has hardware → Available")
-                    Status.Available
-                } else {
-                    Status.Unknown
-                }
-            } else {
-                Status.Unknown
-            }
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "vivo OEM check failed")
-            Status.Unknown
-        }
-    }
-
-    /** 小米设备: MIUI 部分机型 STRONG 可用但 WEAK 不可用 */
-    private fun checkXiaomiBiometric(context: Context): Status {
-        return try {
-            val manager = BiometricManager.from(context)
-            // 小米通常对 STRONG 支持较好
-            val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
-            if (strongCode == 0) Status.Available else Status.Unknown
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "Xiaomi OEM check failed")
-            Status.Unknown
-        }
-    }
-
-    /** 华为设备: 老机型可能只支持 FingerprintManager */
-    private fun checkHuaweiBiometric(context: Context): Status {
-        return try {
-            val manager = BiometricManager.from(context)
-            val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
-            val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
-            when {
-                strongCode == 0 || weakCode == 0 -> Status.Available
-                else -> Status.Unknown
-            }
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "Huawei OEM check failed")
-            Status.Unknown
-        }
-    }
-
-    /** OPPO / 一加设备: 标准实现, 检查 PackageManager */
-    private fun checkOppoBiometric(context: Context): Status {
-        return try {
-            val pm = context.packageManager
-            val hasBiometric = pm.hasSystemFeature("android.hardware.biometrics")
-            val hasFingerprint = pm.hasSystemFeature("android.hardware.fingerprint")
-            if (hasBiometric || hasFingerprint) {
-                val manager = BiometricManager.from(context)
-                val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
-                if (dcCode == 0) Status.Available else Status.Unknown
-            } else {
-                Status.Unknown
-            }
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "OPPO OEM check failed")
-            Status.Unknown
-        }
-    }
-
-    /** 三星设备: OneUI 安全策略严格, 依赖 Keyguard + STRONG */
-    private fun checkSamsungBiometric(context: Context): Status {
-        return try {
-            val manager = BiometricManager.from(context)
-            val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
-            if (strongCode == 0) Status.Available else Status.Unknown
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "Samsung OEM check failed")
-            Status.Unknown
-        }
-    }
-
-    /** 魅族设备: Flyme 对 Biometric API 支持有限 */
-    private fun checkMeizuBiometric(context: Context): Status {
-        return try {
-            val pm = context.packageManager
-            val hasFingerprint = pm.hasSystemFeature("android.hardware.fingerprint")
-            if (hasFingerprint) {
-                val manager = BiometricManager.from(context)
-                val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
-                if (dcCode == 0) Status.Available else Status.Unknown
-            } else {
-                Status.Unknown
-            }
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "Meizu OEM check failed")
-            Status.Unknown
-        }
     }
 
     /**
@@ -345,27 +167,10 @@ object BiometricHelper {
             val manufacturer = Build.MANUFACTURER.lowercase()
             val brand = Build.BRAND.lowercase()
             val intent = when {
-                // vivo / iQOO: 打开应用锁设置 (这是 vivo 允许第三方应用使用生物识别的关键设置)
+                // vivo / iQOO: 打开指纹设置
                 manufacturer.contains("vivo") || brand.contains("vivo") ||
                 manufacturer.contains("iqoo") || brand.contains("iqoo") -> {
-                    // vivo 应用锁通常在 i管家 或 设置 → 安全与隐私 → 应用锁
-                    // 尝试多种可能的 Intent
-                    try {
-                        Intent().setClassName(
-                            "com.vivo.abe",
-                            "com.vivo.applicationLock.ApplicationLockListActivity"
-                        )
-                    } catch (e: Exception) {
-                        try {
-                            Intent().setClassName(
-                                "com.iqoo.secure",
-                                "com.iqoo.secure.ui.phoneoptimize.AddAppToSosActivity"
-                            )
-                        } catch (e2: Exception) {
-                            // 兜底到通用设置
-                            Intent("android.settings.SECURITY_SETTINGS")
-                        }
-                    }
+                    Intent("android.settings.SECURITY_SETTINGS")
                 }
                 // 小米: 打开密码与安全
                 manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") -> {
@@ -398,248 +203,7 @@ object BiometricHelper {
     }
 
     /**
-     * F21: 尝试打开 vivo 应用锁设置页面, 让用户为本应用开启应用锁。
-     * vivo 设备必须先在系统应用锁中添加本应用, 才能使用人脸/指纹解锁。
-     */
-    fun openVivoAppLockSettings(context: Context): Boolean {
-        val packageName = context.packageName
-        // vivo 应用锁的多种可能 Activity
-        val candidates = listOf(
-            // i管家 → 应用锁
-            "com.vivo.permissionmanager/.activity.SettingsActivity" to "com.vivo.permissionmanager",
-            "com.vivo.permissionmanager/.activity.MainActivity" to "com.vivo.permissionmanager",
-            // 应用锁列表
-            "com.iqoo.secure/.ui.phoneoptimize.AddAppToSosActivity" to "com.iqoo.secure",
-            "com.iqoo.secure/.ui.SecurityMainActivity" to "com.iqoo.secure",
-            // vivo abe (应用锁管理器)
-            "com.vivo.abe/.applicationLock.ApplicationLockListActivity" to "com.vivo.abe",
-            // 设置 → 隐私 → 应用锁
-            "com.android.settings/.Settings\$PrivacySettingsActivity" to "com.android.settings"
-        )
-
-        for ((component, pkg) in candidates) {
-            try {
-                val intent = Intent().setComponent(
-                    android.content.ComponentName(
-                        pkg,
-                        component.substringAfter("$pkg/")
-                    )
-                )
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-                Timber.tag("Biometric").d("成功打开 vivo 应用锁设置: $component")
-                return true
-            } catch (e: Exception) {
-                Timber.tag("Biometric").d("尝试打开 $component 失败: ${e.message}")
-                // 继续尝试下一个
-            }
-        }
-
-        // 兜底: 打开应用详情页, 用户可以手动跳转到 vivo 设置
-        return try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                data = android.net.Uri.parse("package:$packageName")
-            }
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            true
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "打开应用详情页失败")
-            false
-        }
-    }
-
-    /**
-     * 详细诊断信息, 用于排错。包含 WEAK/STRONG/DEVICE_CREDENTIAL 三种 authenticator 的原始 code。
-     * 供 SettingsScreen 的"显示详细状态"使用; 也可通过 Timber 日志在 logcat 中查看。
-     */
-    data class Diagnostics(
-        val status: Status,
-        val weakCode: Int,
-        val strongCode: Int,
-        val dcCode: Int,
-        val weakStatus: Status,
-        val strongStatus: Status,
-        val dcStatus: Status,
-        val manufacturer: String,
-        val hasKeyguard: Boolean,
-        val hasFaceHardware: Boolean
-    )
-
-    /**
-     * 详细诊断: 返回 WEAK/STRONG/DEVICE_CREDENTIAL 三种 authenticator 各自的原始状态码, 便于排错。
-     * 例如当 status=NoHardware 时, 可看 weakCode 究竟是 12 (NO_HARDWARE) 还是 1 (UNKNOWN)。
-     *
-     * vivo X200s 等机型的人脸识别可能只在 DEVICE_CREDENTIAL 模式下返回 SUCCESS,
-     * 因此必须包含 DC 的检测结果。
-     */
-    fun diagnose(context: Context): Diagnostics {
-        val manager = BiometricManager.from(context)
-        val weakCode = manager.canAuthenticate(BIOMETRIC_WEAK)
-        val strongCode = manager.canAuthenticate(BIOMETRIC_STRONG)
-        val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
-        val weakStatus = mapResult(weakCode)
-        val strongStatus = mapResult(strongCode)
-        val dcStatus = mapResult(dcCode)
-        val status = when {
-            weakStatus == Status.Available -> weakStatus
-            strongStatus == Status.Available -> strongStatus
-            dcStatus == Status.Available -> dcStatus
-            else -> weakStatus
-        }
-        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        val hasKeyguard = keyguard?.isKeyguardSecure ?: false
-        val faceHardware = hasFaceHardware(context)
-        return Diagnostics(
-            status, weakCode, strongCode, dcCode,
-            weakStatus, strongStatus, dcStatus,
-            getDeviceManufacturer(), hasKeyguard, faceHardware
-        )
-    }
-
-    /**
-     * 把原始 code 翻译成人话 (用于排错提示)。
-     * BiometricManager 返回码:
-     *  0 = BIOMETRIC_SUCCESS
-     *  1 = BIOMETRIC_ERROR_UNKNOWN
-     *  7 = BIOMETRIC_ERROR_HW_UNAVAILABLE
-     *  9 = BIOMETRIC_ERROR_NONE_ENROLLED
-     *  12 = BIOMETRIC_ERROR_NO_HARDWARE
-     *  14 = BIOMETRIC_ERROR_SECURITY_UPDATE_REQUIRED
-     */
-    private fun describeCode(code: Int): String = when (code) {
-        0 -> "SUCCESS(0)"
-        1 -> "UNKNOWN(1)"
-        7 -> "HW_UNAVAILABLE(7)"
-        9 -> "NONE_ENROLLED(9)"
-        12 -> "NO_HARDWARE(12)"
-        14 -> "SECURITY_UPDATE_REQUIRED(14)"
-        else -> "OTHER($code)"
-    }
-
-    /**
-     * 检查设备是否有人脸识别硬件 (通过 PackageManager)。
-     */
-    fun hasFaceHardware(context: Context): Boolean {
-        return try {
-            val pm = context.packageManager
-            // Android 11+ 使用这个 feature
-            pm.hasSystemFeature("android.hardware.biometrics.face") ||
-            // 部分厂商使用旧的 feature
-            pm.hasSystemFeature("android.hardware.fingerprint") ||
-            // 检查厂商特定的 feature
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            context.packageManager.hasSystemFeature("android.hardware.face")
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "hasFaceHardware check failed")
-            false
-        }
-    }
-
-    /**
-     * F21: 尝试使用厂商特定的方式唤起人脸识别。
-     * 部分厂商 (如 vivo OriginOS) 的人脸识别没有通过标准 Biometric API 暴露,
-     * 需要使用厂商特定的 Activity 或 Intent 来唤起。
-     *
-     * @return 如果成功唤起返回 true, 否则返回 false (需要回退到标准 API)
-     */
-    fun authenticateWithOemFaceUnlock(
-        activity: FragmentActivity,
-        onSuccess: () -> Unit,
-        onFallback: () -> Unit
-    ): Boolean {
-        val manufacturer = Build.MANUFACTURER.lowercase()
-        val brand = Build.BRAND.lowercase()
-
-        Timber.tag("Biometric").d("尝试 OEM 人脸识别, manufacturer=$manufacturer, brand=$brand")
-
-        return try {
-            val intent = createOemFaceUnlockIntent(manufacturer, brand)
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                // 设置回调 Activity
-                intent.setClassName(activity.packageName, activity.javaClass.name)
-                activity.startActivity(intent)
-                // 注意: 这里无法获取 OEM 人脸识别的结果,
-                // 假设用户已通过 OEM 界面验证成功, 直接回调 onSuccess
-                onSuccess()
-                true
-            } else {
-                Timber.tag("Biometric").d("没有找到 OEM 人脸识别 Intent")
-                onFallback()
-                false
-            }
-        } catch (e: Exception) {
-            Timber.tag("Biometric").w(e, "OEM 人脸识别唤起失败")
-            onFallback()
-            false
-        }
-    }
-
-    /**
-     * 创建厂商特定的人脸识别 Intent。
-     */
-    private fun createOemFaceUnlockIntent(manufacturer: String, brand: String): Intent? {
-        // vivo / iQOO (OriginOS / FuntouchOS)
-        if (manufacturer.contains("vivo") || brand.contains("vivo") ||
-            manufacturer.contains("iqoo") || brand.contains("iqoo")
-        ) {
-            // vivo 的人脸解锁通常集成在系统锁屏中, 第三方应用无法直接唤起
-            // 但可以尝试打开人脸设置页面
-            return try {
-                Intent().setClassName(
-                    "com.android.settings",
-                    "com.android.settings.biometrics.BiometricSettings"
-                )
-            } catch (e: Exception) {
-                null
-            }
-        }
-
-        // 华为 / 荣耀 (EMUI / HarmonyOS)
-        if (manufacturer.contains("huawei") || brand.contains("huawei") ||
-            manufacturer.contains("honor") || brand.contains("honor")
-        ) {
-            return try {
-                Intent("com.huawei.systemmanager.faceunlock.FaceAppLockActivity")
-            } catch (e: Exception) {
-                null
-            }
-        }
-
-        // 小米 (MIUI / HyperOS)
-        if (manufacturer.contains("xiaomi") || brand.contains("xiaomi") ||
-            manufacturer.contains("redmi") || brand.contains("redmi") ||
-            manufacturer.contains("poco") || brand.contains("poco")
-        ) {
-            return try {
-                Intent().setClassName(
-                    "com.android.settings",
-                    "com.android.settings.fingerprint.FingerprintSettings"
-                )
-            } catch (e: Exception) {
-                null
-            }
-        }
-
-        // OPPO / realme / 一加
-        if (manufacturer.contains("oppo") || brand.contains("oppo") ||
-            manufacturer.contains("realme") || brand.contains("realme") ||
-            manufacturer.contains("oneplus") || brand.contains("oneplus")
-        ) {
-            return null // 标准 API 通常可用
-        }
-
-        // 三星
-        if (manufacturer.contains("samsung") || brand.contains("samsung")) {
-            return null // Samsung Pass 通常需要 Samsung 账户
-        }
-
-        return null
-    }
-
-    /**
-     * 启动生物识别认证弹窗。
+     * 启动指纹识别认证弹窗。
      *
      * @param activity 必须是 [FragmentActivity] (AppCompatActivity 继承自它)
      * @param title 弹窗标题
@@ -651,8 +215,8 @@ object BiometricHelper {
      */
     fun authenticate(
         activity: FragmentActivity,
-        title: String = "生物识别解锁",
-        subtitle: String = "请验证您的身份",
+        title: String = "指纹解锁",
+        subtitle: String = "请验证您的指纹",
         negativeButtonText: String = "使用 PIN 解锁",
         onSuccess: () -> Unit,
         onError: (Int, String) -> Unit = { _, _ -> },
@@ -682,38 +246,16 @@ object BiometricHelper {
 
                 override fun onAuthenticationFailed() {
                     Timber.tag("Biometric").d("Authentication failed (not recognized)")
-                    // 指纹/人脸不匹配但不终止流程, 继续尝试
+                    // 指纹不匹配但不终止流程, 继续尝试
                 }
             }
         )
 
-        // F21-FIX: DEVICE_CREDENTIAL 与 setNegativeButtonText() 不能同时使用
-        // 根据 DC 状态选择认证策略:
-        // - DC=0: 只使用 DEVICE_CREDENTIAL, 不显示负向按钮
-        // - DC≠0: 使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG, 显示负向按钮
-        val manager = BiometricManager.from(activity)
-        val dcCode = manager.canAuthenticate(DEVICE_CREDENTIAL)
-
-        Timber.tag("Biometric").d("DC code = $dcCode, negativeButtonText = $negativeButtonText")
-
         val infoBuilder = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
-
-        if (dcCode == 0) {
-            // DC=0: 只使用 DEVICE_CREDENTIAL
-            // 系统会显示完整的凭证选择界面 (人脸/指纹/PIN)
-            // 注意: 不能调用 setNegativeButtonText()
-            Timber.tag("Biometric").d(">>> 使用 DEVICE_CREDENTIAL 认证 (DC=0)")
-            infoBuilder.setAllowedAuthenticators(DEVICE_CREDENTIAL)
-            // 设置 confirmationRequired = false 让用户可以直接选择人脸
-            infoBuilder.setConfirmationRequired(false)
-        } else {
-            // DC≠0: 使用 WEAK | STRONG, 显示负向按钮回退到应用内 PIN
-            Timber.tag("Biometric").d(">>> 使用 BIOMETRIC_WEAK | BIOMETRIC_STRONG 认证 (DC=$dcCode)")
-            infoBuilder.setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG)
-            infoBuilder.setNegativeButtonText(negativeButtonText)
-        }
+            .setAllowedAuthenticators(BIOMETRIC_WEAK or BIOMETRIC_STRONG)
+            .setNegativeButtonText(negativeButtonText)
 
         prompt.authenticate(infoBuilder.build())
     }
