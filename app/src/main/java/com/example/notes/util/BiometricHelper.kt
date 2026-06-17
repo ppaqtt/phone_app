@@ -436,7 +436,17 @@ object BiometricHelper {
         }
 
         // 兜底: 打开应用详情页, 用户可以手动跳转到 vivo 设置
-        return openAppBiometricPermissionSettings(context, packageName)
+        return try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.parse("package:$packageName")
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Timber.tag("Biometric").w(e, "打开应用详情页失败")
+            false
+        }
     }
 
     /**
