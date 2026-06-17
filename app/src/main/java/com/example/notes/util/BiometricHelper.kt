@@ -15,18 +15,18 @@ import androidx.fragment.app.FragmentActivity
 import timber.log.Timber
 
 /**
- * F19: 生物识别解锁辅助类 (指纹 + PIN)。
+ * F19: 指纹解锁辅助类 (指纹 + PIN)。
  *
  * 职责:
  * 1) 检测设备是否支持指纹识别 — [canAuthenticate]
  * 2) 启动 BiometricPrompt 进行认证 — [authenticate]
- * 3) 与 AppLockStore 配合, 生物识别成功后更新解锁时间
+ * 3) 与 AppLockStore 配合, 指纹解锁成功后更新解锁时间
  *
  * 注意: 人脸识别已在 v1.20.17 中移除, 因为 vivo 等厂商不通过标准 API 暴露人脸识别能力。
  */
 object BiometricHelper {
 
-    /** 设备生物识别能力状态 */
+    /** 设备指纹识别能力状态 */
     enum class Status {
         /** 可用且已录入 */
         Available,
@@ -159,7 +159,7 @@ object BiometricHelper {
     }
 
     /**
-     * F21: 尝试打开系统生物识别设置页面。
+     * F21: 尝试打开系统指纹设置页面。
      * 不同厂商的设置页面路径不同, 这里提供通用 Intent + 厂商特定 Intent。
      */
     fun openBiometricSettings(context: Context): Boolean {
@@ -176,7 +176,7 @@ object BiometricHelper {
                 manufacturer.contains("xiaomi") || manufacturer.contains("redmi") || manufacturer.contains("poco") -> {
                     Intent("android.settings.SECURITY_SETTINGS")
                 }
-                // 华为: 打开生物识别和密码
+                // 华为: 打开指纹和密码
                 manufacturer.contains("huawei") || manufacturer.contains("honor") -> {
                     Intent("android.settings.SECURITY_SETTINGS")
                 }

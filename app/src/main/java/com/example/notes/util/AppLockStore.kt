@@ -34,7 +34,7 @@ class AppLockStore(context: Context) {
     val pinLength: Int
         get() = prefs.getInt(KEY_PIN_LENGTH, 6)
 
-    /** 是否启用了生物识别解锁 (仅在设备支持且已录入时有效) */
+    /** 是否启用了指纹解锁 (仅在设备支持且已录入时有效) */
     val isBiometricEnabled: Boolean
         get() = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)
 
@@ -79,7 +79,7 @@ class AppLockStore(context: Context) {
     }
 
     /**
-     * 关闭应用锁, 清除 PIN 哈希和生物识别设置。
+     * 关闭应用锁, 清除 PIN 哈希和指纹解锁设置。
      * 注: 业务上应由用户在设置页"关闭应用锁"按钮触发, 同时校验旧 PIN。
      */
     fun disable() {
@@ -96,7 +96,7 @@ class AppLockStore(context: Context) {
     }
 
     /**
-     * 启用/禁用生物识别解锁。
+     * 启用/禁用指纹解锁。
      * 调用方需先通过 [BiometricHelper.canAuthenticate] 确认设备可用。
      */
     fun setBiometricEnabled(enabled: Boolean) {
@@ -120,7 +120,7 @@ class AppLockStore(context: Context) {
         prefs.edit { putLong(KEY_LAST_UNLOCK, 0L) }
     }
 
-    /** 更新解锁时间 (生物识别成功后调用, 等同于 PIN 解锁成功) */
+    /** 更新解锁时间 (指纹解锁成功后调用, 等同于 PIN 解锁成功) */
     fun updateUnlockTime() {
         lastUnlockTime = System.currentTimeMillis()
         prefs.edit { putLong(KEY_LAST_UNLOCK, lastUnlockTime) }

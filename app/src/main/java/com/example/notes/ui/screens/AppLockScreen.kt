@@ -76,7 +76,7 @@ fun AppLockScreen(
     var isShaking by remember { mutableStateOf(false) }
     var cooldownRemaining by remember { mutableStateOf(0L) }
 
-    // F19: 生物识别相关状态 (仅在 Unlock 模式且用户启用了生物识别时)
+    // F19: 指纹解锁相关状态 (仅在 Unlock 模式且用户启用了指纹解锁时)
     val biometricStatus = remember {
         if (mode == Mode.Unlock && store.isBiometricEnabled)
             BiometricHelper.canAuthenticate(context)
@@ -170,7 +170,7 @@ fun AppLockScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // F19: 生物识别按钮 (仅在 Unlock 模式且设备支持时显示)
+            // F19: 指纹解锁按钮 (仅在 Unlock 模式且设备支持时显示)
             if (showBiometric) {
                 IconButton(
                     onClick = {
@@ -179,28 +179,28 @@ fun AppLockScreen(
                         if (activity != null) {
                             BiometricHelper.authenticate(
                                 activity = activity,
-                                title = "指纹/人脸解锁",
+                                title = "指纹解锁",
                                 subtitle = "验证身份以解锁清笺",
                                 negativeButtonText = "使用 PIN 解锁",
                                 onSuccess = {
-                                    // 生物识别成功 = 等同于 PIN 解锁成功
+                                    // 指纹解锁成功 = 等同于 PIN 解锁成功
                                     store.updateUnlockTime()
                                     onSuccess()
                                 },
                                 onCancel = { /* 用户选择 PIN, 不做任何事, 继续显示 PIN 键盘 */ },
                                 onError = { code, msg ->
-                                    errorText = "生物识别失败 ($code): $msg"
+                                    errorText = "指纹解锁失败 ($code): $msg"
                                 }
                             )
                         } else {
-                            errorText = "无法启动生物识别: 当前 Activity 不支持"
+                            errorText = "无法启动指纹解锁: 当前 Activity 不支持"
                         }
                     },
                     modifier = Modifier.size(56.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Fingerprint,
-                        contentDescription = "指纹/人脸解锁",
+                        contentDescription = "指纹解锁",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(32.dp)
                     )
@@ -314,7 +314,7 @@ enum class Mode { SetPin, Unlock, ChangePin }
  *
  * 背景: 在 Compose 中, `LocalContext.current` 通常返回的是 Compose 内部包装的 Context,
  * 它*继承*自 Activity 的 Context, 但本身不是 Activity 也不是 FragmentActivity。
- * 直接 `context as? FragmentActivity` 会得到 null, 导致生物识别无法启动。
+ * 直接 `context as? FragmentActivity` 会得到 null, 导致指纹解锁无法启动。
  *
  * 通过 ContextWrapper 链一路向上 unwrap, 找到真正的 Activity 实例。
  */

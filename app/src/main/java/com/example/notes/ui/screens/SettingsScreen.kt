@@ -481,7 +481,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
     var showLengthPicker by remember { mutableStateOf(false) }
     // 新设置的 PIN 长度 (4-8), 默认与当前一致或 6
     var newPinLen by remember { mutableStateOf(currentLen.coerceIn(4..8)) }
-    // F19: 生物识别开关状态
+    // F19: 指纹解锁开关状态
     var biometricEnabled by remember { mutableStateOf(store.isBiometricEnabled) }
     val biometricStatus = remember {
         if (isEnabled) BiometricHelper.canAuthenticate(context) else BiometricHelper.Status.NoHardware
