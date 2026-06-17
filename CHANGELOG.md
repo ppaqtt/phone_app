@@ -5,6 +5,18 @@
 
 ---
 
+## v1.20.20 (2026-06-17)
+
+- 🔧 **优化**：更新检查模块全面重写 — 放宽网络连通性检测，不再强依赖 `NET_CAPABILITY_VALIDATED`，解决校园网/酒店 WiFi 等环境下误判为"无网络"的问题
+- 🔧 **优化**：缩短 HTTP 超时 — connect 10s→5s，read 15s→8s，write 10s→5s，减少界面等待时间
+- 🔧 **优化**：增加 `ConnectionPool` 连接池复用 — 减少 TLS 握手开销
+- 🔧 **优化**：自定义 DNS 解析 — 优先 IPv4（避免 IPv6-only 网络下失败），30 分钟 DNS 缓存，解析失败时回退到上一次缓存
+- 🔧 **优化**：双端点策略 — 主端点 `api.github.com` 失败后自动回退到 `github.com` 重定向 URL 解析版本号，再失败使用本地兜底版本
+- 🔧 **优化**：错误分类细化 — 区分 `NO_NETWORK` / `DNS_FAILED` / `CONNECTION_TIMEOUT` / `SERVER_ERROR` / `API_ERROR` / `PARSE_ERROR`，Timber 日志记录每个失败原因
+- 🔖 **升级**：版本号 v1.20.19 → v1.20.20 (versionCode 49 → 50)
+
+---
+
 ## v1.20.19 (2026-06-17)
 
 - ✨ **新增**：待办任务功能 — 独立的待办列表，支持设置提醒时间、优先级（普通/重要/紧急）
