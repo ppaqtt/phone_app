@@ -96,10 +96,11 @@ abstract class AppDatabase : RoomDatabase() {
                         `completed_at` INTEGER
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_is_completed` ON `todos` (`is_completed`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_reminder_time` ON `todos` (`reminder_time`)")
+                // 索引顺序必须与 Room 期望一致: priority, reminder_time, created_at, is_completed
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_priority` ON `todos` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_reminder_time` ON `todos` (`reminder_time`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_created_at` ON `todos` (`created_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_is_completed` ON `todos` (`is_completed`)")
             }
         }
 
@@ -108,10 +109,10 @@ abstract class AppDatabase : RoomDatabase() {
          */
         private val MIGRATION_11_10 = object : Migration(11, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("DROP INDEX IF EXISTS `index_todos_is_completed`")
-                db.execSQL("DROP INDEX IF EXISTS `index_todos_reminder_time`")
                 db.execSQL("DROP INDEX IF EXISTS `index_todos_priority`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_reminder_time`")
                 db.execSQL("DROP INDEX IF EXISTS `index_todos_created_at`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_is_completed`")
                 db.execSQL("DROP TABLE IF EXISTS `todos`")
             }
         }
