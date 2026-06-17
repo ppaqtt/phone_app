@@ -13,7 +13,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * 启用外键约束 (SQLite 默认关闭), 防止删除分类时存在孤儿 category_id。
  */
 @Database(
-    entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class],
+    entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class],
+    // v10 → v11: 添加 todos 表（待办任务）
     // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
     //           给 note_images 加 position 索引 (手动 MIGRATION_9_10)
     // v8 → v9: 给 notes 加 is_pinned / updated_at / deleted_at 单列索引 (手动 MIGRATION_8_9)
@@ -21,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
-    version = 10,
+    version = 11,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -34,6 +35,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun categoryDao(): CategoryDao
     abstract fun noteImageDao(): NoteImageDao
+    abstract fun todoDao(): TodoDao
 
     companion object {
         @Volatile
@@ -72,6 +74,45 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_priority` ON `notes` (`priority`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_created_at` ON `notes` (`created_at`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_images_position` ON `note_images` (`position`)")
+            }
+        }
+
+        /**
+         * v10 → v11: 添加 todos 表（待办任务）
+         */
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `todos` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `is_completed` INTEGER NOT NULL DEFAULT 0,
+                        `priority` INTEGER NOT NULL DEFAULT 0,
+                        `reminder_time` INTEGER,
+                        `ringtone_uri` TEXT,
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        `completed_at` INTEGER
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_is_completed` ON `todos` (`is_completed`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_reminder_time` ON `todos` (`reminder_time`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_priority` ON `todos` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_created_at` ON `todos` (`created_at`)")
+            }
+        }
+
+        /**
+         * v11 → v10: 降级时删除 todos 表
+         */
+        private val MIGRATION_11_10 = object : Migration(11, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_is_completed`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_reminder_time`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_priority`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_created_at`")
+                db.execSQL("DROP TABLE IF EXISTS `todos`")
             }
         }
 
@@ -160,7 +201,8 @@ abstract class AppDatabase : RoomDatabase() {
                 // 注册所有版本间的迁移。顺序无所谓, Room 会自动选择路径。
                 .addMigrations(
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_9
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_10,
+                    MIGRATION_10_9
                 )
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {

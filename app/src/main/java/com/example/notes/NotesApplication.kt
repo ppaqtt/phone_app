@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.example.notes.data.AppDatabase
 import com.example.notes.repository.NotesRepository
+import com.example.notes.repository.TodoRepository
 import com.example.notes.util.AppLockStore
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.BackupManager
@@ -36,6 +37,11 @@ class NotesApplication : Application() {
             categoryDao = database.categoryDao(),
             noteImageDao = database.noteImageDao()
         )
+    }
+
+    /** 待办任务数据仓库 */
+    val todoRepository: TodoRepository by lazy {
+        TodoRepository(database.todoDao())
     }
 
     /** F9: 应用锁状态 (PIN 哈希 + 启用标志 + 解锁时间) */

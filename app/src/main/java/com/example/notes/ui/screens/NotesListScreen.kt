@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Sort
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Star
@@ -97,7 +98,8 @@ fun NotesListScreen(
     onOpenSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenTrash: () -> Unit,
-    onOpenStats: () -> Unit
+    onOpenStats: () -> Unit,
+    onOpenTodos: () -> Unit
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
@@ -228,6 +230,15 @@ fun NotesListScreen(
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenStats()
+                                }
+                            )
+                            // 待办任务入口
+                            DropdownMenuItem(
+                                text = { Text("待办任务") },
+                                leadingIcon = { Icon(Icons.Filled.CheckCircle, contentDescription = "待办") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenTodos()
                                 }
                             )
                         }

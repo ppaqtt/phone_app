@@ -21,6 +21,7 @@ import com.example.notes.ui.screens.SearchScreen
 import com.example.notes.ui.screens.SettingsScreen
 import com.example.notes.ui.screens.StatsScreen
 import com.example.notes.ui.screens.TagsScreen
+import com.example.notes.ui.screens.TodoListScreen
 import com.example.notes.ui.screens.TrashScreen
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.WidgetIntent
@@ -36,6 +37,8 @@ object Routes {
     const val TRASH = "trash"
     // F13: 统计仪表盘
     const val STATS = "stats"
+    // 待办任务
+    const val TODOS = "todos"
 
     fun edit(noteId: Long) = "edit/$noteId"
 }
@@ -110,7 +113,9 @@ fun NotesNavGraph(
                 // F2: 回收站
                 onOpenTrash = { navController.navigate(Routes.TRASH) { launchSingleTop = true } },
                 // F13: 统计
-                onOpenStats = { navController.navigate(Routes.STATS) { launchSingleTop = true } }
+                onOpenStats = { navController.navigate(Routes.STATS) { launchSingleTop = true } },
+                // 待办任务
+                onOpenTodos = { navController.navigate(Routes.TODOS) { launchSingleTop = true } }
             )
         }
         composable(
@@ -161,6 +166,12 @@ fun NotesNavGraph(
         composable(Routes.STATS) {
             StatsScreen(
                 viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+        // 待办任务
+        composable(Routes.TODOS) {
+            TodoListScreen(
                 onBack = { navController.popBackStack() }
             )
         }
