@@ -135,7 +135,6 @@ object NoteExporter {
         }
 
         // 2) 逐行绘制, 超页时 finishPage + startPage
-        var imageIndex = 0
         for (item in buildExportItems(lines, bitmaps)) {
             when (item) {
                 is ExportItem.Text -> {

@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.notes.util
 
 import android.app.KeyguardManager

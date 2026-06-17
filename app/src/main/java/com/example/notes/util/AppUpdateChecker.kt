@@ -125,8 +125,7 @@ object AppUpdateChecker {
      */
     private suspend fun tryFetch(url: String, sourceName: String): ReleaseInfo? =
         withContext(Dispatchers.IO) {
-            var lastException: Throwable? = null
-            // 最多重试 2 次, 指数退避 1s / 2s
+            // 最多重试 3 次, 指数退避 1s / 2s
             repeat(3) { attempt ->
                 if (attempt > 0) {
                     Timber.tag("UpdateChecker").d("$sourceName retry $attempt/2, waiting ${attempt}s...")
@@ -164,16 +163,12 @@ object AppUpdateChecker {
                         )
                     }
                 } catch (ce: ClassifiedException) {
-                    lastException = ce
                     Timber.tag("UpdateChecker").w(ce, "$sourceName failed: ${ce.message}")
                 } catch (e: java.net.UnknownHostException) {
-                    lastException = ClassifiedException(NetworkErrorType.DNS_FAILED, "DNS解析失败", e)
                     Timber.tag("UpdateChecker").w(e, "$sourceName DNS failed")
                 } catch (e: java.net.SocketTimeoutException) {
-                    lastException = ClassifiedException(NetworkErrorType.CONNECTION_TIMEOUT, "连接超时", e)
                     Timber.tag("UpdateChecker").w(e, "$sourceName timeout")
                 } catch (e: Exception) {
-                    lastException = ClassifiedException(NetworkErrorType.UNKNOWN, e.message ?: "unknown", e)
                     Timber.tag("UpdateChecker").w(e, "$sourceName unexpected error")
                 }
             }
