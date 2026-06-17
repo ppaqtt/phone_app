@@ -1,9 +1,12 @@
 package com.example.notes.util
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import com.example.notes.BuildConfig
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -11,6 +14,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import timber.log.Timber
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.util.concurrent.TimeUnit
 
 /**
@@ -31,13 +36,12 @@ object AppUpdateChecker {
     private const val KEY_LAST_CHECK_AT = "last_check_at"
 
     /**
-     * P108-FIX + P111-FIX: 网络不可用时的兜底最新版本号。
+     * P108-FIX + P111-FIX + P123-FIX: 网络不可用时的兜底最新版本号。
      * 必须与更新日志 [ChangelogData] 中的最新版本保持一致,
      * 否则网络失败时会给出错误的更新提示。
-     * ChangelogData 当前最高为 v1.15.0 (v25), 故 fallback 与之同步。
      * 每次正式发版时手动同步。
      */
-    private const val FALLBACK_LATEST_VERSION = "1.15.0"
+    private const val FALLBACK_LATEST_VERSION = "1.20.18"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME
@@ -53,37 +57,71 @@ object AppUpdateChecker {
         compareVersions(current, latest) < 0
 
     /**
+     * P123-FIX: 检查网络是否可用。
+     */
+    fun isNetworkAvailable(context: Context): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+        val network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
+
+    /**
      * 真实从 GitHub 拉取最新 release, 在 [Dispatchers.IO] 上执行。
+     * P123-FIX: 增加重试机制 (最多 2 次) 和更好的错误分类。
      * 失败时返回 [Result.failure]。
      */
     suspend fun fetchLatestRelease(): Result<ReleaseInfo> = withContext(Dispatchers.IO) {
-        runCatching {
-            val request = Request.Builder()
-                .url(GITHUB_API)
-                .header("Accept", "application/vnd.github+json")
-                .header("User-Agent", "QingJian-Android/${BuildConfig.VERSION_NAME}")
-                .build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw IllegalStateException("GitHub API HTTP ${response.code}")
-                }
-                val body = response.body?.string()
-                    ?: throw IllegalStateException("GitHub API empty body")
-                val json = JSONObject(body)
-                val tag = json.optString("tag_name").removePrefix("v").ifBlank { FALLBACK_LATEST_VERSION }
-                val name = json.optString("name").ifBlank { tag }
-                val notes = json.optString("body")
-                val htmlUrl = json.optString("html_url").ifBlank { RELEASES_PAGE }
-                val publishedAt = json.optString("published_at")
-                ReleaseInfo(
-                    version = tag,
-                    name = name,
-                    notes = notes,
-                    htmlUrl = htmlUrl,
-                    publishedAt = publishedAt
-                )
+        var lastException: Throwable? = null
+        val maxRetries = 2
+
+        for (attempt in 0..maxRetries) {
+            if (attempt > 0) {
+                Timber.tag("AppUpdateChecker").d("Retry attempt $attempt/$maxRetries...")
+                delay(1000L * attempt) // 指数退避: 1s, 2s
             }
-        }.onFailure { Timber.tag("AppUpdateChecker").w(it, "fetchLatestRelease failed, fallback to $FALLBACK_LATEST_VERSION") }
+
+            val result = runCatching {
+                val request = Request.Builder()
+                    .url(GITHUB_API)
+                    .header("Accept", "application/vnd.github+json")
+                    .header("User-Agent", "QingJian-Android/${BuildConfig.VERSION_NAME}")
+                    .header("X-GitHub-Api-Version", "2022-11-28")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw IllegalStateException("GitHub API HTTP ${response.code}")
+                    }
+                    val body = response.body?.string()
+                        ?: throw IllegalStateException("GitHub API empty body")
+                    val json = JSONObject(body)
+                    val tag = json.optString("tag_name").removePrefix("v").ifBlank { FALLBACK_LATEST_VERSION }
+                    val name = json.optString("name").ifBlank { tag }
+                    val notes = json.optString("body")
+                    val htmlUrl = json.optString("html_url").ifBlank { RELEASES_PAGE }
+                    val publishedAt = json.optString("published_at")
+                    ReleaseInfo(
+                        version = tag,
+                        name = name,
+                        notes = notes,
+                        htmlUrl = htmlUrl,
+                        publishedAt = publishedAt
+                    )
+                }
+            }.onFailure { e ->
+                lastException = e
+                Timber.tag("AppUpdateChecker").w(e, "fetchLatestRelease attempt $attempt failed")
+            }
+
+            if (result.isSuccess) {
+                return@withContext result
+            }
+        }
+
+        // 所有重试都失败了
+        Result.failure(lastException ?: IllegalStateException("Unknown network error"))
     }
 
     /**
@@ -98,6 +136,8 @@ object AppUpdateChecker {
      * - 持久化: 把 "上次发现的新版本号" 写入 SharedPreferences, 供 App 主屏
      *   启动后检测到新版本时弹出 SnackBar。
      *
+     * P123-FIX: 增加网络可用性检查, 无网络时直接返回本地对比结果。
+     *
      * @param forceRefresh 跳过内存缓存, 强制重新请求 (设置页"立即检查"用)
      * @param persistContext 用于写入 SharedPreferences, 启动检查时必传, 手动检查可不传
      */
@@ -105,6 +145,21 @@ object AppUpdateChecker {
         forceRefresh: Boolean = false,
         persistContext: Context? = null
     ): UpdateCheckResult = fetchMutex.withLock {
+        val current = currentVersion()
+
+        // P123-FIX: 先检查网络是否可用
+        if (persistContext != null && !isNetworkAvailable(persistContext)) {
+            Timber.tag("AppUpdateChecker").d("No network available, using fallback")
+            val hasUpdate = isNewerAvailable(current, FALLBACK_LATEST_VERSION)
+            return@withLock UpdateCheckResult(
+                currentVersion = current,
+                latestVersion = FALLBACK_LATEST_VERSION,
+                releaseInfo = null,
+                hasUpdate = hasUpdate,
+                errorMessage = "无网络连接, 已使用本地版本对比 (兜底版本: v$FALLBACK_LATEST_VERSION)"
+            )
+        }
+
         // 已有进行中的网络任务, 共享结果
         val inflight = inFlightJob
         val remote: ReleaseInfo? = if (inflight != null && !forceRefresh) {
@@ -128,12 +183,11 @@ object AppUpdateChecker {
                 if (inFlightJob === deferred) inFlightJob = null
             }
         }
-        val current = currentVersion()
         val effective = remote?.version ?: FALLBACK_LATEST_VERSION
         val hasUpdate = isNewerAvailable(current, effective)
-        // P108-FIX: 更清晰的错误提示, 区分"网络失败"和"已是最新"。
+        // P123-FIX: 更清晰的错误提示, 区分"无网络"、"网络超时"和"已是最新"。
         val errorMessage = when {
-            remote == null -> "网络异常, 已使用本地版本对比 (兜底版本: v$effective)"
+            remote == null -> "连接服务器失败, 已使用本地版本对比 (兜底版本: v$effective)"
             !hasUpdate && compareVersions(current, effective) > 0 ->
                 "当前版本 v$current 比远程版本 v$effective 更新"
             else -> null
@@ -251,9 +305,11 @@ object AppUpdateChecker {
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(8, TimeUnit.SECONDS)
-            .readTimeout(8, TimeUnit.SECONDS)
-            .writeTimeout(8, TimeUnit.SECONDS)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            // P123-FIX: 支持通过系统代理访问 GitHub (部分网络环境需要)
+            .proxySelector(java.net.ProxySelector.getDefault())
             .build()
     }
 }
