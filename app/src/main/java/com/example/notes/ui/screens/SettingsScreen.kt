@@ -321,6 +321,7 @@ private fun AboutHeaderCard() {
 
 @Composable
 private fun AboutInfoCard() {
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -332,7 +333,47 @@ private fun AboutInfoCard() {
             InfoRow(label = "当前版本", value = "v${BuildConfig.VERSION_NAME}")
             InfoRow(label = "开发者", value = "平平的小破站")
             InfoRow(label = "版权所有", value = "© 2026 清笺")
-            InfoRow(label = "ICP 备案", value = "暂无")
+            // F22: ICP 备案号 — 点击跳转到工信部备案管理系统
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        try {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                "https://beian.miit.gov.cn/".toUri()
+                            )
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            context.toastShort("无法打开浏览器")
+                        }
+                    }
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "ICP 备案",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "浙ICP备2025194709号-6A",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Filled.OpenInBrowser,
+                        contentDescription = "打开 ICP 备案官网",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }

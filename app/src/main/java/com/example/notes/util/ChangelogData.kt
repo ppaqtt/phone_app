@@ -10,6 +10,14 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.18",
+            date = "2026-06-17",
+            items = listOf(
+                "更新：ICP 备案号改为「浙ICP备2025194709号-6A」, 点击可跳转到工信部备案管理系统 (beian.miit.gov.cn)",
+                "升级：版本号 v1.20.17 → v1.20.18 (versionCode 47 → 48)"
+            )
+        ),
+        Entry(
             version = "v1.20.17",
             date = "2026-06-17",
             items = listOf(
