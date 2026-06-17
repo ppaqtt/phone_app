@@ -432,7 +432,8 @@ fun NoteEditScreen(
                         meta = "清笺 · ${
                             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                                 .format(Date())
-                        }"
+                        }",
+                        imageUris = imageUris.toList()
                     )
                     context.toastShort("已导出 PDF ($pages 页)")
                 }.onFailure {
@@ -455,7 +456,8 @@ fun NoteEditScreen(
                         meta = "清笺 · ${
                             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
                                 .format(Date())
-                        }"
+                        }",
+                        imageUris = imageUris.toList()
                     )
                     context.toastShort("已导出长图 (${w}×${h})")
                 }.onFailure {
