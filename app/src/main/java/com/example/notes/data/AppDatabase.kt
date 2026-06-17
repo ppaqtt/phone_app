@@ -91,8 +91,8 @@ abstract class AppDatabase : RoomDatabase() {
                         `priority` INTEGER NOT NULL DEFAULT 0,
                         `reminder_time` INTEGER,
                         `ringtone_uri` TEXT,
-                        `created_at` INTEGER NOT NULL,
-                        `updated_at` INTEGER NOT NULL,
+                        `created_at` INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         `completed_at` INTEGER
                     )
                 """.trimIndent())
