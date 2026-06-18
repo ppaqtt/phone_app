@@ -44,7 +44,7 @@ object AppUpdateChecker {
     // GitHub 域名在国内基本不可达, 主要依赖 Gitee + jsDelivr CDN。
 
     /** 主端点 1: Gitee 码云 (国内最快) */
-    private const val GITEE_API = "https://gitee.com/api/v5/repos/ppaqtt/phone_app/releases/latest"
+    private const val GITEE_API = "https://gitee.com/api/v5/repos/ppkjgzs/phone_app/releases/latest"
 
     /** 主端点 2: jsDelivr CDN (fastly, 国内可访问) - 省略分支 = 使用默认分支 */
     private const val JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh/ppaqtt/phone_app/VERSION"
