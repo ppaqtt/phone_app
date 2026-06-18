@@ -66,6 +66,7 @@ import com.example.notes.R
 import com.example.notes.ui.theme.ColorTheme
 import com.example.notes.ui.theme.DarkMode
 import com.example.notes.ui.theme.FontScale
+import com.example.notes.ui.theme.ScreenOrientation
 import com.example.notes.ui.theme.rememberThemePreference
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.AppLockStore
@@ -886,6 +887,18 @@ private fun AppearanceCard() {
                 options = ColorTheme.values().toList(),
                 selected = current.colorTheme,
                 onSelect = { pref.setColorTheme(it) }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // P126: 屏幕方向
+            Text("屏幕方向", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            SegmentedRow(
+                options = ScreenOrientation.values().toList(),
+                selected = current.screenOrientation,
+                label = { it.displayName },
+                onSelect = { pref.setScreenOrientation(it) }
             )
         }
     }

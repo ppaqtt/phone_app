@@ -15,8 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * F7: 主题设置 (深色 / 浅色 / 跟随系统), 持久化在 SharedPreferences。
  * F8: 字号设置 (小 / 中 / 大 / 超大), 同样持久化。
  * F11: 主题色 (teal / 蓝 / 紫 / 绿 / 橙), 同样持久化。
+ * P126: 屏幕方向 (跟随系统 / 竖屏 / 横屏), 同样持久化。
  *
- * 三个设置放在一个 Pref 里, 都是 [String], 共享一个 [StateFlow] 通知变化。
+ * 四个设置放在一个 Pref 里, 都是 [String], 共享一个 [StateFlow] 通知变化。
  */
 class ThemePreference(context: Context) {
     private val prefs: SharedPreferences =
@@ -40,10 +41,16 @@ class ThemePreference(context: Context) {
         _state.value = _state.value.copy(colorTheme = value)
     }
 
+    fun setScreenOrientation(value: ScreenOrientation) {
+        prefs.edit().putString(KEY_SCREEN_ORIENTATION, value.name).apply()
+        _state.value = _state.value.copy(screenOrientation = value)
+    }
+
     private fun loadAll(): ThemePref = ThemePref(
         darkMode = DarkMode.fromOrDefault(prefs.getString(KEY_DARK_MODE, null)),
         fontScale = FontScale.fromOrDefault(prefs.getString(KEY_FONT_SCALE, null)),
-        colorTheme = ColorTheme.fromOrDefault(prefs.getString(KEY_COLOR_THEME, null))
+        colorTheme = ColorTheme.fromOrDefault(prefs.getString(KEY_COLOR_THEME, null)),
+        screenOrientation = ScreenOrientation.fromOrDefault(prefs.getString(KEY_SCREEN_ORIENTATION, null))
     )
 
     companion object {
@@ -51,13 +58,15 @@ class ThemePreference(context: Context) {
         private const val KEY_DARK_MODE = "dark_mode"
         private const val KEY_FONT_SCALE = "font_scale"
         private const val KEY_COLOR_THEME = "color_theme"
+        private const val KEY_SCREEN_ORIENTATION = "screen_orientation"
     }
 }
 
 data class ThemePref(
     val darkMode: DarkMode,
     val fontScale: FontScale,
-    val colorTheme: ColorTheme
+    val colorTheme: ColorTheme,
+    val screenOrientation: ScreenOrientation = ScreenOrientation.SYSTEM
 )
 
 enum class DarkMode {
@@ -96,6 +105,23 @@ enum class ColorTheme(val displayName: String) {
     companion object {
         fun fromOrDefault(s: String?): ColorTheme =
             values().firstOrNull { it.name == s } ?: TEAL
+    }
+}
+
+/**
+ * P126: 屏幕方向设置。
+ * - SYSTEM: 跟随系统/传感器 (默认)
+ * - PORTRAIT: 强制竖屏
+ * - LANDSCAPE: 强制横屏
+ */
+enum class ScreenOrientation(val displayName: String) {
+    SYSTEM("跟随系统"),
+    PORTRAIT("竖屏"),
+    LANDSCAPE("横屏");
+
+    companion object {
+        fun fromOrDefault(s: String?): ScreenOrientation =
+            values().firstOrNull { it.name == s } ?: SYSTEM
     }
 }
 

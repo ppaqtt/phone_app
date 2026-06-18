@@ -1,6 +1,7 @@
 package com.example.notes
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -22,6 +23,8 @@ import com.example.notes.ui.screens.AppLockScreen
 import com.example.notes.ui.screens.PermissionIntroScreen
 import com.example.notes.ui.screens.SplashScreen
 import com.example.notes.ui.theme.NotesAppTheme
+import com.example.notes.ui.theme.ScreenOrientation
+import com.example.notes.ui.theme.rememberThemePreference
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.ui.viewmodel.ViewModelFactory
 import com.example.notes.util.NotificationPermission
@@ -57,6 +60,18 @@ class MainActivity : AppCompatActivity() {
         val viewModel: NotesViewModel = ViewModelProvider(this, factory)[NotesViewModel::class.java]
 
         setContent {
+            // P126: 订阅屏幕方向设置, 实时切换
+            val themePref = rememberThemePreference()
+            val screenOrientation by themePref.state.collectAsState()
+
+            LaunchedEffect(screenOrientation.screenOrientation) {
+                requestedOrientation = when (screenOrientation.screenOrientation) {
+                    ScreenOrientation.SYSTEM -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    ScreenOrientation.PORTRAIT -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                    ScreenOrientation.LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                }
+            }
+
             NotesAppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

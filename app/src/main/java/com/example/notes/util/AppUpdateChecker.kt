@@ -48,7 +48,7 @@ object AppUpdateChecker {
      * 否则网络失败时会给出错误的更新提示。
      * 每次正式发版时手动同步。
      */
-    private const val FALLBACK_LATEST_VERSION = "1.20.21"
+    private const val FALLBACK_LATEST_VERSION = "1.20.22"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME

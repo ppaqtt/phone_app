@@ -5,6 +5,16 @@
 
 ---
 
+## v1.20.22 (2026-06-18)
+
+- ✨ **新增**：屏幕方向设置 — 设置 → 外观中新增「屏幕方向」选项，支持跟随系统 / 竖屏 / 横屏三种模式
+- ✨ **新增**：`ScreenOrientation` 枚举 — `SYSTEM`（跟随系统）/ `PORTRAIT`（竖屏）/ `LANDSCAPE`（横屏），持久化到 SharedPreferences
+- ✨ **新增**：`MainActivity` 订阅屏幕方向 `StateFlow` — 通过 `LaunchedEffect` + `requestedOrientation` 实时切换，无需重启应用
+- 🔧 **升级**：`ThemePreference` 扩展 — 新增 `setScreenOrientation()` 方法和 `KEY_SCREEN_ORIENTATION` 存储
+- 🔖 **升级**：版本号 v1.20.21 → v1.20.22 (versionCode 51 → 52)
+
+---
+
 ## v1.20.21 (2026-06-17)
 
 - 🐛 **修复**：自定义待办提醒铃声不生效 — 根因是 Android 8.0+ 通知声音必须在 `NotificationChannel` 上设置，而非 `NotificationCompat.Builder` 上

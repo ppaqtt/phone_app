@@ -10,6 +10,17 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.22",
+            date = "2026-06-18",
+            items = listOf(
+                "新增：屏幕方向设置 — 设置 → 外观中新增「屏幕方向」选项, 支持跟随系统 / 竖屏 / 横屏三种模式",
+                "新增：ScreenOrientation 枚举 — SYSTEM(跟随系统) / PORTRAIT(竖屏) / LANDSCAPE(横屏), 持久化到 SharedPreferences",
+                "新增：MainActivity 订阅屏幕方向 StateFlow — 通过 LaunchedEffect + requestedOrientation 实时切换, 无需重启应用",
+                "升级：ThemePreference 扩展 — 新增 setScreenOrientation() 方法和 KEY_SCREEN_ORIENTATION 存储",
+                "升级：版本号 v1.20.21 → v1.20.22 (versionCode 51 → 52)"
+            )
+        ),
+        Entry(
             version = "v1.20.21",
             date = "2026-06-17",
             items = listOf(
