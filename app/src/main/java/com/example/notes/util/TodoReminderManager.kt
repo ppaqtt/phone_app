@@ -1,11 +1,6 @@
 package com.example.notes.util
 
-import android.app.AlarmManager
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.work.BackoffPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -20,27 +15,18 @@ import java.util.concurrent.TimeUnit
 
 /**
  * 待办任务提醒管理器
+ *
+ * P130-FIX: 本管理器使用 WorkManager 调度一次性延迟任务。
+ * WorkManager 不需要精确闹钟权限 (SCHEDULE_EXACT_ALARM) —— 它内部使用
+ * JobScheduler/AlarmManager 的 setWindow() 或 setExactAndAllowWhileIdle()
+ * (取决于约束条件), 由系统负责最佳执行时机。
+ *
+ * 之前错误地检查了 canScheduleExactAlarms(), 导致 vivo 等国产系统上
+ * 弹出"需要开启精确闹钟权限"的误导性提示。已移除该检查。
  */
 object TodoReminderManager {
 
-    enum class ScheduleResult { SCHEDULED, TIME_PASSED, FAILED, PERMISSION_DENIED }
-
-    fun canScheduleExact(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
-            ?: return true
-        return alarmManager.canScheduleExactAlarms()
-    }
-
-    fun openExactAlarmSettings(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
-        val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-            data = Uri.fromParts("package", context.packageName, null)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        runCatching { context.startActivity(intent) }
-            .onFailure { Timber.tag("TodoReminderManager").w(it, "openExactAlarmSettings failed") }
-    }
+    enum class ScheduleResult { SCHEDULED, TIME_PASSED, FAILED }
 
     suspend fun scheduleReminder(context: Context, todo: TodoEntity): ScheduleResult {
         val reminderTime = todo.reminderTime ?: return ScheduleResult.FAILED
@@ -50,11 +36,6 @@ object TodoReminderManager {
 
         if (delay <= 0) {
             return ScheduleResult.TIME_PASSED
-        }
-
-        if (!canScheduleExact(context)) {
-            Timber.tag("TodoReminderManager").w("精确闹钟权限被撤, todoId=${todo.id}")
-            return ScheduleResult.PERMISSION_DENIED
         }
 
         return try {
@@ -75,6 +56,7 @@ object TodoReminderManager {
 
             WorkManager.getInstance(context)
                 .enqueueUniqueWork(workName, ExistingWorkPolicy.REPLACE, workRequest)
+            Timber.tag("TodoReminderManager").d("Scheduled todo reminder id=${todo.id}, delay=${delay}ms")
             ScheduleResult.SCHEDULED
         } catch (e: Exception) {
             Timber.tag("TodoReminderManager").e(e, "scheduleReminder failed")
@@ -85,6 +67,7 @@ object TodoReminderManager {
     fun cancelReminder(context: Context, todoId: Long) {
         WorkManager.getInstance(context)
             .cancelUniqueWork("todo_reminder_$todoId")
+        Timber.tag("TodoReminderManager").d("Cancelled todo reminder id=$todoId")
     }
 
     suspend fun showScheduleResult(context: Context, result: ScheduleResult) {
@@ -92,13 +75,9 @@ object TodoReminderManager {
             ScheduleResult.SCHEDULED -> "提醒已设置"
             ScheduleResult.TIME_PASSED -> "提醒时间已过"
             ScheduleResult.FAILED -> "提醒设置失败"
-            ScheduleResult.PERMISSION_DENIED -> "需要开启精确闹钟权限"
         }
         withContext(Dispatchers.Main) {
             context.toastShort(message)
-        }
-        if (result == ScheduleResult.PERMISSION_DENIED) {
-            openExactAlarmSettings(context)
         }
     }
 }

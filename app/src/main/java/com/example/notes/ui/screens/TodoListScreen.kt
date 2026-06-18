@@ -51,7 +51,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.notes.NotesApplication
 import com.example.notes.data.TodoEntity
+import com.example.notes.util.NotificationPermission
 import com.example.notes.util.TodoReminderManager
+import com.example.notes.util.rememberNotificationPermissionRequest
 import com.example.notes.util.toastShort
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -75,6 +77,23 @@ fun TodoListScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var editingTodo by remember { mutableStateOf<TodoEntity?>(null) }
     var showCompletedSection by remember { mutableStateOf(true) }
+
+    // P130-FIX: 保存待办时如果缺少通知权限, 先弹申请框
+    var pendingTodo by remember { mutableStateOf<TodoEntity?>(null) }
+    val notificationPermRequest = rememberNotificationPermissionRequest { granted ->
+        if (granted && pendingTodo != null) {
+            scope.launch {
+                val todo = pendingTodo!!
+                if (todo.reminderTime != null && !todo.isCompleted) {
+                    TodoReminderManager.scheduleReminder(context, todo)
+                }
+                pendingTodo = null
+            }
+        } else if (!granted) {
+            context.toastShort("需要通知权限才能响铃提醒")
+            pendingTodo = null
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -253,7 +272,13 @@ fun TodoListScreen(
                 scope.launch {
                     repository.save(todo)
                     if (todo.reminderTime != null && !todo.isCompleted) {
-                        TodoReminderManager.scheduleReminder(context, todo)
+                        // P130-FIX: 保存待办时先检查通知权限
+                        if (!NotificationPermission.hasPermission(context)) {
+                            pendingTodo = todo
+                            notificationPermRequest.value = true
+                        } else {
+                            TodoReminderManager.scheduleReminder(context, todo)
+                        }
                     } else {
                         TodoReminderManager.cancelReminder(context, todo.id)
                     }

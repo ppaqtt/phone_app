@@ -54,7 +54,13 @@ class TodoWorker(
             if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != android.content.pm.PackageManager.PERMISSION_GRANTED
             ) {
-                return Result.success()
+                // P130-FIX: 不要静默返回, 写日志并尝试跳设置页引导用户
+                Timber.tag("TodoWorker").w(
+                    "POST_NOTIFICATIONS denied, todoId=$todoId. " +
+                        "User will not see/hear the reminder."
+                )
+                NotificationPermission.openAppSettings(context)
+                return Result.failure()
             }
         }
 
