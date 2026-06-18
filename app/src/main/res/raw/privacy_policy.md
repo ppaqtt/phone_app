@@ -2,7 +2,7 @@
 
 **生效日期**：2026年06月12日  
 **最近更新**：2026年06月18日  
-**版本**：v1.20.23
+**版本**：v1.20.24
 
 ---
 
@@ -122,8 +122,10 @@
 | `READ_EXTERNAL_STORAGE`（API ≤ 32） | 旧版本读取相册 | 无法选图 |
 | `WRITE_EXTERNAL_STORAGE`（API ≤ 29） | 旧版本保存图片 | 保存图片失败 |
 | `POST_NOTIFICATIONS`（API 33+） | 提醒通知 | 无法收到提醒 |
-| `SCHEDULE_EXACT_ALARM` / `USE_EXACT_ALARM` | 精确提醒 | 提醒可能不准时 |
 | `VIBRATE` | 提醒振动 | 提醒无振动 |
+| `WAKE_LOCK` | 保持 CPU 唤醒以触发提醒 | 提醒可能延迟 |
+| `RECEIVE_BOOT_COMPLETED` | 设备重启后恢复提醒 | 重启后提醒丢失 |
+| `FOREGROUND_SERVICE` | 前台服务保活（部分厂商需要）| 后台被杀后提醒失效 |
 
 所有敏感权限（相机、麦克风、相册、通知）均在您使用时弹窗申请，您可随时在系统设置中撤销。
 

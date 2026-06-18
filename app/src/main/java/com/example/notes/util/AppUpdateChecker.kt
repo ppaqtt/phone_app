@@ -63,7 +63,7 @@ object AppUpdateChecker {
      * 网络不可用时的兜底最新版本号。
      * 必须与更新日志 [ChangelogData] 中的最新版本保持一致。
      */
-    private const val FALLBACK_LATEST_VERSION = "1.20.23"
+    private const val FALLBACK_LATEST_VERSION = "1.20.24"
 
     fun currentVersion(): String = BuildConfig.VERSION_NAME
 

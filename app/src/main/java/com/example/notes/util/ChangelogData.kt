@@ -10,6 +10,17 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.24",
+            date = "2026-06-18",
+            items = listOf(
+                "修复：待办提醒不响铃 — 保存待办时主动检查 POST_NOTIFICATIONS 权限, 未授权时弹系统申请框",
+                "修复：TodoWorker 权限被拒时不静默返回 — 之前没权限直接 Result.success(), 用户完全不知道提醒失败了; 现在写日志并跳转应用通知设置页",
+                "修复：TodoReminderManager 移除误导性权限检查 — WorkManager 不需要 SCHEDULE_EXACT_ALARM 权限, 之前错误检查 canScheduleExactAlarms() 导致 vivo 等系统弹出'需要开启精确闹钟权限'的误导提示",
+                "优化：TodoListScreen 保存流程 — 设置提醒时间后若缺少通知权限, 先申请权限再调度提醒, 避免'设置了但没响'",
+                "升级：版本号 v1.20.23 → v1.20.24 (versionCode 53 → 54)"
+            )
+        ),
+        Entry(
             version = "v1.20.23",
             date = "2026-06-18",
             items = listOf(
