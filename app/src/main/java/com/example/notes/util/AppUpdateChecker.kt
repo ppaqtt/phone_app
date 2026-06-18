@@ -46,11 +46,11 @@ object AppUpdateChecker {
     /** 主端点 1: Gitee 码云 (国内最快) */
     private const val GITEE_API = "https://gitee.com/api/v5/repos/ppaqtt/phone_app/releases/latest"
 
-    /** 主端点 2: jsDelivr CDN (fastly, 国内可访问) */
-    private const val JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh/ppaqtt/phone_app@master/VERSION"
+    /** 主端点 2: jsDelivr CDN (fastly, 国内可访问) - 省略分支 = 使用默认分支 */
+    private const val JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh/ppaqtt/phone_app/VERSION"
 
-    /** 主端点 3: jsDelivr CDN (cdn.jsdelivr.net, 国内备用) */
-    private const val JSDELIVR_CDNJS = "https://cdn.jsdelivr.net/gh/ppaqtt/phone_app@master/VERSION"
+    /** 主端点 3: jsDelivr CDN (cdn.jsdelivr.net, 国内备用) - 省略分支 = 使用默认分支 */
+    private const val JSDELIVR_CDNJS = "https://cdn.jsdelivr.net/gh/ppaqtt/phone_app/VERSION"
 
     /** 备用端点 1: GitHub API (海外, 国内大概率超时) */
     private const val GITHUB_API = "https://api.github.com/repos/ppaqtt/phone_app/releases/latest"
@@ -58,8 +58,11 @@ object AppUpdateChecker {
     /** 备用端点 2: GitHub Releases 重定向 (海外) */
     private const val GITHUB_RELEASES_PAGE = "https://github.com/ppaqtt/phone_app/releases/latest"
 
-    /** 备用端点 3: raw.githubusercontent.com (海外) */
-    private const val RAW_VERSION_URL = "https://raw.githubusercontent.com/ppaqtt/phone_app/master/VERSION"
+    /** 备用端点 3: raw.githubusercontent.com (海外) - try main 分支 */
+    private const val RAW_VERSION_URL_MAIN = "https://raw.githubusercontent.com/ppaqtt/phone_app/main/VERSION"
+
+    /** 备用端点 3b: raw.githubusercontent.com (海外) - try master 分支 */
+    private const val RAW_VERSION_URL_MASTER = "https://raw.githubusercontent.com/ppaqtt/phone_app/master/VERSION"
 
     private const val PREFS_NAME = "app_update_checker"
     private const val KEY_LAST_KNOWN_VERSION = "last_known_version"
@@ -141,8 +144,10 @@ object AppUpdateChecker {
         tryFetchRedirect(GITHUB_RELEASES_PAGE, "GitHub Redirect")
             ?.let { return@withContext Result.success(it) }
 
-        // 5. raw.githubusercontent.com (海外)
-        tryFetchSimpleVersion(RAW_VERSION_URL, "GitHub Raw")
+        // 5. raw.githubusercontent.com (海外) - 先试 main, 再试 master
+        tryFetchSimpleVersion(RAW_VERSION_URL_MAIN, "GitHub Raw-main")
+            ?.let { return@withContext Result.success(it) }
+        tryFetchSimpleVersion(RAW_VERSION_URL_MASTER, "GitHub Raw-master")
             ?.let { return@withContext Result.success(it) }
 
         // 全部失败
