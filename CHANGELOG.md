@@ -5,6 +5,18 @@
 
 ---
 
+## v1.20.23 (2026-06-18)
+
+- 🐛 **修复**：更新检查国内网络优化 — GitHub 域名在国内被 DNS 污染/防火墙拦截，导致始终网络异常
+- ✨ **新增**：Gitee 码云 API 主端点 — 国内 fastest，优先尝试，返回完整 release JSON
+- ✨ **新增**：`fastly.jsdelivr.net` CDN 端点 — 国内加速，纯文本 VERSION 文件，短超时快速失败
+- 🔧 **优化**：端点优先级重排 — `Gitee` → `fastly.jsdelivr` → `GitHub API` → `GitHub Releases` → `raw.githubusercontent`
+- 🔧 **优化**：双 client 策略 — 主 client（3s/5s/3s 超时）用于复杂请求，`shortTimeoutClient`（2s/3s/2s）用于轻量端点
+- 🔧 **优化**：错误提示 — "更新服务器连接失败（GitHub 在国内访问受限），已使用本地版本对比"
+- 🔖 **升级**：版本号 v1.20.22 → v1.20.23 (versionCode 52 → 53)
+
+---
+
 ## v1.20.22 (2026-06-18)
 
 - ✨ **新增**：屏幕方向设置 — 设置 → 外观中新增「屏幕方向」选项，支持跟随系统 / 竖屏 / 横屏三种模式
