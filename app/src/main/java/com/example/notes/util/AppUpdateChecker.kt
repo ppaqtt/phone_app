@@ -40,20 +40,26 @@ object AppUpdateChecker {
 
     // ========== 端点配置 (按优先级排序) ==========
 
-    /** 主端点 1: Gitee 码云 (国内 fastest) */
+    // P131-FIX: 国内网络优先, 超时延长, 重试次数增加。
+    // GitHub 域名在国内基本不可达, 主要依赖 Gitee + jsDelivr CDN。
+
+    /** 主端点 1: Gitee 码云 (国内最快) */
     private const val GITEE_API = "https://gitee.com/api/v5/repos/ppaqtt/phone_app/releases/latest"
 
-    /** 主端点 2: fastly.jsdelivr.net CDN (国内加速) */
-    private const val JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh/ppaqtt/phone_app@main/VERSION"
+    /** 主端点 2: jsDelivr CDN (fastly, 国内可访问) */
+    private const val JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh/ppaqtt/phone_app@master/VERSION"
 
-    /** 备用端点 1: GitHub API (海外) */
+    /** 主端点 3: jsDelivr CDN (cdn.jsdelivr.net, 国内备用) */
+    private const val JSDELIVR_CDNJS = "https://cdn.jsdelivr.net/gh/ppaqtt/phone_app@master/VERSION"
+
+    /** 备用端点 1: GitHub API (海外, 国内大概率超时) */
     private const val GITHUB_API = "https://api.github.com/repos/ppaqtt/phone_app/releases/latest"
 
-    /** 备用端点 2: GitHub Releases 重定向 */
+    /** 备用端点 2: GitHub Releases 重定向 (海外) */
     private const val GITHUB_RELEASES_PAGE = "https://github.com/ppaqtt/phone_app/releases/latest"
 
-    /** 备用端点 3: raw.githubusercontent.com */
-    private const val RAW_VERSION_URL = "https://raw.githubusercontent.com/ppaqtt/phone_app/main/VERSION"
+    /** 备用端点 3: raw.githubusercontent.com (海外) */
+    private const val RAW_VERSION_URL = "https://raw.githubusercontent.com/ppaqtt/phone_app/master/VERSION"
 
     private const val PREFS_NAME = "app_update_checker"
     private const val KEY_LAST_KNOWN_VERSION = "last_known_version"
@@ -105,21 +111,26 @@ object AppUpdateChecker {
 
     /**
      * P127-FIX: 多端点策略, 国内源优先。
+     * P131-FIX: 增加 jsDelivr CDN 多镜像 (fastly / cdnjs), 国内两路探测。
      *
      * 优先级:
-     * 1. Gitee API (国内 fastest, 返回完整 JSON)
-     * 2. fastly.jsdelivr.net (国内 CDN, 纯文本版本)
-     * 3. GitHub API (海外)
+     * 1. Gitee API (国内最快, 返回完整 JSON, 5s超时 / 重试3次)
+     * 2. jsDelivr CDN 两个镜像 (国内加速, 纯文本版本, 5s超时 / 重试2次)
+     * 3. GitHub API (海外, 国内大概率超时)
      * 4. GitHub Releases 重定向 (海外)
      * 5. raw.githubusercontent.com (海外)
      */
     suspend fun fetchLatestRelease(): Result<ReleaseInfo> = withContext(Dispatchers.IO) {
-        // 1. Gitee (国内优先)
+        // 1. Gitee (国内优先, 更长超时+更多重试)
         tryFetchGitee(GITEE_API, "Gitee")
             ?.let { return@withContext Result.success(it) }
 
-        // 2. fastly.jsdelivr.net (国内 CDN)
+        // 2. jsDelivr CDN 两个镜像 (国内 CDN, 纯文本版本)
+        // 2a. fastly
         tryFetchSimpleVersion(JSDELIVR_FASTLY, "jsDelivr-fastly")
+            ?.let { return@withContext Result.success(it) }
+        // 2b. cdnjs
+        tryFetchSimpleVersion(JSDELIVR_CDNJS, "jsDelivr-cdnjs")
             ?.let { return@withContext Result.success(it) }
 
         // 3. GitHub API (海外)
@@ -145,18 +156,21 @@ object AppUpdateChecker {
 
     /**
      * P127-FIX: Gitee API 适配。
+     * P131-FIX: 重试次数从 2 次增加到 3 次。
      * Gitee 的 release API 返回格式与 GitHub 类似, 但字段名略有不同。
      */
     private suspend fun tryFetchGitee(url: String, sourceName: String): ReleaseInfo? =
         withContext(Dispatchers.IO) {
-            repeat(2) { attempt ->
-                if (attempt > 0) delay(500)
+            // P131-FIX: 重试 3 次 (国内网络不稳定)
+            repeat(3) { attempt ->
+                if (attempt > 0) delay(1000)
                 try {
                     val request = Request.Builder()
                         .url(url)
                         .header("User-Agent", "Qingjian-Android/${BuildConfig.VERSION_NAME}")
                         .build()
-                    client.newCall(request).execute().use { response ->
+                    // P131-FIX: 使用长超时 client
+                    domesticClient.newCall(request).execute().use { response ->
                         if (!response.isSuccessful) {
                             Timber.tag("UpdateChecker").w("$sourceName HTTP ${response.code}")
                             return@withContext null
@@ -177,7 +191,7 @@ object AppUpdateChecker {
                         )
                     }
                 } catch (e: Exception) {
-                    Timber.tag("UpdateChecker").w(e, "$sourceName failed")
+                    Timber.tag("UpdateChecker").w(e, "$sourceName failed (attempt ${attempt + 1})")
                 }
             }
             null
@@ -185,43 +199,48 @@ object AppUpdateChecker {
 
     /**
      * 从纯文本 URL 读取版本号。
+     * P131-FIX: 使用国内端点 client (5s/8s/5s), 重试 2 次。
      */
     private suspend fun tryFetchSimpleVersion(url: String, sourceName: String): ReleaseInfo? =
         withContext(Dispatchers.IO) {
-            try {
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "Qingjian-Android/${BuildConfig.VERSION_NAME}")
-                    .build()
-                // P127-FIX: 使用短超时 client 快速失败
-                shortTimeoutClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        Timber.tag("UpdateChecker").w("$sourceName HTTP ${response.code}")
-                        return@withContext null
+            // P131-FIX: 重试 2 次 (CDN 国内也可能有抖动)
+            repeat(2) { attempt ->
+                if (attempt > 0) delay(800)
+                try {
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("User-Agent", "Qingjian-Android/${BuildConfig.VERSION_NAME}")
+                        .build()
+                    // P131-FIX: 使用国内端点 client (更长超时)
+                    domesticClient.newCall(request).execute().use { response ->
+                        if (!response.isSuccessful) {
+                            Timber.tag("UpdateChecker").w("$sourceName HTTP ${response.code}")
+                            return@withContext null
+                        }
+                        val body = response.body?.string()?.trim()
+                        if (body.isNullOrBlank()) {
+                            Timber.tag("UpdateChecker").w("$sourceName empty body")
+                            return@withContext null
+                        }
+                        val version = body.removePrefix("v").trim()
+                        if (version.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) {
+                            Timber.tag("UpdateChecker").d("$sourceName: got version $version")
+                            return@withContext ReleaseInfo(
+                                version = version,
+                                name = "v$version",
+                                notes = "",
+                                htmlUrl = GITHUB_RELEASES_PAGE,
+                                publishedAt = ""
+                            )
+                        }
+                        Timber.tag("UpdateChecker").w("$sourceName: invalid version format: $version")
+                        null
                     }
-                    val body = response.body?.string()?.trim()
-                    if (body.isNullOrBlank()) {
-                        Timber.tag("UpdateChecker").w("$sourceName empty body")
-                        return@withContext null
-                    }
-                    val version = body.removePrefix("v").trim()
-                    if (version.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) {
-                        Timber.tag("UpdateChecker").d("$sourceName: got version $version")
-                        return@withContext ReleaseInfo(
-                            version = version,
-                            name = "v$version",
-                            notes = "",
-                            htmlUrl = GITHUB_RELEASES_PAGE,
-                            publishedAt = ""
-                        )
-                    }
-                    Timber.tag("UpdateChecker").w("$sourceName: invalid version format: $version")
-                    null
+                } catch (e: Exception) {
+                    Timber.tag("UpdateChecker").w(e, "$sourceName failed (attempt ${attempt + 1})")
                 }
-            } catch (e: Exception) {
-                Timber.tag("UpdateChecker").w(e, "$sourceName failed")
-                null
             }
+            null
         }
 
     /**
@@ -490,14 +509,15 @@ object AppUpdateChecker {
     }
 
     /**
-     * 主 client: 用于需要重定向或复杂请求的场景。
+     * P131-FIX: 国内端点 client — 用于 Gitee / jsDelivr CDN 等国内可访问的端点。
+     * 超时更长 (5s/8s/5s), 重试交给上层方法处理。
      */
-    private val client: OkHttpClient by lazy {
+    private val domesticClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(3, TimeUnit.SECONDS)
-            .readTimeout(5, TimeUnit.SECONDS)
-            .writeTimeout(3, TimeUnit.SECONDS)
-            .connectionPool(ConnectionPool(2, 5, TimeUnit.MINUTES))
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .writeTimeout(5, TimeUnit.SECONDS)
+            .connectionPool(ConnectionPool(3, 5, TimeUnit.MINUTES))
             .dns(CachedDns)
             .proxySelector(java.net.ProxySelector.getDefault())
             .followRedirects(true)
@@ -506,14 +526,15 @@ object AppUpdateChecker {
     }
 
     /**
-     * P127-FIX: 短超时 client, 用于轻量端点 (纯文本 VERSION 文件)。
-     * 快速失败, 不阻塞主流程。
+     * 主 client: 用于需要重定向或复杂请求的场景 (海外 GitHub 端点)。
+     * 较短超时 (3s/5s/3s), 快速失败。
      */
-    private val shortTimeoutClient: OkHttpClient by lazy {
+    private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
-            .connectTimeout(2, TimeUnit.SECONDS)
-            .readTimeout(3, TimeUnit.SECONDS)
-            .writeTimeout(2, TimeUnit.SECONDS)
+            .connectTimeout(3, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .writeTimeout(3, TimeUnit.SECONDS)
+            .connectionPool(ConnectionPool(2, 5, TimeUnit.MINUTES))
             .dns(CachedDns)
             .proxySelector(java.net.ProxySelector.getDefault())
             .followRedirects(true)

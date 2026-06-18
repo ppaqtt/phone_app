@@ -11,6 +11,7 @@
 - 🐛 **修复**：`TodoWorker` 权限被拒时不静默返回 — 之前没权限直接 `Result.success()`，用户完全不知道提醒失败了；现在写日志并跳转应用通知设置页
 - 🐛 **修复**：`TodoReminderManager` 移除误导性权限检查 — WorkManager 不需要 `SCHEDULE_EXACT_ALARM` 权限，之前错误检查 `canScheduleExactAlarms()` 导致 vivo 等系统弹出「需要开启精确闹钟权限」的误导提示
 - 🔧 **优化**：`TodoListScreen` 保存流程 — 设置提醒时间后若缺少通知权限，先申请权限再调度提醒，避免「设置了但没响」
+- 🔧 **优化**：更新检查国内网络 — 增加 jsDelivr CDN 两个镜像（fastly / cdnjs），Gitee 和 CDN 重试次数分别增加到 3 次和 2 次，国内端点超时延长到 5s/8s/5s
 - 🔖 **升级**：版本号 v1.20.23 → v1.20.24 (versionCode 53 → 54)
 
 ---
