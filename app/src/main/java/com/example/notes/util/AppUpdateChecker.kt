@@ -34,6 +34,10 @@ object AppUpdateChecker {
 
     private const val GITHUB_API = "https://api.github.com/repos/ppaqtt/phone_app/releases/latest"
     private const val GITHUB_RELEASES_PAGE = "https://github.com/ppaqtt/phone_app/releases/latest"
+    // 备用源 1: jsdelivr CDN 镜像 (国内可访问)
+    private const val JSDELIVR_API = "https://cdn.jsdelivr.net/gh/ppaqtt/phone_app@main/VERSION"
+    // 备用源 2: raw.githubusercontent.com (若 github.com 不可达但 raw 可达)
+    private const val RAW_VERSION_URL = "https://raw.githubusercontent.com/ppaqtt/phone_app/main/VERSION"
     private const val PREFS_NAME = "app_update_checker"
     private const val KEY_LAST_KNOWN_VERSION = "last_known_version"
     private const val KEY_LAST_CHECK_AT = "last_check_at"
@@ -44,7 +48,7 @@ object AppUpdateChecker {
      * 否则网络失败时会给出错误的更新提示。
      * 每次正式发版时手动同步。
      */
-    private const val FALLBACK_LATEST_VERSION = "1.20.20"
+    private const val FALLBACK_LATEST_VERSION = "1.20.21"
 
     /** 当前包版本号 (来自 build.gradle.kts versionName) */
     fun currentVersion(): String = BuildConfig.VERSION_NAME
@@ -99,19 +103,27 @@ object AppUpdateChecker {
 
     /**
      * 尝试从多个端点获取最新版本。优先使用 GitHub API, 失败时回退到
-     * GitHub Releases 页面重定向 (可从 URL 中解析 tag), 再失败用 FALLBACK。
+     * GitHub Releases 页面重定向 (可从 URL 中解析 tag), 再失败回退到
+     * jsdelivr CDN / raw.githubusercontent.com, 最后用 FALLBACK。
      */
     suspend fun fetchLatestRelease(): Result<ReleaseInfo> = withContext(Dispatchers.IO) {
-        // 1. 尝试 GitHub API (主端点)
+        // 1. GitHub API (主端点, 返回完整 release 信息)
         tryFetch(GITHUB_API, "GitHub API")
             ?.let { return@withContext Result.success(it) }
 
-        // 2. 尝试 GitHub Releases 重定向 (备用: 解析 URL 中的 tag)
-        //    某些环境下 api.github.com 不可达但 github.com 可以访问
+        // 2. GitHub Releases 页面重定向 (备用: 解析 URL 中的 tag)
         tryFetchRedirect(GITHUB_RELEASES_PAGE, "GitHub Redirect")
             ?.let { return@withContext Result.success(it) }
 
-        // 3. 全部失败
+        // 3. jsdelivr CDN (国内可访问, 读 VERSION 文件)
+        tryFetchSimpleVersion(JSDELIVR_API, "jsDelivr")
+            ?.let { return@withContext Result.success(it) }
+
+        // 4. raw.githubusercontent.com (备用 4)
+        tryFetchSimpleVersion(RAW_VERSION_URL, "GitHub Raw")
+            ?.let { return@withContext Result.success(it) }
+
+        // 5. 全部失败
         Result.failure(
             ClassifiedException(
                 NetworkErrorType.UNKNOWN,
@@ -119,6 +131,47 @@ object AppUpdateChecker {
             )
         )
     }
+
+    /**
+     * 从纯文本 URL 读取版本号 (例如 VERSION 文件)。
+     * 适用于 jsdelivr / raw.githubusercontent.com 等轻量源。
+     */
+    private suspend fun tryFetchSimpleVersion(url: String, sourceName: String): ReleaseInfo? =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "Qingjian-Android/${BuildConfig.VERSION_NAME}")
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        Timber.tag("UpdateChecker").w("$sourceName HTTP ${response.code}")
+                        return@withContext null
+                    }
+                    val body = response.body?.string()?.trim()
+                    if (body.isNullOrBlank()) {
+                        Timber.tag("UpdateChecker").w("$sourceName empty body")
+                        return@withContext null
+                    }
+                    val version = body.removePrefix("v").trim()
+                    if (version.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) {
+                        Timber.tag("UpdateChecker").d("$sourceName: got version $version")
+                        return@withContext ReleaseInfo(
+                            version = version,
+                            name = "v$version",
+                            notes = "",
+                            htmlUrl = GITHUB_RELEASES_PAGE,
+                            publishedAt = ""
+                        )
+                    }
+                    Timber.tag("UpdateChecker").w("$sourceName: invalid version format: $version")
+                    null
+                }
+            } catch (e: Exception) {
+                Timber.tag("UpdateChecker").w(e, "$sourceName failed")
+                null
+            }
+        }
 
     /**
      * 从 JSON API 端点获取 release 信息。

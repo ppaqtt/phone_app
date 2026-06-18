@@ -10,6 +10,20 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.20.21",
+            date = "2026-06-17",
+            items = listOf(
+                "修复：自定义待办提醒铃声不生效 — 根因是 Android 8.0+ 通知声音必须在 NotificationChannel 上设置, 而非 NotificationCompat.Builder 上",
+                "修复：TodoWorker 重构 — 为每个唯一 ringtoneUri 创建独立 channel (channelId = 'todo_reminder_channel_<hash>'), 不同待办的不同铃声互不干扰",
+                "修复：声音设置补充 AudioAttributes — 使用 USAGE_NOTIFICATION + CONTENT_TYPE_SONIFICATION, 确保 setSound 真正生效",
+                "优化：通知体验 — 增加 BigTextStyle 长内容显示、点击跳转 MainActivity、setVisibility(VISIBILITY_PUBLIC) 锁屏可见、振动模式 [0,300,200,300]",
+                "优化：更新检查多端点策略 — 增加到 4 个端点: GitHub API → GitHub Releases 重定向 → jsDelivr CDN (国内可访问) → raw.githubusercontent.com",
+                "优化：SettingsScreen 检查更新传 context — 启用网络可用性检测, 避免无效网络请求",
+                "优化：tryFetchSimpleVersion 方法 — 支持从纯文本 VERSION 文件解析版本号, 用于轻量级 CDN 源",
+                "升级：版本号 v1.20.20 → v1.20.21 (versionCode 50 → 51)"
+            )
+        ),
+        Entry(
             version = "v1.20.20",
             date = "2026-06-17",
             items = listOf(

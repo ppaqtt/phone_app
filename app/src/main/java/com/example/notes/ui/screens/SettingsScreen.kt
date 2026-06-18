@@ -212,8 +212,11 @@ fun SettingsScreen(
                 onCheck = {
                     scope.launch {
                         isChecking = true
-                        // P-FIX-002: 用户点"检查更新"是明确意图, 跳过内存缓存 forceRefresh=true
-                        val result = AppUpdateChecker.checkForUpdate(forceRefresh = true)
+                        // 传 context 用于网络检测和持久化"已发现的新版本"
+                        val result = AppUpdateChecker.checkForUpdate(
+                            forceRefresh = true,
+                            persistContext = context
+                        )
                         lastCheckResult = result
                         isChecking = false
                         if (result.hasUpdate) {
