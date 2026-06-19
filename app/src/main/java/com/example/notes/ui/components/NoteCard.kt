@@ -35,7 +35,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.notes.data.DEFAULT_COLOR
@@ -49,6 +54,8 @@ fun NoteCard(
     onPinClick: (() -> Unit)? = null,
     onMoreClick: (() -> Unit)? = null,
     coverImageUri: String? = null,
+    /** 可选: 搜索高亮关键字 (来自 SearchScreen 等场景) */
+    highlightQuery: String? = null,
     modifier: Modifier = Modifier
 ) {
     val note = noteWithCategory.note
