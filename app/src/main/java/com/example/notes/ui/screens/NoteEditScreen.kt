@@ -44,6 +44,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Grade
+import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Mic
@@ -870,6 +872,22 @@ fun NoteEditScreen(
                             onClick = {
                                 showExportMenu = false
                                 showHistory = true
+                            }
+                        )
+                        // 高价值/低工作量: 切换笔记星标
+                        DropdownMenuItem(
+                            text = { Text(if (lastSaved?.isFavorite == true) "取消星标" else "加星标") },
+                            leadingIcon = {
+                                Icon(
+                                    if (lastSaved?.isFavorite == true) Icons.Filled.Grade else Icons.Outlined.Grade,
+                                    contentDescription = "星标"
+                                )
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                val id = lastSaved?.id ?: return@DropdownMenuItem
+                                val current = lastSaved?.isFavorite ?: false
+                                viewModel.setFavorite(id, !current)
                             }
                         )
                         // 进阶功能: 加密/解密

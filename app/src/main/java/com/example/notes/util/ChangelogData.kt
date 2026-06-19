@@ -10,6 +10,24 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.31.00",
+            date = "2026-06-20",
+            items = listOf(
+                "【高价值/低工作量 - 高效增强】",
+                "新增：笔记星标 — isFavorite 字段 + 星标筛选 Chip, 重要笔记可一键加星/取消, 列表按 置顶→星标→更新时间 排序",
+                "新增：按字数排序 — NoteSortOrder 扩展 CONTENT_LENGTH_DESC / CONTENT_LENGTH_ASC, 快速找到长笔记 / 短笔记",
+                "新增：一键导出全部笔记为 Markdown ZIP — 设置页「数据备份」新增 ZIP 导出入口, 批量备份无需手动选笔记",
+                "新增：搜索增强 - 分类过滤 Chips — 搜索结果页显示分类筛选 Chips (全部 + 各分类), 缩小搜索范围",
+                "新增：编辑页「加星标」快捷菜单 — 笔记编辑页更多菜单新增「加星标/取消星标」快速切换",
+                "",
+                "【数据库与 UI】",
+                "迁移：v14 → v15 — notes 表新增 is_favorite 字段 (INTEGER DEFAULT 0) + 同名索引, 不影响现有数据",
+                "优化：NoteCard 新增星标图标显示 (已星标的笔记在标题旁显示金色星星)",
+                "优化：NotesListScreen 排序对话框扩展 — 新增「字数从多到少」和「字数从少到多」两项",
+                "升级：版本号 v1.30.00 → v1.31.00 (versionCode 55 → 56)"
+            )
+        ),
+        Entry(
             version = "v1.30.00",
             date = "2026-06-19",
             items = listOf(

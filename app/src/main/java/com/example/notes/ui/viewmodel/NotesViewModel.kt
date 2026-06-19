@@ -34,7 +34,9 @@ enum class NoteSortOrder {
     CREATED_DESC,    // 创建时间降序
     CREATED_ASC,     // 创建时间升序
     TITLE_ASC,       // 标题升序
-    PRIORITY_DESC    // 重要度降序
+    PRIORITY_DESC,   // 重要度降序
+    CONTENT_LENGTH_DESC, // 字数降序 (高价值/低工作量)
+    CONTENT_LENGTH_ASC   // 字数升序 (高价值/低工作量)
 }
 
 data class NotesUiState(
@@ -43,6 +45,8 @@ data class NotesUiState(
     val activeCategoryId: Long? = null,
     val query: String = "",
     val sortOrder: NoteSortOrder = NoteSortOrder.UPDATED_DESC,
+    /** 是否只显示收藏 (星标) 笔记 (高价值/低工作量) */
+    val showOnlyFavorites: Boolean = false,
     /**
      * 首次订阅 Flow 期间为 true, 数据到来后切 false。
      * UI 可借此在加载期间显示指示器, 避免空白闪屏。
@@ -58,31 +62,40 @@ class NotesViewModel(
     private val activeCategoryId = MutableStateFlow<Long?>(null)
     private val query = MutableStateFlow("")
     private val sortOrder = MutableStateFlow(NoteSortOrder.UPDATED_DESC)
+    /** 高价值/低工作量: 只显示星标笔记 */
+    private val showOnlyFavorites = MutableStateFlow(false)
 
     private val notes = activeCategoryId.flatMapLatest { categoryId ->
         if (categoryId == null) repository.observeNotes() else repository.observeNotesByCategory(categoryId)
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder) { notesList, categories, activeId, q, sort ->
+        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites) { notesList, categories, activeId, q, sort, onlyFav ->
             // SQL 已经 ORDER BY is_pinned DESC, updated_at DESC, 但内存 sortBy*
-            // 会丢掉 is_pinned 优先级。所有排序都先按置顶降序, 再按用户选的次级 key。
+            // 会丢掉 is_pinned 优先级。所有排序都先按置顶降序, 再按星标降序, 最后按用户选的次级 key。
             val pinnedFirst = compareByDescending<NoteWithCategory> { it.note.isPinned }
-            val filtered = if (q.isBlank()) notesList else {
+            val favoriteFirst = pinnedFirst.thenByDescending { it.note.isFavorite }
+            var filtered = notesList
+            // 高价值/低工作量: 星标筛选
+            if (onlyFav) filtered = filtered.filter { it.note.isFavorite }
+            if (q.isNotBlank()) {
                 val needle = q.trim()
-                notesList.filter { n ->
+                filtered = filtered.filter { n ->
                     n.note.title.contains(needle, ignoreCase = true) ||
                         n.note.content.contains(needle, ignoreCase = true) ||
                         n.note.tags.contains(needle, ignoreCase = true)
                 }
             }
             val sorted = when (sort) {
-                NoteSortOrder.UPDATED_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.updatedAt })
-                NoteSortOrder.UPDATED_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.updatedAt })
-                NoteSortOrder.CREATED_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.createdAt })
-                NoteSortOrder.CREATED_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.createdAt })
-                NoteSortOrder.TITLE_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.title })
-                NoteSortOrder.PRIORITY_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.priority })
+                NoteSortOrder.UPDATED_DESC -> filtered.sortedWith(favoriteFirst.thenByDescending { it.note.updatedAt })
+                NoteSortOrder.UPDATED_ASC -> filtered.sortedWith(favoriteFirst.thenBy { it.note.updatedAt })
+                NoteSortOrder.CREATED_DESC -> filtered.sortedWith(favoriteFirst.thenByDescending { it.note.createdAt })
+                NoteSortOrder.CREATED_ASC -> filtered.sortedWith(favoriteFirst.thenBy { it.note.createdAt })
+                NoteSortOrder.TITLE_ASC -> filtered.sortedWith(favoriteFirst.thenBy { it.note.title })
+                NoteSortOrder.PRIORITY_DESC -> filtered.sortedWith(favoriteFirst.thenByDescending { it.note.priority })
+                // 高价值/低工作量: 按内容字数排序 (content.length, 实时计算, 无额外 IO)
+                NoteSortOrder.CONTENT_LENGTH_DESC -> filtered.sortedWith(favoriteFirst.thenByDescending { it.note.content.length })
+                NoteSortOrder.CONTENT_LENGTH_ASC -> filtered.sortedWith(favoriteFirst.thenBy { it.note.content.length })
             }
             NotesUiState(
                 notes = sorted,
@@ -90,9 +103,7 @@ class NotesViewModel(
                 activeCategoryId = activeId,
                 query = q,
                 sortOrder = sort,
-                // combine 首次发射即表示数据已就绪, 关闭 loading。
-                // 后续重订阅 (如配置变更) 因为是 stateIn 重启, combine 会在新数据到来
-                // 之前不发新值, 故初始值仍带 isLoading=true。
+                showOnlyFavorites = onlyFav,
                 isLoading = false
             )
         }.stateIn(
@@ -133,6 +144,12 @@ class NotesViewModel(
     fun setQuery(value: String) { query.value = value }
     fun setCategoryFilter(id: Long?) { activeCategoryId.value = id }
     fun setSortOrder(order: NoteSortOrder) { sortOrder.value = order }
+    /** 高价值/低工作量: 切换"只显示收藏"过滤 */
+    fun setShowOnlyFavorites(value: Boolean) { showOnlyFavorites.value = value }
+    /** 高价值/低工作量: 设置单篇笔记的星标状态 */
+    fun setFavorite(noteId: Long, favorite: Boolean) {
+        launchSafe("setFavorite") { repository.setFavorite(noteId, favorite) }
+    }
 
     /**
      * 保存笔记并替换其全部图片。
@@ -528,6 +545,16 @@ class NotesViewModel(
         tempDir.delete()
         zipFile.delete()
         writtenCount
+    }
+
+    /** 高价值/低工作量: 一键导出全部笔记为 Markdown ZIP (用于设置页) */
+    suspend fun exportAllNotesAsZip(
+        context: Context,
+        targetUri: Uri
+    ): Int = withContext(Dispatchers.IO) {
+        // 取所有有效笔记 (非删除) 的 id 列表, 然后复用 exportNotesAsZip 的单笔记流程
+        val noteIds = repository.getAllNotesForSync().map { it.id }
+        exportNotesAsZip(context, noteIds, targetUri)
     }
 }
 

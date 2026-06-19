@@ -1,6 +1,8 @@
 package com.example.notes.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
@@ -23,6 +26,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -122,6 +126,29 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            // 高价值/低工作量: 搜索增强 - 分类过滤 Chips
+            if (state.query.isNotBlank() && state.categories.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = state.activeCategoryId == null,
+                        onClick = { viewModel.setCategoryFilter(null) },
+                        label = { Text("全部") }
+                    )
+                    state.categories.forEach { cat ->
+                        FilterChip(
+                            selected = state.activeCategoryId == cat.id,
+                            onClick = { viewModel.setCategoryFilter(cat.id) },
+                            label = { Text(cat.name) }
+                        )
+                    }
+                }
+            }
             if (state.query.isBlank()) {
                 // 显示搜索历史
                 if (searchHistory.isNotEmpty()) {

@@ -399,10 +399,30 @@ fun NotesListScreen(
             ) {
                 item {
                     FilterChip(
-                        selected = state.activeCategoryId == null,
-                        onClick = { viewModel.setCategoryFilter(null) },
+                        selected = state.activeCategoryId == null && !state.showOnlyFavorites,
+                        onClick = {
+                            viewModel.setCategoryFilter(null)
+                            viewModel.setShowOnlyFavorites(false)
+                        },
                         label = { Text("全部") },
                         colors = FilterChipDefaults.filterChipColors()
+                    )
+                }
+                item {
+                    // 高价值/低工作量: 只显示星标笔记
+                    FilterChip(
+                        selected = state.showOnlyFavorites,
+                        onClick = {
+                            viewModel.setShowOnlyFavorites(!state.showOnlyFavorites)
+                        },
+                        label = { Text("星标") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Grade,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     )
                 }
                 items(state.categories, key = { it.id }) { cat ->
@@ -506,6 +526,10 @@ fun NotesListScreen(
                 onPriority = { showPriorityDialog = true },
                 onShare = {
                     NoteShareUtil.shareAsText(context, target.note)
+                    dismissActions()
+                },
+                onFavorite = {
+                    viewModel.setFavorite(target.note.id, !target.note.isFavorite)
                     dismissActions()
                 }
             )
@@ -659,7 +683,8 @@ private fun NoteActionsRow(
     onDelete: () -> Unit,
     onMove: () -> Unit,
     onPriority: () -> Unit,
-    onShare: () -> Unit
+    onShare: () -> Unit,
+    onFavorite: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -670,6 +695,11 @@ private fun NoteActionsRow(
                     icon = if (target.note.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                     label = if (target.note.isPinned) "取消置顶" else "置顶",
                     onClick = onPin
+                )
+                ActionMenuItem(
+                    icon = if (target.note.isFavorite) Icons.Filled.Grade else Icons.Outlined.Star,
+                    label = if (target.note.isFavorite) "取消星标" else "加星标",
+                    onClick = onFavorite
                 )
                 ActionMenuItem(
                     icon = Icons.Filled.Label,
@@ -912,7 +942,9 @@ private fun SortOrderDialog(
         NoteSortOrder.CREATED_DESC to "创建时间 (新→旧)",
         NoteSortOrder.CREATED_ASC to "创建时间 (旧→新)",
         NoteSortOrder.TITLE_ASC to "标题 (A→Z)",
-        NoteSortOrder.PRIORITY_DESC to "重要度 (高→低)"
+        NoteSortOrder.PRIORITY_DESC to "重要度 (高→低)",
+        NoteSortOrder.CONTENT_LENGTH_DESC to "字数 (多→少)",
+        NoteSortOrder.CONTENT_LENGTH_ASC to "字数 (少→多)"
     )
     var selected by remember { mutableStateOf(current) }
     AlertDialog(

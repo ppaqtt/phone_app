@@ -31,6 +31,7 @@ const val DEFAULT_COLOR: Int = 0xFFFFFFFF.toInt()
     indices = [
         Index("category_id"),
         Index("is_pinned"),
+        Index("is_favorite"),
         Index("updated_at"),
         Index("deleted_at"),
         Index("tags"),
@@ -98,7 +99,15 @@ data class NoteEntity(
      * 用整数而非 enum 字符串: 1) 索引小; 2) 排序快; 3) 数据库可读。
      */
     @ColumnInfo(name = "template_type", defaultValue = "0")
-    val templateType: Int = 0
+    val templateType: Int = 0,
+
+    /**
+     * 高价值/低工作量: 笔记星标 (收藏)。
+     * 独立于置顶 (isPinned), 用于快速筛选重要笔记。
+     * 用 Boolean 而非 Int 让 Room 自动处理, 搜索/计数更直观。
+     */
+    @ColumnInfo(name = "is_favorite", defaultValue = "0")
+    val isFavorite: Boolean = false
 )
 
 @Entity(

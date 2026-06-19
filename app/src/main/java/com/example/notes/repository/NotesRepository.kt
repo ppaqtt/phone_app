@@ -458,4 +458,15 @@ class NotesRepository(
         // 走通用 query, 避免为单次使用加 DAO
         ids.mapNotNull { id -> noteDao.getNoteOnce(id) }
     }
+
+    // --- 高价值/低工作量: 星标 + 排序扩展 -----------------------------
+
+    /** 设置/取消笔记星标 (高价值/低工作量) */
+    suspend fun setFavorite(id: Long, favorite: Boolean) = noteDao.setFavorite(id, favorite)
+
+    /** 响应式: 统计当前收藏的笔记总数 (用于角标 / 状态管理) */
+    fun observeFavoriteCount(): Flow<Int> = noteDao.observeFavoriteCount()
+
+    /** 一次性取所有笔记的 (id, 字符数) 投影, 为"按字数排序"提供排序键 */
+    suspend fun getCharCounts(): List<com.example.notes.data.NoteCharCountRow> = noteDao.getCharCounts()
 }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDownload
@@ -142,6 +143,18 @@ fun SettingsScreen(
         }
     }
 
+    // 高价值/低工作量: 一键导出全部笔记为 Markdown ZIP
+    val createZipLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val result = viewModel.exportAllNotesAsZip(context, uri)
+                snackbarHostState.showSnackbar(result)
+            }
+        }
+    }
+
     // F1: SAF - 打开文档 (导入) — 用户选好源文件后先弹确认对话框
     val openDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -204,6 +217,11 @@ fun SettingsScreen(
                 },
                 onImport = {
                     openDocumentLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+                },
+                onExportZip = {
+                    val date = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+                    val name = "qingjian_notes_$date.zip"
+                    createZipLauncher.launch(name)
                 }
             )
             // F9: 应用锁
@@ -413,7 +431,8 @@ private fun InfoRow(label: String, value: String) {
 private fun BackupCard(
     isWorking: Boolean,
     onExport: () -> Unit,
-    onImport: () -> Unit
+    onImport: () -> Unit,
+    onExportZip: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -451,6 +470,18 @@ private fun BackupCard(
                 subtitle = if (isWorking) "正在恢复…" else "从 JSON 文件恢复 (会清空现有数据)",
                 enabled = !isWorking,
                 onClick = onImport
+            )
+            // 高价值/低工作量: 一键导出全部笔记为 Markdown ZIP
+            Divider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+            BackupRowButton(
+                icon = Icons.Filled.Archive,
+                title = "导出全部笔记为 ZIP",
+                subtitle = "导出为 Markdown 文件的压缩包",
+                enabled = !isWorking,
+                onClick = onExportZip
             )
             if (isWorking) {
                 Spacer(Modifier.height(12.dp))

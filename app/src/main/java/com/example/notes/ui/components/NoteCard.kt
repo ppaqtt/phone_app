@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
@@ -124,6 +125,16 @@ fun NoteCard(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    // 高价值/低工作量: 星标图标 (星标笔记始终显示在标题旁)
+                    if (note.isFavorite) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Grade,
+                            contentDescription = "星标",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                     if (note.isPinned) {
                         Spacer(Modifier.width(8.dp))
                         Icon(

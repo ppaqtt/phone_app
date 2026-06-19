@@ -205,7 +205,32 @@ interface NoteDao {
     /** 进阶功能: 笔记模板字段 (作为普通列存, 0=无模板, 1=日记, 2=会议, 3=读书, 4=周报) */
     @Query("UPDATE notes SET template_type = :templateType WHERE id = :id")
     suspend fun setTemplateType(id: Long, templateType: Int)
+
+    // --- 笔记星标 (高价值/低工作量) ---------------------------------------
+
+    /** 切换/设置笔记的星标状态 */
+    @Query("UPDATE notes SET is_favorite = :favorite WHERE id = :id")
+    suspend fun setFavorite(id: Long, favorite: Boolean)
+
+    /** 统计收藏数 (用于首页角标 / 搜索结果"有 N 篇星标"提示) */
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND is_favorite = 1")
+    fun observeFavoriteCount(): Flow<Int>
+
+    /** 统计某篇笔记的 content 字符数 (为"按字数排序"提供数据源)。
+     *  SQLite 没有 LENGTH(Unicode-aware) 的内建函数, LENGTH 给字节数;
+     *  我们用 `length(replace(content, ' ', ''))` 作为近似字数, 代价 O(N)。
+     */
+    @Query("SELECT id, length(coalesce(content, '')) AS char_count FROM notes WHERE deleted_at IS NULL")
+    suspend fun getCharCounts(): List<NoteCharCountRow>
 }
+
+/** 轻量投影: 笔记 id + 字符数 (按字数排序用) */
+data class NoteCharCountRow(
+    @androidx.room.ColumnInfo(name = "id")
+    val id: Long,
+    @androidx.room.ColumnInfo(name = "char_count")
+    val charCount: Int
+)
 
 /** 进阶功能: 内链解析用的轻量投影 */
 data class NoteIdTitle(
