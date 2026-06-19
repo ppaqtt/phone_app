@@ -6,6 +6,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,24 +27,32 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,16 +61,12 @@ import com.example.notes.util.BiometricHelper
 import kotlinx.coroutines.delay
 
 /**
- * F9: PIN 解锁屏。
+ * F9 + 功能5: 应用锁解锁屏。
  *
- * 模式:
- * - SetPin: 用户首次设置 PIN (输入 2 次确认)
- * - Unlock: 已有 PIN, 输入校验
- * - ChangePin: 先输入旧 PIN 验证, 再设置新 PIN
- *
- * 通过 onSuccess 回调通知上层切换 NavGraph 显示, 失败会抖动提示。
- *
- * @param newPinLength 新设置 PIN 时使用的长度 (4-8), 若为 null 则使用 store.pinLength
+ * 支持两种锁类型: PIN (数字密码) / PATTERN (手势图案)。
+ * - 模式: SetPin (首次设置) / Unlock (解锁) / ChangePin (修改)
+ * - 设置时: 用户可在顶部选择 PIN 或 手势
+ * - 解锁时: 根据 store.lockType 显示对应的解锁界面, 用户也可临时切换
  */
 @Composable
 fun AppLockScreen(
@@ -68,26 +76,42 @@ fun AppLockScreen(
     newPinLength: Int? = null
 ) {
     val context = LocalContext.current
-    var entered by remember { mutableStateOf("") }
-    var firstPin by remember { mutableStateOf("") }
-    // ChangePin 阶段: true = 正在验证旧 PIN, false = 正在设置新 PIN
-    var verifyPhase by remember { mutableStateOf(mode == Mode.ChangePin) }
+
+    // === 共享状态 ===
     var errorText by remember { mutableStateOf<String?>(null) }
-    var isShaking by remember { mutableStateOf(false) }
     var cooldownRemaining by remember { mutableStateOf(0L) }
-
-    // F19: 指纹解锁相关状态 (仅在 Unlock 模式且用户启用了指纹解锁时)
-    val biometricStatus = remember {
-        if (mode == Mode.Unlock && store.isBiometricEnabled)
-            BiometricHelper.canAuthenticate(context)
-        else
-            BiometricHelper.Status.NoHardware
+    // 功能5: 当前选择的锁类型 (PIN / PATTERN), 仅在 SetPin 模式下由用户切换
+    var activeLockType by remember {
+        mutableStateOf(
+            when (mode) {
+                Mode.SetPin -> AppLockStore.LOCK_TYPE_PIN
+                else -> store.lockType
+            }
+        )
     }
-    val showBiometric = mode == Mode.Unlock &&
-        store.isBiometricEnabled &&
-        biometricStatus == BiometricHelper.Status.Available
 
-    // 失败 N 次进入冷却
+    // === PIN 相关状态 ===
+    var pinEntered by remember { mutableStateOf("") }
+    var pinFirst by remember { mutableStateOf("") }
+    var pinVerifyPhase by remember { mutableStateOf(mode == Mode.ChangePin) }
+    var pinIsShaking by remember { mutableStateOf(false) }
+
+    // === Pattern 相关状态 ===
+    var patternEntered by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var patternFirst by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var patternVerifyPhase by remember { mutableStateOf(mode == Mode.ChangePin) }
+    var patternIsShaking by remember { mutableStateOf(false) }
+    // 用户抬起手指时 = 一次提交
+    var patternSubmittedAt by remember { mutableIntStateOf(0) }
+
+    // === 通用 ===
+    val targetPinLen: Int = when {
+        mode == Mode.Unlock && activeLockType == AppLockStore.LOCK_TYPE_PIN -> store.pinLength
+        mode == Mode.ChangePin && pinVerifyPhase -> store.pinLength
+        else -> newPinLength ?: store.pinLength
+    }
+
+    // 失败冷却
     LaunchedEffect(cooldownRemaining) {
         if (cooldownRemaining > 0) {
             while (cooldownRemaining > 0) {
@@ -98,12 +122,16 @@ fun AppLockScreen(
         }
     }
 
-    // 根据当前模式/阶段决定目标 PIN 长度
-    val targetLen: Int = when {
-        mode == Mode.Unlock -> store.pinLength
-        mode == Mode.ChangePin && verifyPhase -> store.pinLength
-        else -> newPinLength ?: store.pinLength
+    // F19: 指纹解锁 (仅 Unlock 模式且已启用时)
+    val biometricStatus = remember {
+        if (mode == Mode.Unlock && store.isBiometricEnabled)
+            BiometricHelper.canAuthenticate(context)
+        else
+            BiometricHelper.Status.NoHardware
     }
+    val showBiometric = mode == Mode.Unlock &&
+        store.isBiometricEnabled &&
+        biometricStatus == BiometricHelper.Status.Available
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -124,13 +152,10 @@ fun AppLockScreen(
                 modifier = Modifier.size(56.dp)
             )
             Spacer(Modifier.height(20.dp))
+            // 标题
             Text(
-                text = when {
-                    mode == Mode.ChangePin && verifyPhase -> "请输入当前 PIN"
-                    mode == Mode.ChangePin -> if (firstPin.isEmpty()) "设置新 PIN (${targetLen}位)" else "再次输入以确认"
-                    mode == Mode.SetPin -> if (firstPin.isEmpty()) "设置 PIN (${targetLen}位)" else "再次输入以确认"
-                    else -> "输入 PIN 解锁"
-                },
+                text = buildTitle(mode, activeLockType, pinFirst, pinVerifyPhase,
+                    patternFirst, patternVerifyPhase, targetPinLen),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold
             )
@@ -140,173 +165,322 @@ fun AppLockScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // 圆点指示器
-            PinIndicator(
-                filled = entered.length,
-                total = targetLen,
-                isError = isShaking,
-                modifier = Modifier.then(
-                    if (isShaking) Modifier.pointerInput(Unit) { /* shake placeholder */ } else Modifier
-                )
+            // === 功能5: 模式切换 (PIN / 手势) ===
+            // - 解锁时: 若两种方式都已设置, 可切换
+            // - 设置时: 允许在两种方式间选一个设置
+            val canSwitch = when (mode) {
+                Mode.Unlock ->
+                    (activeLockType == AppLockStore.LOCK_TYPE_PIN && store.hasPattern.value) ||
+                        (activeLockType == AppLockStore.LOCK_TYPE_PATTERN && store.hasPin.value)
+                Mode.SetPin -> true
+                Mode.ChangePin -> true
+            }
+            if (canSwitch) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = {
+                            errorText = null
+                            pinEntered = ""; pinFirst = ""
+                            patternEntered = emptyList(); patternFirst = emptyList()
+                            activeLockType = AppLockStore.LOCK_TYPE_PIN
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (activeLockType == AppLockStore.LOCK_TYPE_PIN)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Text("PIN 密码")
+                    }
+                    Text("|", color = MaterialTheme.colorScheme.outline)
+                    TextButton(
+                        onClick = {
+                            errorText = null
+                            pinEntered = ""; pinFirst = ""
+                            patternEntered = emptyList(); patternFirst = emptyList()
+                            activeLockType = AppLockStore.LOCK_TYPE_PATTERN
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (activeLockType == AppLockStore.LOCK_TYPE_PATTERN)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    ) {
+                        Text("手势密码")
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // 解锁提示
+            val hint = when (mode) {
+                Mode.SetPin -> when (activeLockType) {
+                    AppLockStore.LOCK_TYPE_PIN ->
+                        if (pinFirst.isEmpty())
+                            "输入 $targetPinLen 位数字作为新 PIN (两次确认)"
+                        else
+                            "再次输入相同 PIN 以确认"
+                    else ->
+                        if (patternFirst.isEmpty())
+                            "绘制手势图案, 至少连接 ${AppLockStore.MIN_PATTERN_POINTS} 个点 (两次确认)"
+                        else
+                            "再次绘制相同的图案以确认"
+                }
+                Mode.Unlock ->
+                    "输入 PIN 解锁"
+                Mode.ChangePin ->
+                    if ((activeLockType == AppLockStore.LOCK_TYPE_PIN && pinVerifyPhase) ||
+                        (activeLockType == AppLockStore.LOCK_TYPE_PATTERN && patternVerifyPhase)
+                    ) "请输入当前${if (activeLockType == AppLockStore.LOCK_TYPE_PIN) "PIN" else "手势"}"
+                    else
+                        if (activeLockType == AppLockStore.LOCK_TYPE_PIN)
+                            "设置新 PIN ($targetPinLen 位)"
+                        else
+                            "设置新手势 (至少 ${AppLockStore.MIN_PATTERN_POINTS} 个点)"
+            else -> ""
+            }
+            Text(
+                text = hint,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(Modifier.height(12.dp))
-            AnimatedVisibility(visible = errorText != null) {
-                Text(
-                    text = errorText ?: "",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
-            if (cooldownRemaining > 0) {
-                Text(
-                    text = "请稍候 ${cooldownRemaining / 1000} 秒后再试",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
+            Spacer(Modifier.height(20.dp))
 
-            Spacer(Modifier.height(24.dp))
-
-            // F19: 指纹解锁按钮 (仅在 Unlock 模式且设备支持时显示)
-            if (showBiometric) {
-                IconButton(
-                    onClick = {
-                        // F20: 向上递归查找 FragmentActivity (AppCompatActivity 间接继承自它)
-                        val activity = findFragmentActivity(context)
-                        if (activity != null) {
-                            BiometricHelper.authenticate(
-                                activity = activity,
-                                title = "指纹解锁",
-                                subtitle = "验证身份以解锁清笺",
-                                negativeButtonText = "使用 PIN 解锁",
-                                onSuccess = {
-                                    // 指纹解锁成功 = 等同于 PIN 解锁成功
-                                    store.updateUnlockTime()
-                                    onSuccess()
-                                },
-                                onCancel = { /* 用户选择 PIN, 不做任何事, 继续显示 PIN 键盘 */ },
-                                onError = { code, msg ->
-                                    errorText = "指纹解锁失败 ($code): $msg"
-                                }
-                            )
-                        } else {
-                            errorText = "无法启动指纹解锁: 当前 Activity 不支持"
-                        }
-                    },
-                    modifier = Modifier.size(56.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Fingerprint,
-                        contentDescription = "指纹解锁",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
+            // === PIN / Pattern 分支渲染 ===
+            if (activeLockType == AppLockStore.LOCK_TYPE_PIN) {
+                PinIndicator(
+                    filled = pinEntered.length,
+                    total = targetPinLen,
+                    isError = pinIsShaking
+                )
+                Spacer(Modifier.height(16.dp))
+                AnimatedVisibility(visible = errorText != null && activeLockType == AppLockStore.LOCK_TYPE_PIN) {
+                    Text(errorText ?: "", color = MaterialTheme.colorScheme.error)
+                }
+                if (cooldownRemaining > 0) {
+                    Text("请稍候 ${cooldownRemaining / 1000} 秒后再试",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelLarge)
+                }
+                if (showBiometric) {
+                    Spacer(Modifier.height(16.dp))
+                    IconButton(
+                        onClick = {
+                            val activity = findFragmentActivity(context)
+                            if (activity != null) {
+                                BiometricHelper.authenticate(
+                                    activity = activity,
+                                    title = "指纹解锁",
+                                    subtitle = "验证身份以解锁清笺",
+                                    negativeButtonText = "使用 PIN 解锁",
+                                    onSuccess = { store.updateUnlockTime(); onSuccess() },
+                                    onCancel = { },
+                                    onError = { code, msg ->
+                                        errorText = "指纹解锁失败 ($code): $msg"
+                                    }
+                                )
+                            } else {
+                                errorText = "无法启动指纹解锁"
+                            }
+                        },
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Fingerprint,
+                            contentDescription = "指纹解锁",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
                 }
                 Spacer(Modifier.height(16.dp))
-            }
-
-            // 数字键盘
-            Keypad(
-                onDigit = { d ->
-                    if (cooldownRemaining > 0) return@Keypad
-                    if (entered.length < targetLen) {
-                        entered += d
-                        errorText = null
-                    }
-                },
-                onBackspace = {
-                    if (cooldownRemaining > 0) return@Keypad
-                    if (entered.isNotEmpty()) {
-                        entered = entered.dropLast(1)
-                        errorText = null
-                    }
-                },
-                onLongBackspace = { entered = "" }
-            )
-        }
-    }
-
-    // 监听 entered 长度, 达到目标即提交
-    LaunchedEffect(entered, mode, verifyPhase, targetLen) {
-        if (entered.length == targetLen) {
-            handleSubmit(
-                mode = mode,
-                verifyPhase = verifyPhase,
-                entered = entered,
-                store = store,
-                firstPin = firstPin,
-                onVerifyOk = { verifyPhase = false; firstPin = ""; entered = "" },
-                onSetFirst = { firstPin = entered; entered = "" },
-                onSuccess = onSuccess,
-                onFail = {
-                    isShaking = true
-                    errorText = "PIN 错误, 请重试"
-                    entered = ""
-                    delay(400L)
-                    isShaking = false
-                },
-                onMismatch = {
-                    isShaking = true
-                    errorText = "两次输入不一致, 请重新设置"
-                    firstPin = ""
-                    entered = ""
-                    delay(400L)
-                    isShaking = false
-                },
-                onCooldown = { cooldownRemaining = AppLockStore.COOLDOWN_MS }
-            )
-        }
-    }
-}
-
-private suspend fun handleSubmit(
-    mode: Mode,
-    verifyPhase: Boolean,
-    entered: String,
-    store: AppLockStore,
-    firstPin: String,
-    onVerifyOk: () -> Unit,
-    onSetFirst: () -> Unit,
-    onSuccess: () -> Unit,
-    onFail: suspend () -> Unit,
-    onMismatch: suspend () -> Unit,
-    onCooldown: () -> Unit
-) {
-    when {
-        mode == Mode.ChangePin && verifyPhase -> {
-            if (store.checkPin(entered)) {
-                onVerifyOk()
+                Keypad(
+                    onDigit = { d ->
+                        if (cooldownRemaining > 0) return@Keypad
+                        if (pinEntered.length < targetPinLen) {
+                            pinEntered += d
+                            errorText = null
+                        }
+                    },
+                    onBackspace = {
+                        if (cooldownRemaining > 0) return@Keypad
+                        if (pinEntered.isNotEmpty()) {
+                            pinEntered = pinEntered.dropLast(1)
+                            errorText = null
+                        }
+                    },
+                    onLongBackspace = { pinEntered = "" }
+                )
             } else {
-                onFail()
-                onCooldown()
-            }
-        }
-        mode == Mode.ChangePin /* !verifyPhase */ || mode == Mode.SetPin -> {
-            if (firstPin.isEmpty()) {
-                onSetFirst()
-            } else {
-                if (firstPin == entered) {
-                    store.setPin(entered)
-                    onSuccess()
-                } else {
-                    onMismatch()
+                // === Pattern 绘制区域 ===
+                AnimatedVisibility(visible = errorText != null) {
+                    Text(errorText ?: "", color = MaterialTheme.colorScheme.error)
+                }
+                Spacer(Modifier.height(16.dp))
+                PatternGrid(
+                    selected = patternEntered,
+                    isError = patternIsShaking,
+                    onSubmit = { points ->
+                        patternEntered = points
+                        patternSubmittedAt++
+                    },
+                    onClearRequest = { patternEntered = emptyList() }
+                )
+                // 清空按钮
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { patternEntered = emptyList() }
+                    ) { Text("清空") }
+                    if (patternFirst.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = {
+                                // 重新绘制第一次
+                                patternFirst = emptyList()
+                                errorText = null
+                            }
+                        ) { Text("重新绘制") }
+                    }
                 }
             }
         }
-        mode == Mode.Unlock -> {
-            if (store.checkPin(entered)) {
-                onSuccess()
-            } else {
-                onFail()
-                onCooldown()
+    }
+
+    // === PIN 提交逻辑 ===
+    LaunchedEffect(pinEntered, mode, pinVerifyPhase, activeLockType) {
+        if (activeLockType != AppLockStore.LOCK_TYPE_PIN) return@LaunchedEffect
+        if (pinEntered.length != targetPinLen) return@LaunchedEffect
+        when {
+            mode == Mode.ChangePin && pinVerifyPhase -> {
+                if (store.checkPin(pinEntered)) {
+                    pinVerifyPhase = false
+                    pinFirst = ""; pinEntered = ""
+                } else {
+                    pinIsShaking = true
+                    errorText = "PIN 错误, 请重试"
+                    pinEntered = ""
+                    delay(400L); pinIsShaking = false
+                    cooldownRemaining = AppLockStore.COOLDOWN_MS
+                }
+            }
+            mode == Mode.SetPin || (mode == Mode.ChangePin && !pinVerifyPhase) -> {
+                if (pinFirst.isEmpty()) {
+                    pinFirst = pinEntered; pinEntered = ""
+                } else {
+                    if (pinFirst == pinEntered) {
+                        store.setPin(pinEntered); onSuccess()
+                    } else {
+                        pinIsShaking = true
+                        errorText = "两次输入不一致, 请重新设置"
+                        pinFirst = ""; pinEntered = ""
+                        delay(400L); pinIsShaking = false
+                    }
+                }
+            }
+            mode == Mode.Unlock -> {
+                if (store.checkPin(pinEntered)) onSuccess()
+                else {
+                    pinIsShaking = true
+                    errorText = "PIN 错误, 请重试"; pinEntered = ""
+                    delay(400L); pinIsShaking = false
+                    cooldownRemaining = AppLockStore.COOLDOWN_MS
+                }
+            }
+        }
+    }
+
+    // === Pattern 提交逻辑 ===
+    LaunchedEffect(patternSubmittedAt, mode, patternVerifyPhase, activeLockType) {
+        if (activeLockType != AppLockStore.LOCK_TYPE_PATTERN) return@LaunchedEffect
+        if (patternSubmittedAt == 0) return@LaunchedEffect
+        val points = patternEntered
+        if (points.size < AppLockStore.MIN_PATTERN_POINTS) {
+            errorText = "手势至少需要 ${AppLockStore.MIN_PATTERN_POINTS} 个点"
+            return@LaunchedEffect
+        }
+        val patternStr = points.joinToString(",")
+        when {
+            mode == Mode.ChangePin && patternVerifyPhase -> {
+                if (store.checkPattern(patternStr)) {
+                    patternVerifyPhase = false
+                    patternFirst = emptyList(); patternEntered = emptyList()
+                } else {
+                    patternIsShaking = true
+                    errorText = "手势错误, 请重试"; patternEntered = emptyList()
+                    delay(400L); patternIsShaking = false
+                    cooldownRemaining = AppLockStore.COOLDOWN_MS
+                }
+            }
+            mode == Mode.SetPin || (mode == Mode.ChangePin && !patternVerifyPhase) -> {
+                if (patternFirst.isEmpty()) {
+                    patternFirst = points; patternEntered = emptyList()
+                    errorText = "请再次绘制相同的手势以确认"
+                } else {
+                    if (patternFirst == points) {
+                        store.setPattern(patternStr); onSuccess()
+                    } else {
+                        patternIsShaking = true
+                        errorText = "两次手势不一致, 请重新设置"
+                        patternFirst = emptyList(); patternEntered = emptyList()
+                        delay(400L); patternIsShaking = false
+                    }
+                }
+            }
+            mode == Mode.Unlock -> {
+                if (store.checkPattern(patternStr)) onSuccess()
+                else {
+                    patternIsShaking = true
+                    errorText = "手势错误, 请重试"; patternEntered = emptyList()
+                    delay(400L); patternIsShaking = false
+                    cooldownRemaining = AppLockStore.COOLDOWN_MS
+                }
             }
         }
     }
 }
 
+/** 构建标题文字 (PIN / Pattern 各自语义不同) */
+private fun buildTitle(
+    mode: Mode,
+    lockType: String,
+    pinFirst: String,
+    pinVerify: Boolean,
+    patternFirst: List<Int>,
+    patternVerify: Boolean,
+    targetPinLen: Int
+): String {
+    return when {
+        mode == Mode.ChangePin && ((lockType == AppLockStore.LOCK_TYPE_PIN && pinVerify) ||
+            (lockType == AppLockStore.LOCK_TYPE_PATTERN && patternVerify)) ->
+            "请输入当前${if (lockType == AppLockStore.LOCK_TYPE_PIN) "PIN" else "手势"}"
+        mode == Mode.SetPin || (mode == Mode.ChangePin) -> {
+            when (lockType) {
+                AppLockStore.LOCK_TYPE_PIN ->
+                    if (pinFirst.isEmpty()) "设置 PIN ($targetPinLen 位)" else "再次输入以确认"
+                else ->
+                    if (patternFirst.isEmpty()) "设置手势" else "再次绘制以确认"
+            }
+        }
+        else ->
+            if (lockType == AppLockStore.LOCK_TYPE_PIN) "输入 PIN 解锁" else "绘制手势解锁"
+    }
+}
+
+/**
+ * F9: 模式枚举。保持与原来一致:
+ * - SetPin: 设置 (PIN 或手势, 由上层传入的 activeLockType 决定)
+ * - Unlock: 解锁 (根据 store.lockType)
+ * - ChangePin: 修改 (先验证旧, 再设置新)
+ */
 enum class Mode { SetPin, Unlock, ChangePin }
 
 /**
@@ -426,4 +600,169 @@ private fun KeyButton(
     ) {
         content()
     }
+}
+
+/**
+ * 功能5: 3x3 手势绘制网格。
+ *
+ * 实现思路:
+ * - Canvas 先绘制 9 个点 + 已选中的点连接线
+ * - detectDragGestures 监听滑动, 判断手指当前覆盖的点
+ * - 松手 (onDragEnd) 时调用 onSubmit 提交
+ */
+@Composable
+private fun PatternGrid(
+    selected: List<Int>,
+    isError: Boolean,
+    onSubmit: (List<Int>) -> Unit,
+    onClearRequest: () -> Unit,
+    gridSizePx: Int = 280
+) {
+    val density = LocalDensity.current
+    val gridPx = with(density) { gridSizePx.dp.toPx() }
+    // 每个点的中心坐标: 3x3 网格, 等间距
+    val cellSize = gridPx / 3f
+    val pointRadius = cellSize * 0.18f
+    val connectRadius = cellSize * 0.5f // 触发选中的半径
+    val points = Array(9) { idx ->
+        val row = idx / 3; val col = idx % 3
+        Offset(
+            x = col * cellSize + cellSize / 2f,
+            y = row * cellSize + cellSize / 2f
+        )
+    }
+
+    // 实时正在绘制的点
+    val currentPoints = remember { mutableStateListOf<Int>() }
+    var currentFinger by remember { mutableStateOf<Offset?>(null) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    // `selected` 是外部传入的 "已提交" 的手势列表, 若外部清空了 selected,
+    // 我们清空 currentPoints 以保证下次绘制时从零开始
+    LaunchedEffect(selected) {
+        if (selected.isEmpty()) {
+            currentPoints.clear()
+            currentFinger = null
+        } else {
+            currentPoints.clear()
+            currentPoints.addAll(selected)
+        }
+    }
+
+    // 确定一条从最后一个选中点到当前手指位置的临时线
+    val lineColor = if (isError) MaterialTheme.colorScheme.error
+    else MaterialTheme.colorScheme.primary
+    val dotColor = if (isError) MaterialTheme.colorScheme.error
+    else MaterialTheme.colorScheme.onSurfaceVariant
+    val selectedFillColor = if (isError) MaterialTheme.colorScheme.error
+    else MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = Modifier
+            .size(gridSizePx.dp)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        currentPoints.clear()
+                        // 找 offset 最近的点
+                        addPointIfNear(currentPoints, points, offset, connectRadius)
+                    },
+                    onDrag = { change, _ ->
+                        currentFinger = change.position
+                        addPointIfNear(currentPoints, points, change.position, connectRadius)
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                        val final = currentPoints.toList()
+                        if (final.isNotEmpty()) {
+                            onSubmit(final)
+                        }
+                        currentFinger = null
+                    },
+                    onDragCancel = {
+                        isDragging = false
+                        currentFinger = null
+                        onClearRequest()
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            // 1) 绘制连接线 (已选中点 -> 后续点)
+            val path = Path()
+            for (i in currentPoints.indices) {
+                val p = points[currentPoints[i]]
+                if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+            }
+            // 到当前手指位置的临时线
+            if (isDragging && currentPoints.isNotEmpty() && currentFinger != null) {
+                path.lineTo(currentFinger!!.x, currentFinger!!.y)
+            }
+            drawPath(
+                path = path,
+                color = lineColor,
+                style = Stroke(width = 6f)
+            )
+
+            // 2) 绘制 9 个点
+            for (i in 0 until 9) {
+                val p = points[i]
+                val isSel = currentPoints.contains(i)
+                drawCircle(
+                    color = if (isSel) selectedFillColor else dotColor,
+                    radius = if (isSel) pointRadius * 1.3f else pointRadius,
+                    center = p
+                )
+                if (!isSel) {
+                    // 未选中点的外圈
+                    drawCircle(
+                        color = dotColor.copy(alpha = 0.25f),
+                        radius = pointRadius * 2.2f,
+                        center = p
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 如果 offset 距某个未选中的点足够近, 则添加到 selected 列表 (按顺序) */
+private fun addPointIfNear(
+    selected: MutableList<Int>,
+    points: Array<Offset>,
+    offset: Offset,
+    radius: Float
+) {
+    for (i in points.indices) {
+        val p = points[i]
+        val dx = p.x - offset.x; val dy = p.y - offset.y
+        val dist = kotlin.math.sqrt(dx * dx + dy * dy)
+        if (dist <= radius && !selected.contains(i)) {
+            // 跳过中间点: 例如从 0 到 2, 如果 1 还没被选, 则自动补 1
+            if (selected.isNotEmpty()) {
+                val last = selected.last()
+                val midIdx = midPointIndex(last, i)
+                if (midIdx != null && midIdx !in selected) {
+                    selected.add(midIdx)
+                }
+            }
+            selected.add(i)
+            return
+        }
+    }
+}
+
+/** 计算两个 3x3 网格点是否为同行/同列/同斜线, 且中间有一个点被跳过, 返回中间点索引 */
+private fun midPointIndex(a: Int, b: Int): Int? {
+    val ra = a / 3; val ca = a % 3
+    val rb = b / 3; val cb = b % 3
+    // 同行且列差 2, 例如 0,2
+    if (ra == rb && kotlin.math.abs(ca - cb) == 2) return a + (b - a) / 2
+    // 同列且行差 2
+    if (ca == cb && kotlin.math.abs(ra - rb) == 2) return a + (b - a) / 2
+    // 对角线
+    if (kotlin.math.abs(ra - rb) == 2 && kotlin.math.abs(ca - cb) == 2) return a + (b - a) / 2
+    return null
 }

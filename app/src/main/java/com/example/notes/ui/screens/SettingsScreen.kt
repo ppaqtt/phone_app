@@ -512,9 +512,10 @@ private fun AppLockCard(viewModel: NotesViewModel) {
     val app = context.applicationContext as com.example.notes.NotesApplication
     val store = remember { app.appLockStore }
     val isEnabled by store.isEnabled.collectAsState()
+    val hasPin by store.hasPin.collectAsState()
+    val hasPattern by store.hasPattern.collectAsState()
     val currentLen = store.pinLength
 
-    // 是否正在进入设置 PIN 流程
     var showSetup by remember { mutableStateOf(false) }
     // 是否正在修改 PIN
     var showChange by remember { mutableStateOf(false) }
@@ -540,7 +541,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
             newPinLength = newPinLen,
             onSuccess = {
                 showSetup = false
-                context.toastShort("应用锁已启用 (${newPinLen} 位 PIN)")
+                context.toastShort("应用锁已启用")
             }
         )
         showChange -> AppLockScreen(
@@ -549,7 +550,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
             newPinLength = newPinLen,
             onSuccess = {
                 showChange = false
-                context.toastShort("PIN 已修改 (${newPinLen} 位)")
+                context.toastShort("应用锁已修改")
             }
         )
         else -> {
@@ -557,7 +558,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                 AlertDialog(
                     onDismissRequest = { showDisableConfirm = false },
                     title = { Text("关闭应用锁?") },
-                    text = { Text("关闭后再次打开应用将不再需要输入 PIN") },
+                    text = { Text("关闭后再次打开应用将不再需要输入 PIN 或手势") },
                     confirmButton = {
                         TextButton(onClick = {
                             store.disable()
@@ -572,7 +573,7 @@ private fun AppLockCard(viewModel: NotesViewModel) {
             if (showForgotPin) {
                 AlertDialog(
                     onDismissRequest = { showForgotPin = false },
-                    title = { Text("忘记 PIN?") },
+                    title = { Text("忘记密码?") },
                     text = {
                         Text("您需要清除所有笔记数据才能重置应用锁。此操作不可恢复，请确认已做好备份。")
                     },
@@ -625,6 +626,9 @@ private fun AppLockCard(viewModel: NotesViewModel) {
             AppLockCardContent(
                 isEnabled = isEnabled,
                 pinLength = currentLen,
+                hasPin = hasPin,
+                hasPattern = hasPattern,
+                currentLockType = store.lockType,
                 canUseBiometric = canUseBiometric,
                 biometricEnabled = biometricEnabled,
                 biometricStatus = biometricStatus,
@@ -654,6 +658,13 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                 },
                 onSetup = { showSetup = true },
                 onChange = { showChange = true },
+                onSwitchLockType = { type ->
+                    if (store.switchLockType(type)) {
+                        context.toastShort(
+                            "已切换到" + if (type == AppLockStore.LOCK_TYPE_PIN) "PIN" else "手势"
+                        )
+                    }
+                },
                 onDisable = { showDisableConfirm = true },
                 onLockNow = {
                     store.forceRelock()
@@ -670,12 +681,16 @@ private fun AppLockCard(viewModel: NotesViewModel) {
 private fun AppLockCardContent(
     isEnabled: Boolean,
     pinLength: Int,
+    hasPin: Boolean,
+    hasPattern: Boolean,
+    currentLockType: String,
     canUseBiometric: Boolean,
     biometricEnabled: Boolean,
     biometricStatus: BiometricHelper.Status,
     onBiometricToggle: (Boolean) -> Unit,
     onSetup: () -> Unit,
     onChange: () -> Unit,
+    onSwitchLockType: (String) -> Unit,
     onDisable: () -> Unit,
     onLockNow: () -> Unit,
     onForgotPin: () -> Unit,
@@ -694,9 +709,10 @@ private fun AppLockCardContent(
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(4.dp))
+            val typeLabel = if (currentLockType == AppLockStore.LOCK_TYPE_PIN) "PIN 码" else "手势图案"
             Text(
-                if (isEnabled) "已启用, 当前 PIN 长度 ${pinLength} 位"
-                else "启用后, 进入应用 / 切回前台时需要输入 PIN",
+                if (isEnabled) "已启用, 当前解锁方式: $typeLabel"
+                else "启用后, 进入应用 / 切回前台时需要输入 PIN 或绘制手势",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -752,10 +768,27 @@ private fun AppLockCardContent(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = onChange, modifier = Modifier.weight(1f)) {
-                            Text("修改 PIN")
+                            Text("修改当前锁")
                         }
                         TextButton(onClick = onLockNow, modifier = Modifier.weight(1f)) {
                             Text("立即锁定")
+                        }
+                    }
+                    // 功能5: 锁类型切换 — 当两种方式都已设置时可用
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(
+                            onClick = { onSwitchLockType(AppLockStore.LOCK_TYPE_PIN) },
+                            enabled = hasPin,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("用 PIN 解锁" + if (currentLockType == AppLockStore.LOCK_TYPE_PIN) " ✓" else "")
+                        }
+                        TextButton(
+                            onClick = { onSwitchLockType(AppLockStore.LOCK_TYPE_PATTERN) },
+                            enabled = hasPattern,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("用手势解锁" + if (currentLockType == AppLockStore.LOCK_TYPE_PATTERN) " ✓" else "")
                         }
                     }
                     Row(modifier = Modifier.fillMaxWidth()) {
@@ -770,7 +803,7 @@ private fun AppLockCardContent(
                         }
                     }
                     TextButton(onClick = onForgotPin, modifier = Modifier.fillMaxWidth()) {
-                        Text("忘记 PIN?", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("忘记 PIN / 手势?", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             } else {

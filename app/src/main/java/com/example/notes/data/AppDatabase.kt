@@ -22,7 +22,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
-    version = 11,
+    version = 12,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -101,6 +101,44 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_reminder_time` ON `todos` (`reminder_time`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_created_at` ON `todos` (`created_at`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_is_completed` ON `todos` (`is_completed`)")
+            }
+        }
+
+        /**
+         * 功能3: v11 → v12: 给 todos 表加 reminder_repeat 字段 (重复提醒)。
+         */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `todos` ADD COLUMN `reminder_repeat` TEXT NOT NULL DEFAULT 'NONE'")
+            }
+        }
+
+        /**
+         * 功能3: v12 → v11: 降级时删除 reminder_repeat 字段 (需要重建表)。
+         */
+        private val MIGRATION_12_11 = object : Migration(12, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // SQLite 不支持 DROP COLUMN，使用重建表方式降级
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `todos_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `is_completed` INTEGER NOT NULL DEFAULT 0,
+                        `priority` INTEGER NOT NULL DEFAULT 0,
+                        `reminder_time` INTEGER,
+                        `ringtone_uri` TEXT,
+                        `created_at` INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        `completed_at` INTEGER
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO todos_new (id, title, content, is_completed, priority, reminder_time, ringtone_uri, created_at, updated_at, completed_at)
+                    SELECT id, title, content, is_completed, priority, reminder_time, ringtone_uri, created_at, updated_at, completed_at FROM todos
+                """.trimIndent())
+                db.execSQL("DROP TABLE IF EXISTS `todos`")
+                db.execSQL("ALTER TABLE todos_new RENAME TO `todos`")
             }
         }
 
@@ -202,8 +240,8 @@ abstract class AppDatabase : RoomDatabase() {
                 // 注册所有版本间的迁移。顺序无所谓, Room 会自动选择路径。
                 .addMigrations(
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_10,
-                    MIGRATION_10_9
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                    MIGRATION_11_10, MIGRATION_10_9, MIGRATION_12_11
                 )
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {

@@ -98,7 +98,8 @@ fun NoteCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = note.title.ifBlank { "无标题" },
+                        text = if (highlightQuery.isNullOrBlank()) note.title.ifBlank { "无标题" }
+                            else highlightAnnotated(note.title.ifBlank { "无标题" }, highlightQuery),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
@@ -135,7 +136,8 @@ fun NoteCard(
                 if (note.content.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = note.content,
+                        text = if (highlightQuery.isNullOrBlank()) note.content
+                            else highlightAnnotated(note.content, highlightQuery),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 3,
@@ -250,4 +252,46 @@ private fun tableCountInContent(content: String): Int {
         i++
     }
     return count
+}
+
+/**
+ * 功能1: 将 [text] 中所有 [query] 出现处用强调样式渲染 (加粗 + 主题色背景)。
+ * 大小写不敏感匹配, 不修改原文, 仅在 AnnotatedString 中标注 span。
+ */
+@Composable
+private fun highlightAnnotated(
+    text: String,
+    query: String
+): AnnotatedString {
+    val highlightColor = androidx.compose.material3.MaterialTheme.colorScheme.primary
+    val highlightBackground = androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer
+    if (query.isBlank() || text.isEmpty()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        val lowerText = text.lowercase()
+        val lowerQuery = query.trim().lowercase()
+        if (lowerQuery.isEmpty()) {
+            append(text)
+            return@buildAnnotatedString
+        }
+        var cursor = 0
+        while (true) {
+            val idx = lowerText.indexOf(lowerQuery, startIndex = cursor)
+            if (idx < 0) {
+                append(text.substring(cursor))
+                break
+            }
+            append(text.substring(cursor, idx))
+            withStyle(
+                style = SpanStyle(
+                    color = highlightColor,
+                    background = highlightBackground,
+                    fontWeight = FontWeight.SemiBold
+                )
+            ) {
+                append(text.substring(idx, idx + lowerQuery.length))
+            }
+            cursor = idx + lowerQuery.length
+            if (cursor >= text.length) break
+        }
+    }
 }

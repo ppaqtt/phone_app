@@ -59,6 +59,14 @@ class TodoRepository(
     suspend fun setReminderTime(id: Long, reminderTime: Long?) =
         todoDao.setReminderTime(id, reminderTime)
 
+    /** 功能3: 设置提醒重复模式 */
+    suspend fun setReminderRepeat(id: Long, reminderRepeat: String) =
+        todoDao.setReminderRepeat(id, reminderRepeat)
+
+    /** 功能3: 同时更新提醒时间和重复模式 */
+    suspend fun setReminderTimeAndRepeat(id: Long, reminderTime: Long?, reminderRepeat: String) =
+        todoDao.setReminderTimeAndRepeat(id, reminderTime, reminderRepeat)
+
     /** 设置铃声 */
     suspend fun setRingtone(id: Long, ringtoneUri: String?) =
         todoDao.setRingtone(id, ringtoneUri)

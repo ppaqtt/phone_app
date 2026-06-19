@@ -466,6 +466,31 @@ fun NoteEditScreen(
             }
         }
     }
+    // 功能4: Markdown 导出
+    val createMdLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/markdown")
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                runCatching {
+                    val bytes = com.example.notes.util.NoteExporter.exportMarkdownToUri(
+                        context = context,
+                        uri = uri,
+                        title = title.ifBlank { "无标题" },
+                        content = content.text,
+                        meta = "清笺 · ${
+                            SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                                .format(Date())
+                        }",
+                        imageUris = imageUris.toList()
+                    )
+                    context.toastShort("已导出 Markdown ($bytes 字节)")
+                }.onFailure {
+                    context.toastLong("导出 Markdown 失败: ${it.message}")
+                }
+            }
+        }
+    }
 
     // P67: 不再用共享 Calendar 状态, 每次 showDateTimePicker 新建一个实例,
     // 避免跨日跨月后上次选的日期残留。
@@ -764,18 +789,31 @@ fun NoteEditScreen(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("导出为长图 (PNG)") },
-                                leadingIcon = {
-                                    Icon(Icons.Filled.Image, contentDescription = "长图")
-                                },
-                                onClick = {
-                                    showExportMenu = false
-                                    val fileName = com.example.notes.util.NoteExporter
-                                        .defaultFileName(title.ifBlank { "笔记" }, "png")
-                                    createImageLauncher.launch(fileName)
-                                }
-                            )
-                        }
+                            text = { Text("导出为长图 (PNG)") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Image, contentDescription = "长图")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                val fileName = com.example.notes.util.NoteExporter
+                                    .defaultFileName(title.ifBlank { "笔记" }, "png")
+                                createImageLauncher.launch(fileName)
+                            }
+                        )
+                        // 功能4: 新增 Markdown 导出
+                        DropdownMenuItem(
+                            text = { Text("导出为 Markdown") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.TextFields, contentDescription = "Markdown")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                val fileName = com.example.notes.util.NoteExporter
+                                    .defaultFileName(title.ifBlank { "笔记" }, "md")
+                                createMdLauncher.launch(fileName)
+                            }
+                        )
+                    }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

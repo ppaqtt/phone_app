@@ -13,6 +13,7 @@ import androidx.room.PrimaryKey
  * @param isCompleted 是否已完成
  * @param priority 优先级: 0=普通, 1=重要, 2=紧急
  * @param reminderTime 提醒时间（毫秒），null 表示不提醒
+ * @param reminderRepeat 提醒重复模式: NONE / DAILY / WEEKLY / MONTHLY
  * @param ringtoneUri 自定义铃声 URI，null 表示使用默认铃声
  * @param createdAt 创建时间
  * @param updatedAt 更新时间
@@ -47,6 +48,10 @@ data class TodoEntity(
     /** 提醒时间（毫秒），null 表示不提醒 */
     @ColumnInfo(name = "reminder_time")
     val reminderTime: Long? = null,
+
+    /** 功能3: 提醒重复模式, 默认不重复 */
+    @ColumnInfo(name = "reminder_repeat", defaultValue = "NONE")
+    val reminderRepeat: String = "NONE",
 
     /** 自定义铃声 URI，null 表示使用默认铃声 */
     @ColumnInfo(name = "ringtone_uri")

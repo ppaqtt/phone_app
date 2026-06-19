@@ -171,7 +171,8 @@ fun SearchScreen(
                     items(state.notes, key = { it.note.id }) { nwc ->
                         NoteCard(
                             noteWithCategory = nwc,
-                            onClick = { onOpenNote(nwc.note.id) }
+                            onClick = { onOpenNote(nwc.note.id) },
+                            highlightQuery = state.query
                         )
                     }
                 }

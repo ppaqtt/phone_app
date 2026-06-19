@@ -55,6 +55,14 @@ interface TodoDao {
     @Query("UPDATE todos SET reminder_time = :reminderTime, updated_at = :updatedAt WHERE id = :id")
     suspend fun setReminderTime(id: Long, reminderTime: Long?, updatedAt: Long = System.currentTimeMillis())
 
+    /** 功能3: 设置提醒重复模式 */
+    @Query("UPDATE todos SET reminder_repeat = :reminderRepeat, updated_at = :updatedAt WHERE id = :id")
+    suspend fun setReminderRepeat(id: Long, reminderRepeat: String, updatedAt: Long = System.currentTimeMillis())
+
+    /** 功能3: 同时更新提醒时间和重复模式 */
+    @Query("UPDATE todos SET reminder_time = :reminderTime, reminder_repeat = :reminderRepeat, updated_at = :updatedAt WHERE id = :id")
+    suspend fun setReminderTimeAndRepeat(id: Long, reminderTime: Long?, reminderRepeat: String, updatedAt: Long = System.currentTimeMillis())
+
     /** 设置铃声 */
     @Query("UPDATE todos SET ringtone_uri = :ringtoneUri, updated_at = :updatedAt WHERE id = :id")
     suspend fun setRingtone(id: Long, ringtoneUri: String?, updatedAt: Long = System.currentTimeMillis())

@@ -77,6 +77,8 @@ fun TodoEditDialog(
     var priority by remember { mutableLongStateOf(todo?.priority?.toLong() ?: 0L) }
     var reminderTime by remember { mutableLongStateOf(todo?.reminderTime ?: 0L) }
     var ringtoneUri by remember { mutableStateOf(todo?.ringtoneUri) }
+    // 功能3: 提醒重复模式, 默认 NONE
+    var reminderRepeat by remember { mutableStateOf(todo?.reminderRepeat ?: "NONE") }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -169,7 +171,10 @@ fun TodoEditDialog(
                         val date = Date(reminderTime)
                         Text("${dateFormat.format(date)} ${timeFormat.format(date)}")
                         Spacer(modifier = Modifier.width(8.dp))
-                        TextButton(onClick = { reminderTime = 0L }) {
+                        TextButton(onClick = {
+                            reminderTime = 0L
+                            reminderRepeat = "NONE"
+                        }) {
                             Text("清除")
                         }
                     } else {
@@ -178,6 +183,47 @@ fun TodoEditDialog(
                     Spacer(modifier = Modifier.weight(1f))
                     TextButton(onClick = { showDatePicker = true }) {
                         Text(if (reminderTime > 0) "修改" else "设置")
+                    }
+                }
+
+                // 功能3: 提醒重复模式
+                if (reminderTime > 0) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("重复", style = MaterialTheme.typography.labelMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf(
+                            "NONE" to "不重复",
+                            "DAILY" to "每天",
+                            "WEEKLY" to "每周",
+                            "MONTHLY" to "每月"
+                        ).forEach { (value, label) ->
+                            androidx.compose.material3.Surface(
+                                onClick = { reminderRepeat = value },
+                                shape = MaterialTheme.shapes.small,
+                                color = if (reminderRepeat == value)
+                                    MaterialTheme.colorScheme.primaryContainer
+                                else
+                                    MaterialTheme.colorScheme.surface,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
@@ -236,6 +282,8 @@ fun TodoEditDialog(
                         content = content.trim(),
                         priority = priority.toInt(),
                         reminderTime = if (reminderTime > 0) reminderTime else null,
+                        // 功能3: 保存重复模式
+                        reminderRepeat = if (reminderTime > 0) reminderRepeat else "NONE",
                         ringtoneUri = ringtoneUri,
                         isCompleted = todo?.isCompleted ?: false,
                         createdAt = todo?.createdAt ?: System.currentTimeMillis(),

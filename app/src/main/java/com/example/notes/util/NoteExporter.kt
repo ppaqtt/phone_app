@@ -397,4 +397,66 @@ object NoteExporter {
             .take(20)
         return "${safePrefix}_$ts.$suffix"
     }
+
+    /**
+     * 功能4: 将笔记内容导出为标准 Markdown (.md) 文件。
+     * - 若 title 非空, 自动作为一级标题插入最前面。
+     * - meta (元信息, 如"清笺 · yyyy-MM-dd HH:mm") 作为顶部引用块或尾部追加。
+     * - imageUris 作为 Markdown ![](url) 图片语法追加在文档末尾,
+     *   方便其他 Markdown 阅读器识别。
+     *
+     * @return 写入的字节数, 供调用方用于日志或校验。
+     */
+    suspend fun exportMarkdownToUri(
+        context: Context,
+        uri: Uri,
+        title: String,
+        content: String,
+        meta: String,
+        imageUris: List<String> = emptyList()
+    ): Long = withContext(Dispatchers.IO) {
+        val sb = StringBuilder()
+
+        // 1) 标题: 一级标题
+        if (title.isNotBlank()) {
+            sb.append("# ").append(title.trim()).appendLine()
+            sb.appendLine()
+        }
+
+        // 2) meta 信息: 引用块
+        if (meta.isNotBlank()) {
+            sb.append("> ").append(meta.trim()).appendLine()
+            sb.appendLine()
+        }
+
+        // 3) 正文: content 已是 Markdown 文本, 直接写入,
+        //    但为避免后续解析时首行被当作标题, 这里不做额外转义。
+        if (content.isNotBlank()) {
+            sb.append(content.trimEnd()).appendLine()
+        } else {
+            sb.appendLine("*(无正文)*")
+        }
+
+        // 4) 图片列表
+        if (imageUris.isNotEmpty()) {
+            sb.appendLine()
+            sb.append("---").appendLine()
+            sb.appendLine()
+            sb.append("## 附件图片").appendLine()
+            sb.appendLine()
+            imageUris.forEachIndexed { idx, imgUri ->
+                // Markdown 图片语法, uri 使用 absolute 形式
+                sb.append("![图片${idx + 1}](").append(imgUri).append(")").appendLine()
+                sb.appendLine()
+            }
+        }
+
+        // 5) 写入到 SAF Uri
+        context.contentResolver.openOutputStream(uri).use { out: OutputStream? ->
+            requireNotNull(out) { "无法打开输出流: $uri" }
+            out.write(sb.toString().toByteArray(Charsets.UTF_8))
+            out.flush()
+        }
+        return@withContext sb.length.toLong()
+    }
 }

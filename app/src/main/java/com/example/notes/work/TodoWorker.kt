@@ -14,18 +14,18 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.notes.MainActivity
+import com.example.notes.NotesApplication
 import com.example.notes.R
 import com.example.notes.util.NotificationPermission
+import com.example.notes.util.TodoReminderManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 /**
- * 待办任务提醒工作器
- *
- * P125-FIX: 修复自定义铃声不生效问题。
- * Android 8.0 (API 26) 之后, 通知声音必须在 NotificationChannel 上设置,
- * 而不能在 NotificationCompat.Builder 上设置。本实现为每个唯一铃声
- * 创建独立 channel (channelId = "todo_reminder_channel_<ringtoneHash>"),
- * 确保不同待办的不同铃声互不干扰。
+ * 待办任务提醒工作器。
+ * 功能3: 支持重复提醒 —— 触发通知后, 若 todo 未完成且有 repeat 模式,
+ * 自动计算并调度下一次提醒, 并更新数据库中 reminder_time 的值。
  */
 class TodoWorker(
     private val context: Context,
@@ -55,7 +55,6 @@ class TodoWorker(
             if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != android.content.pm.PackageManager.PERMISSION_GRANTED
             ) {
-                // P130-FIX: 不要静默返回, 写日志并尝试跳设置页引导用户
                 Timber.tag("TodoWorker").w(
                     "POST_NOTIFICATIONS denied, todoId=$todoId. " +
                         "User will not see/hear the reminder."
@@ -108,7 +107,38 @@ class TodoWorker(
             Timber.tag("TodoWorker").w(e, "notify failed")
         }
 
+        // 功能3: 触发通知后, 若 todo 未完成且有 repeat 模式, 排下一次提醒
+        scheduleNextIfNeeded(todoId)
+
         return Result.success()
+    }
+
+    /**
+     * 功能3: 检查 todo 状态, 如果是重复提醒且未完成, 则排下一次提醒。
+     */
+    private suspend fun scheduleNextIfNeeded(todoId: Long) = withContext(Dispatchers.IO) {
+        val app = context.applicationContext as? NotesApplication ?: return@withContext
+        val todo = app.todoRepository.getById(todoId)
+        if (todo == null) {
+            Timber.tag("TodoWorker").d("todoId=$todoId not found, skip re-schedule")
+            return@withContext
+        }
+        if (todo.isCompleted) {
+            Timber.tag("TodoWorker").d("todoId=$todoId completed, skip re-schedule")
+            return@withContext
+        }
+        val repeat = todo.reminderRepeat
+        if (repeat == TodoReminderManager.REPEAT_NONE) return@withContext
+
+        val nextTime = TodoReminderManager.computeNextReminder(todo.reminderTime, repeat)
+        if (nextTime != null) {
+            app.todoRepository.setReminderTimeAndRepeat(todoId, nextTime, repeat)
+            val nextTodo = todo.copy(reminderTime = nextTime)
+            val r = TodoReminderManager.scheduleReminder(context, nextTodo)
+            Timber.tag("TodoWorker").i(
+                "todoId=$todoId scheduled next reminder at=$nextTime ($repeat), result=$r"
+            )
+        }
     }
 
     private fun createNotificationChannel(ringtoneUriString: String?): String {
