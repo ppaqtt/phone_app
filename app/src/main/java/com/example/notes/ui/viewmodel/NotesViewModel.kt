@@ -9,6 +9,7 @@ import com.example.notes.data.CategoryEntity
 import com.example.notes.data.NoteEntity
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.data.TagGroupEntity
 import com.example.notes.repository.NotesRepository
 import com.example.notes.util.BackupManager
 import com.example.notes.util.BackupPayload
@@ -51,7 +52,9 @@ data class NotesUiState(
      * 首次订阅 Flow 期间为 true, 数据到来后切 false。
      * UI 可借此在加载期间显示指示器, 避免空白闪屏。
      */
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    /** 中价值/中工作量: 标签分组列表 */
+    val tagGroups: List<TagGroupEntity> = emptyList()
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -70,7 +73,15 @@ class NotesViewModel(
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites) { notesList, categories, activeId, q, sort, onlyFav ->
+        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites, repository.observeTagGroups()) { args ->
+            @Suppress("UNCHECKED_CAST")
+            val notesList = args[0] as List<NoteWithCategory>
+            val categories = args[1] as List<CategoryEntity>
+            val activeId = args[2] as Long?
+            val q = args[3] as String
+            val sort = args[4] as NoteSortOrder
+            val onlyFav = args[5] as Boolean
+            val tagGroups = args[6] as List<TagGroupEntity>
             // SQL 已经 ORDER BY is_pinned DESC, updated_at DESC, 但内存 sortBy*
             // 会丢掉 is_pinned 优先级。所有排序都先按置顶降序, 再按星标降序, 最后按用户选的次级 key。
             val pinnedFirst = compareByDescending<NoteWithCategory> { it.note.isPinned }
@@ -104,7 +115,8 @@ class NotesViewModel(
                 query = q,
                 sortOrder = sort,
                 showOnlyFavorites = onlyFav,
-                isLoading = false
+                isLoading = false,
+                tagGroups = tagGroups
             )
         }.stateIn(
             scope = viewModelScope,
@@ -269,6 +281,46 @@ class NotesViewModel(
     fun setCategoryParent(id: Long, parentId: Long?) {
         launchSafe("setCategoryParent") { repository.setCategoryParent(id, parentId) }
     }
+
+    /**
+     * 中价值/中工作量: 设置分类置顶状态。
+     */
+    fun setCategoryPinned(id: Long, pinned: Boolean) {
+        launchSafe("setCategoryPinned") { repository.setCategoryPinned(id, pinned) }
+    }
+
+    /**
+     * 中价值/中工作量: 创建标签分组。
+     */
+    fun addTagGroup(name: String, color: Int = 0xFF6750A4.toInt()) {
+        launchSafe("addTagGroup") { repository.addTagGroup(name, color) }
+    }
+
+    /**
+     * 中价值/中工作量: 删除标签分组。
+     */
+    fun deleteTagGroup(group: TagGroupEntity) {
+        launchSafe("deleteTagGroup") { repository.deleteTagGroup(group) }
+    }
+
+    /**
+     * 中价值/中工作量: 将标签添加到分组。
+     */
+    fun addTagToGroup(tagName: String, groupId: Long) {
+        launchSafe("addTagToGroup") { repository.addTagToGroup(tagName, groupId) }
+    }
+
+    /**
+     * 中价值/中工作量: 从分组移除标签。
+     */
+    fun removeTagFromGroup(tagName: String, groupId: Long) {
+        launchSafe("removeTagFromGroup") { repository.removeTagFromGroup(tagName, groupId) }
+    }
+
+    /**
+     * 中价值/中工作量: 获取某分组下的所有标签。
+     */
+    suspend fun getTagsForGroup(groupId: Long): List<String> = repository.getTagsForGroup(groupId)
 
     /**
      * P61: 用 DAO 直接统计某分类下的笔记数, 避免 O(n*m) 内存过滤。

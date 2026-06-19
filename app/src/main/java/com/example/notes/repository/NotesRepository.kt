@@ -9,6 +9,9 @@ import com.example.notes.data.NoteImageEntity
 import com.example.notes.data.NoteStatsRow
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.data.TagGroupDao
+import com.example.notes.data.TagGroupEntity
+import com.example.notes.data.TagGroupTagEntity
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
@@ -38,7 +41,8 @@ class NotesRepository(
     private val categoryDao: CategoryDao,
     private val noteImageDao: NoteImageDao,
     private val noteVersionDao: com.example.notes.data.NoteVersionDao,
-    private val noteEncryptionDao: com.example.notes.data.NoteEncryptionDao
+    private val noteEncryptionDao: com.example.notes.data.NoteEncryptionDao,
+    private val tagGroupDao: TagGroupDao
 ) {
 
     // --- Notes -----------------------------------------------------------
@@ -171,6 +175,12 @@ class NotesRepository(
     /** F12: 修改分类的父级 */
     suspend fun setCategoryParent(id: Long, parentId: Long?) =
         categoryDao.setParent(id, parentId)
+
+    /**
+     * 中价值/中工作量: 设置分类置顶状态。
+     */
+    suspend fun setCategoryPinned(id: Long, pinned: Boolean) =
+        categoryDao.setPinned(id, pinned)
 
     suspend fun deleteCategory(category: CategoryEntity) = categoryDao.delete(category)
 
@@ -469,4 +479,30 @@ class NotesRepository(
 
     /** 一次性取所有笔记的 (id, 字符数) 投影, 为"按字数排序"提供排序键 */
     suspend fun getCharCounts(): List<com.example.notes.data.NoteCharCountRow> = noteDao.getCharCounts()
+
+    // --- 中价值/中工作量: 标签分组 ------------------------------------
+
+    /** 观察所有标签分组 */
+    fun observeTagGroups(): Flow<List<TagGroupEntity>> = tagGroupDao.observeAll()
+
+    /** 新增标签分组 */
+    suspend fun addTagGroup(name: String, color: Int = 0xFF6750A4.toInt()): Long =
+        tagGroupDao.insert(TagGroupEntity(name = name.trim(), color = color))
+
+    /** 删除标签分组 */
+    suspend fun deleteTagGroup(group: TagGroupEntity) = tagGroupDao.delete(group)
+
+    /** 获取某分组下的所有标签 */
+    suspend fun getTagsForGroup(groupId: Long): List<String> = tagGroupDao.getTagsForGroup(groupId)
+
+    /** 添加标签到分组 */
+    suspend fun addTagToGroup(tagName: String, groupId: Long) =
+        tagGroupDao.insertTagToGroup(TagGroupTagEntity(tagName = tagName.trim(), groupId = groupId))
+
+    /** 从分组移除标签 */
+    suspend fun removeTagFromGroup(tagName: String, groupId: Long) =
+        tagGroupDao.removeTagFromGroup(tagName.trim(), groupId)
+
+    /** 获取某标签所属的所有分组 id */
+    suspend fun getGroupIdsForTag(tagName: String): List<Long> = tagGroupDao.getGroupIdsForTag(tagName.trim())
 }

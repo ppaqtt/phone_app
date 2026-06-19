@@ -15,7 +15,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 @Database(
     entities = [
         NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class,
-        NoteVersionEntity::class, NoteEncryptionEntity::class
+        NoteVersionEntity::class, NoteEncryptionEntity::class,
+        TagGroupEntity::class, TagGroupTagEntity::class
     ],
     // v10 → v11: 添加 todos 表（待办任务）
     // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
@@ -28,7 +29,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // 进阶功能: v12 → v13 给 notes 加 template_type 字段（笔记模板）
     // 进阶功能: v13 → v14 添加 note_versions 和 note_encryption 表（历史版本 + 笔记加密）
     // 高价值/低工作量: v14 → v15 给 notes 加 is_favorite 列 (笔记星标)
-    version = 15,
+    // 中价值/中工作量: v15 → v16 给 categories 加 is_pinned 列 (分类置顶)
+    // 中价值/中工作量: v16 → v17 添加 tag_groups 和 tag_group_tags 表 (标签分组)
+    version = 17,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -44,6 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
     abstract fun noteVersionDao(): NoteVersionDao
     abstract fun noteEncryptionDao(): NoteEncryptionDao
+    abstract fun tagGroupDao(): TagGroupDao
 
     companion object {
         @Volatile
@@ -266,6 +270,79 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
+         * 中价值/中工作量: v15 → v16: 给 categories 加 is_pinned 列 (分类置顶)。
+         * ALTER TABLE ADD COLUMN 是 SQLite 3.6+ 标准 DDL, 向后兼容。
+         */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `categories` ADD COLUMN `is_pinned` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_categories_is_pinned` ON `categories` (`is_pinned`)")
+            }
+        }
+
+        /**
+         * 中价值/中工作量: v16 → v15: 降级时删除 categories.is_pinned 列。
+         * SQLite 不支持 ALTER TABLE DROP COLUMN, 走重建表方式。
+         */
+        private val MIGRATION_16_15 = object : Migration(16, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `categories_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `color` INTEGER NOT NULL,
+                        `parent_id` INTEGER,
+                        `created_at` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO categories_new (id, name, color, parent_id, created_at)
+                    SELECT id, name, color, parent_id, created_at FROM categories
+                """.trimIndent())
+                db.execSQL("DROP TABLE IF EXISTS `categories`")
+                db.execSQL("ALTER TABLE categories_new RENAME TO `categories`")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_categories_name` ON `categories` (`name`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_categories_parent_id` ON `categories` (`parent_id`)")
+            }
+        }
+
+        /**
+         * 中价值/中工作量: v16 → v17: 新增 tag_groups 和 tag_group_tags 表 (标签分组)。
+         */
+        private val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `tag_groups` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `color` INTEGER NOT NULL,
+                        `created_at` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_tag_groups_name` ON `tag_groups` (`name`)")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `tag_group_tags` (
+                        `tag_name` TEXT NOT NULL,
+                        `group_id` INTEGER NOT NULL,
+                        PRIMARY KEY(`tag_name`, `group_id`),
+                        FOREIGN KEY(`group_id`) REFERENCES `tag_groups`(`id`) ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_tag_group_tags_group_id` ON `tag_group_tags` (`group_id`)")
+            }
+        }
+
+        /**
+         * 中价值/中工作量: v17 → v16: 降级时删除 tag_groups 和 tag_group_tags 表。
+         */
+        private val MIGRATION_17_16 = object : Migration(17, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `tag_group_tags`")
+                db.execSQL("DROP TABLE IF EXISTS `tag_groups`")
+            }
+        }
+
+        /**
          * 进阶功能: v14 → v13: 降级时删除 note_versions 和 note_encryption 表。
          */
         private val MIGRATION_14_13 = object : Migration(14, 13) {
@@ -406,7 +483,9 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
                     MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
-                    MIGRATION_15_14, MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
+                    MIGRATION_15_14, MIGRATION_15_16, MIGRATION_16_15,
+                    MIGRATION_16_17, MIGRATION_17_16,
+                    MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
                     MIGRATION_11_10, MIGRATION_10_9
                 )
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性

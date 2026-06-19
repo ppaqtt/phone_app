@@ -112,7 +112,7 @@ data class NoteEntity(
 
 @Entity(
     tableName = "categories",
-    indices = [Index(value = ["name"], unique = true), Index("parent_id")]
+    indices = [Index(value = ["name"], unique = true), Index("parent_id"), Index("is_pinned")]
 )
 data class CategoryEntity(
     @PrimaryKey(autoGenerate = true)
@@ -123,6 +123,13 @@ data class CategoryEntity(
 
     @ColumnInfo(name = "color")
     val color: Int = 0xFF6750A4.toInt(),
+
+    /**
+     * 中价值/中工作量: 分类置顶。
+     * 置顶分类在列表顶部显示，不受排序顺序影响。
+     */
+    @ColumnInfo(name = "is_pinned", defaultValue = "0")
+    val isPinned: Boolean = false,
 
     /**
      * F12: 父分类 id, null = 顶级分类。
@@ -184,4 +191,47 @@ data class NoteWithCategoryAndImages(
         entityColumn = "noteId"
     )
     val images: List<NoteImageEntity>
+)
+
+/**
+ * 中价值/中工作量: 标签分组 — 把标签归类为工作/生活/学习等层级。
+ * 分组后用户在笔记编辑器选择标签时可按组选择，更清晰。
+ */
+@Entity(tableName = "tag_groups", indices = [Index(value = ["name"], unique = true)])
+data class TagGroupEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "name")
+    val name: String,
+
+    @ColumnInfo(name = "color")
+    val color: Int = 0xFF6750A4.toInt(),
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/**
+ * 中价值/中工作量: 标签-分组关联表。
+ * tag_name 是标签文本 (与 NoteEntity.tags 的逗号分隔对应);
+ * group_id 是所属分组的 id。同一标签可属于多个分组 (多对多)。
+ */
+@Entity(
+    tableName = "tag_group_tags",
+    primaryKeys = ["tag_name", "group_id"],
+    foreignKeys = [ForeignKey(
+        entity = TagGroupEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["group_id"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("group_id")]
+)
+data class TagGroupTagEntity(
+    @ColumnInfo(name = "tag_name")
+    val tagName: String,
+
+    @ColumnInfo(name = "group_id")
+    val groupId: Long
 )

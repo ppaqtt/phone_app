@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.outlined.Grade
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.FileDownload
@@ -156,6 +157,14 @@ private enum class ColumnsTab(val label: String) {
     TEXT_STYLE("文字样式"), SYMBOLS("符号"), DIVIDERS("分割线"), TEMPLATES("图文模版")
 }
 
+/** 中价值/中工作量: 自动保存状态 */
+private sealed class AutoSaveStatus {
+    data object Idle : AutoSaveStatus()       // 无待保存内容
+    data object Pending : AutoSaveStatus()    // 有变更，等待自动保存
+    data object Saving : AutoSaveStatus()      // 保存中
+    data class Saved(val timestamp: Long) : AutoSaveStatus()  // 已保存
+}
+
 // P-FIX-003: TextFieldValue 的 rememberSaveable Saver，支持配置变更后恢复光标位置和选区
 private val TextFieldValueSaver: Saver<TextFieldValue, Any> = mapSaver(
     save = { mapOf("text" to it.text, "selection" to it.selection.start) },
@@ -219,6 +228,9 @@ fun NoteEditScreen(
     var showFindBar by remember { mutableStateOf(false) }
     var findQuery by remember { mutableStateOf("") }
     var findIndex by remember { mutableStateOf(0) }
+    // 中价值/中工作量: 自动保存指示器
+    var autoSaveStatus by remember { mutableStateOf<AutoSaveStatus>(AutoSaveStatus.Idle) }
+    var lastAutoSaveTime by remember { mutableStateOf<Long?>(null) }
     // P51: 协程作用域提到 Composable 级, 供 saveNote 内部 suspend 函数使用
     val scope = rememberCoroutineScope()
 
@@ -587,6 +599,24 @@ fun NoteEditScreen(
         audioUris.addAll(foundUris)
     }
 
+    // 中价值/中工作量: 自动保存指示器 — 30秒 debounce 后自动保存
+    LaunchedEffect(loaded, isDirty) {
+        if (!loaded) return@LaunchedEffect
+        if (!isDirty) {
+            autoSaveStatus = AutoSaveStatus.Idle
+            return@LaunchedEffect
+        }
+        autoSaveStatus = AutoSaveStatus.Pending
+        delay(30_000L)  // 30秒自动保存
+        if (autoSaveStatus != AutoSaveStatus.Pending) return@LaunchedEffect
+        autoSaveStatus = AutoSaveStatus.Saving
+        try {
+            saveNote()
+        } catch (e: Exception) {
+            autoSaveStatus = AutoSaveStatus.Pending
+        }
+    }
+
     /**
      * P51: 改为纯 suspend 函数, 不再内部 rememberCoroutineScope() (会崩)。
      * 由 [saveNoteThen] 在 Composable scope 内启动协程调用。
@@ -658,6 +688,10 @@ fun NoteEditScreen(
             val result = ReminderManager.scheduleReminder(context, note, time)
             ReminderManager.showScheduleResult(context, result)
         }
+        // 中价值/中工作量: 自动保存指示器 — 保存成功后更新时间戳
+        val now = System.currentTimeMillis()
+        lastAutoSaveTime = now
+        autoSaveStatus = AutoSaveStatus.Saved(now)
     }
 
     /**
@@ -733,7 +767,57 @@ fun NoteEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { },
+                title = {
+                    // 中价值/中工作量: 自动保存指示器
+                    when (val status = autoSaveStatus) {
+                        is AutoSaveStatus.Idle -> { /* 无显示 */ }
+                        is AutoSaveStatus.Pending -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.Cloud, contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "等待保存",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        is AutoSaveStatus.Saving -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "保存中",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                        is AutoSaveStatus.Saved -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Filled.Check, contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "已保存 ${SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(status.timestamp))}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { tryExit(onBack) }, enabled = !busy) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "返回")

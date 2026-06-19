@@ -10,6 +10,25 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.32.00",
+            date = "2026-06-19",
+            items = listOf(
+                "【中价值/中工作量 - 组织与安全增强】",
+                "新增：分类置顶 — 分类支持置顶操作, 置顶分类钉在列表最顶部, 按 置顶优先 → 名称 排序; 分类编辑对话框新增「置顶」开关",
+                "新增：标签分组管理 — 标签可归类为「工作/生活/学习」等层级, 新建/删除分组、增删分组内标签; 笔记列表「更多」菜单新增「标签分组」入口",
+                "新增：自动保存指示器 — 每 30 秒检测内容变更自动保存, 左上角实时显示「等待保存→保存中→已保存 HH:mm」状态, 手动保存也会更新状态",
+                "已有功能：富文本格式工具栏 — 编辑器已具备 B/I/U/S/代码/高亮/字号/颜色 等富文本格式能力 (TextFormatPanel)",
+                "已有功能：快捷笔记 Widget — 桌面小部件显示最近 5 条笔记, 「+ 新建笔记」按钮一键创建笔记",
+                "",
+                "【数据库与 UI】",
+                "迁移：v16 → v17 — 新增 tag_groups 表 (分组名称+颜色+创建时间) 和 tag_group_tags 多对多关联表, 支持 CASCADE 级联删除",
+                "迁移：v15 → v16 — categories 表新增 is_pinned 字段 (INTEGER DEFAULT 0) + 同名索引, 支持分类置顶",
+                "优化：combine 多流合并升级为 8 参数版本 (支持 tagGroups 流入 ViewModel)",
+                "优化：NotesListScreen 分类列表排序 — 按 isPinned 降序优先, 置顶分类显示图标",
+                "升级：版本号 v1.31.00 → v1.32.00 (versionCode 56 → 57)"
+            )
+        ),
+        Entry(
             version = "v1.31.00",
             date = "2026-06-20",
             items = listOf(

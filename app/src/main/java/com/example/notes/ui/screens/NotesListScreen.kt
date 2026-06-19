@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.PushPin
@@ -87,6 +89,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.ui.components.NoteCard
+import com.example.notes.ui.components.TagGroupsManageDialog
 import com.example.notes.ui.viewmodel.NoteSortOrder
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.AppUpdateChecker
@@ -126,6 +129,10 @@ fun NotesListScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    // 中价值/中工作量: 编辑分类对话框 (含置顶开关)
+    var showCategoryEditDialog by remember { mutableStateOf(false) }
+    // 中价值/中工作量: 标签分组管理对话框
+    var showTagGroupsDialog by remember { mutableStateOf(false) }
     // 进阶功能: 多选模式与已选笔记 id 集合
     var multiSelectMode by remember { mutableStateOf(false) }
     val selectedIds = remember { mutableStateListOf<Long>() }
@@ -273,6 +280,24 @@ fun NotesListScreen(
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenTags()
+                                }
+                            )
+                            // 中价值/中工作量: 标签分组管理
+                            DropdownMenuItem(
+                                text = { Text("标签分组") },
+                                leadingIcon = { Icon(Icons.Filled.Folder, contentDescription = "标签分组") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    showTagGroupsDialog = true
+                                }
+                            )
+                            // 中价值/中工作量: 编辑分类 (含置顶开关)
+                            DropdownMenuItem(
+                                text = { Text("编辑分类") },
+                                leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = "编辑分类") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    showCategoryEditDialog = true
                                 }
                             )
                             // F2: 回收站入口
@@ -425,7 +450,11 @@ fun NotesListScreen(
                         }
                     )
                 }
-                items(state.categories, key = { it.id }) { cat ->
+                items(
+                    state.categories
+                        .sortedWith(compareByDescending<com.example.notes.data.CategoryEntity> { it.isPinned }.thenBy { it.name }),
+                    key = { it.id }
+                ) { cat ->
                     val indent = computeCategoryIndent(state.categories, cat.id)
                     FilterChip(
                         selected = state.activeCategoryId == cat.id,
@@ -434,7 +463,16 @@ fun NotesListScreen(
                         },
                         label = {
                             Text(if (indent > 0) "↳ ${cat.name}" else cat.name)
-                        }
+                        },
+                        leadingIcon = if (cat.isPinned) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Filled.PushPin,
+                                    contentDescription = "已置顶",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        } else null
                     )
                 }
             }
@@ -667,6 +705,35 @@ fun NotesListScreen(
                 viewModel.setSortOrder(order)
                 showSortDialog = false
             }
+        )
+    }
+
+    // 中价值/中工作量: 编辑分类对话框
+    if (showCategoryEditDialog) {
+        CategoryEditDialog(
+            categories = state.categories,
+            onDismiss = { showCategoryEditDialog = false },
+            onTogglePin = { id, pinned -> viewModel.setCategoryPinned(id, pinned) }
+        )
+    }
+
+    // 中价值/中工作量: 标签分组管理对话框
+    if (showTagGroupsDialog) {
+        val allTags = state.notes
+            .flatMap { it.note.tags.split(",") }
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+        TagGroupsManageDialog(
+            tagGroups = state.tagGroups,
+            allTagsInNote = allTags,
+            getTagsForGroup = { groupId -> viewModel.getTagsForGroup(groupId) },
+            onDismiss = { showTagGroupsDialog = false },
+            onCreateGroup = { name -> viewModel.addTagGroup(name) },
+            onDeleteGroup = { group -> viewModel.deleteTagGroup(group) },
+            onAddTagToGroup = { tag, groupId -> viewModel.addTagToGroup(tag, groupId) },
+            onRemoveTagFromGroup = { tag, groupId -> viewModel.removeTagFromGroup(tag, groupId) }
         )
     }
 }
@@ -974,6 +1041,65 @@ private fun SortOrderDialog(
             TextButton(onClick = { onConfirm(selected) }) { Text("确定") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+/**
+ * 中价值/中工作量: 编辑分类对话框 — 列出所有分类，支持置顶开关。
+ */
+@Composable
+private fun CategoryEditDialog(
+    categories: List<com.example.notes.data.CategoryEntity>,
+    onDismiss: () -> Unit,
+    onTogglePin: (Long, Boolean) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑分类") },
+        text = {
+            if (categories.isEmpty()) {
+                Text("暂无分类", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Column {
+                    categories.sortedWith(
+                        compareByDescending<com.example.notes.data.CategoryEntity> { it.isPinned }
+                            .thenBy { it.name }
+                    ).forEach { cat ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Circle,
+                                contentDescription = null,
+                                tint = Color(cat.color),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = cat.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { onTogglePin(cat.id, !cat.isPinned) }
+                            ) {
+                                Icon(
+                                    imageVector = if (cat.isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+                                    contentDescription = if (cat.isPinned) "取消置顶" else "置顶",
+                                    tint = if (cat.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
     )
 }
 

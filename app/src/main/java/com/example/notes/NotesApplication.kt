@@ -37,7 +37,8 @@ class NotesApplication : Application() {
             categoryDao = database.categoryDao(),
             noteImageDao = database.noteImageDao(),
             noteVersionDao = database.noteVersionDao(),
-            noteEncryptionDao = database.noteEncryptionDao()
+            noteEncryptionDao = database.noteEncryptionDao(),
+            tagGroupDao = database.tagGroupDao()
         )
     }
 

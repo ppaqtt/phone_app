@@ -285,6 +285,12 @@ interface CategoryDao {
     suspend fun setParent(id: Long, parentId: Long?)
 
     /**
+     * 中价值/中工作量: 设置分类置顶状态。
+     */
+    @Query("UPDATE categories SET is_pinned = :pinned WHERE id = :id")
+    suspend fun setPinned(id: Long, pinned: Boolean)
+
+    /**
      * F1: 备份导出时一次性拿全部分类 (非响应式, 仅用于构建 JSON)。
      */
     @Query("SELECT * FROM categories ORDER BY created_at ASC")
@@ -344,4 +350,47 @@ interface NoteImageDao {
         WHERE noteId IN (SELECT id FROM notes WHERE deleted_at IS NULL)
     """)
     fun observeImageCount(): Flow<Int>
+}
+
+/**
+ * 中价值/中工作量: 标签分组 DAO — CRUD 操作 tag_groups 表。
+ */
+@Dao
+interface TagGroupDao {
+
+    @Query("SELECT * FROM tag_groups ORDER BY created_at ASC")
+    fun observeAll(): Flow<List<TagGroupEntity>>
+
+    @Query("SELECT * FROM tag_groups ORDER BY created_at ASC")
+    suspend fun getAllOnce(): List<TagGroupEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(group: TagGroupEntity): Long
+
+    @Delete
+    suspend fun delete(group: TagGroupEntity)
+
+    /**
+     * 中价值/中工作量: 获取某分组下的所有标签。
+     */
+    @Query("SELECT tag_name FROM tag_group_tags WHERE group_id = :groupId")
+    suspend fun getTagsForGroup(groupId: Long): List<String>
+
+    /**
+     * 中价值/中工作量: 添加标签到分组。
+     */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTagToGroup(tagGroupTag: TagGroupTagEntity)
+
+    /**
+     * 中价值/中工作量: 从分组中移除标签。
+     */
+    @Query("DELETE FROM tag_group_tags WHERE tag_name = :tagName AND group_id = :groupId")
+    suspend fun removeTagFromGroup(tagName: String, groupId: Long)
+
+    /**
+     * 中价值/中工作量: 获取某标签所属的全部分组 id。
+     */
+    @Query("SELECT group_id FROM tag_group_tags WHERE tag_name = :tagName")
+    suspend fun getGroupIdsForTag(tagName: String): List<Long>
 }
