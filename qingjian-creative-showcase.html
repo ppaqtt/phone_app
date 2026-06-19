@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>清笺 Qingjian — 本地优先 · 隐私优先 · AI 不打扰</title>
+<style>
+  :root {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --accent: #ec4899;
+    --bg: #f8fafc;
+    --bg-card: #ffffff;
+    --text: #1e293b;
+    --text-soft: #64748b;
+    --text-faint: #94a3b8;
+    --border: #e2e8f0;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
+    --shadow: 0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.08);
+    --shadow-lg: 0 10px 25px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.06);
+    --radius: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+    color: var(--text);
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 40px 24px;
+  }
+  .header {
+    text-align: center;
+    padding: 60px 20px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: "";
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
+    border-radius: 50%;
+    z-index: 0;
+  }
+  .header-content {
+    position: relative;
+    z-index: 1;
+  }
+  .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 24px;
+  }
+  .logo-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    box-shadow: var(--shadow);
+  }
+  .title {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary-dark), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    font-size: 20px;
+    color: var(--text-soft);
+    margin-bottom: 12px;
+  }
+  .tagline {
+    font-size: 16px;
+    color: var(--text-faint);
+    margin-bottom: 40px;
+  }
+  .tag-list {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+  }
+  .tag {
+    padding: 6px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 13px;
+    color: var(--text-soft);
+    box-shadow: var(--shadow-sm);
+  }
+  .tag-primary {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: white;
+    border: none;
+    font-weight: 600;
+  }
+  .section {
+    margin: 80px 0;
+  }
+  .section-title {
+    font-size: 32px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .section-desc {
+    text-align: center;
+    color: var(--text-soft);
+    font-size: 15px;
+    margin-bottom: 48px;
+  }
+  /* Hero Showcase - Phone Mockup */
+  .showcase {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    margin-bottom: 60px;
+  }
+  @media (max-width: 768px) {
+    .showcase { grid-template-columns: 1fr; }
+    .title { font-size: 32px; }
+  }
+  .phone-mockup {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border-radius: 48px;
+    padding: 12px;
+    box-shadow: var(--shadow-lg), 0 0 0 2px rgba(99,102,241,0.15);
+    max-width: 360px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .phone-mockup::before {
+    content: "";
+    position: absolute;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 28px;
+    background: #0f172a;
+    border-radius: 0 0 16px 16px;
+    z-index: 2;
+  }
+  .phone-screen {
+    background: #fafafa;
+    border-radius: 36px;
+    overflow: hidden;
+    padding-top: 60px;
+  }
+  .phone-status-bar {
+    position: absolute;
+    top: 30px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 40px;
+    font-size: 12px;
+    color: #1e293b;
+    font-weight: 600;
+    z-index: 3;
+  }
+  .app-header {
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    padding: 20px 24px;
+    color: white;
+  }
+  .app-header-title {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .app-header-sub {
+    font-size: 12px;
+    opacity: 0.9;
+  }
+  .app-note-list {
+    padding: 16px;
+    background: #fafafa;
+  }
+  .note-card {
+    background: white;
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid var(--primary);
+  }
+  .note-card:nth-child(2) { border-left-color: var(--accent); }
+  .note-card:nth-child(3) { border-left-color: var(--success); }
+  .note-card:nth-child(4) { border-left-color: var(--warning); }
+  .note-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 6px;
+  }
+  .note-preview {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.6;
+  }
+  .note-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 9px;
+    color: #94a3b8;
+  }
+  .todo-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .todo-check {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--primary);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+  }
+  .todo-check.checked {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+  }
+  .todo-text {
+    font-size: 12px;
+    color: #1e293b;
+    flex: 1;
+  }
+  .todo-text.done {
+    text-decoration: line-through;
+    color: #94a3b8;
+  }
+  .todo-time {
+    font-size: 10px;
+    color: var(--warning);
+    font-weight: 600;
+  }
+  .feature-text h3 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+  .feature-text p {
+    color: var(--text-soft);
+    margin-bottom: 16px;
+    font-size: 15px;
+  }
+  .feature-bullet {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    margin: 16px 0;
+    padding: 16px;
+    background: var(--bg-card);
+    border-radius: 12px;
+    box-shadow: var(--shadow-sm);
+  }
+  .feature-bullet-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+  .feature-bullet-text strong {
+    display: block;
+    font-size: 15px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .feature-bullet-text span {
+    font-size: 13px;
+    color: var(--text-soft);
+  }
+  /* Feature Grid */
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .feature-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 28px 24px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+  }
+  .feature-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: rgba(99,102,241,0.3);
+  }
+  .feature-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-bottom: 16px;
+  }
+  .icon-1 { background: linear-gradient(135deg, #e0e7ff, #c7d2fe); color: #4f46e5; }
+  .icon-2 { background: linear-gradient(135deg, #fce7f3, #fbcfe8); color: #db2777; }
+  .icon-3 { background: linear-gradient(135deg, #d1fae5, #a7f3d0); color: #047857; }
+  .icon-4 { background: linear-gradient(135deg, #fef3c7, #fde68a); color: #b45309; }
+  .icon-5 { background: linear-gradient(135deg, #dbeafe, #bfdbfe); color: #1d4ed8; }
+  .icon-6 { background: linear-gradient(135deg, #f3e8ff, #e9d5ff); color: #7c3aed; }
+  .feature-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: var(--text);
+  }
+  .feature-card p {
+    font-size: 14px;
+    color: var(--text-soft);
+    line-height: 1.6;
+  }
+  /* User & Scenario */
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+  }
+  .scenario-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    border-left: 4px solid var(--primary);
+  }
+  .scenario-card:nth-child(2) { border-left-color: var(--accent); }
+  .scenario-card:nth-child(3) { border-left-color: var(--success); }
+  .scenario-card h4 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .scenario-card p {
+    font-size: 14px;
+    color: var(--text-soft);
+  }
+  /* Value Section */
+  .value-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 768px) {
+    .value-grid { grid-template-columns: 1fr; }
+  }
+  .value-card {
+    background: linear-gradient(135deg, var(--bg-card), #f8fafc);
+    border-radius: var(--radius);
+    padding: 36px 28px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  .value-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: white;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: 0.05em;
+  }
+  .value-card h3 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text);
+  }
+  .value-card p {
+    font-size: 14px;
+    color: var(--text-soft);
+    line-height: 1.8;
+    margin-bottom: 12px;
+  }
+  /* Pain points */
+  .pain-list {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 32px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+  }
+  .pain-item {
+    display: flex;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pain-item:last-child { border-bottom: none; }
+  .pain-cross {
+    color: #ef4444;
+    font-size: 20px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .pain-text {
+    font-size: 14px;
+    color: var(--text-soft);
+  }
+  .pain-text strong {
+    color: var(--text);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 15px;
+  }
+  /* Stats */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 60px;
+  }
+  @media (max-width: 768px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 24px 16px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+  }
+  .stat-number {
+    font-size: 32px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--text-soft);
+    font-weight: 500;
+  }
+  /* Tech Stack */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+  }
+  .tech-card {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 20px 16px;
+    text-align: center;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+  .tech-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+  }
+  .tech-card strong {
+    display: block;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .tech-card span {
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+  /* Footer CTA */
+  .cta-section {
+    text-align: center;
+    padding: 60px 24px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    border-radius: var(--radius);
+    color: white;
+    margin: 80px 0 40px;
+  }
+  .cta-section h2 {
+    font-size: 32px;
+    font-weight: 800;
+    margin-bottom: 16px;
+  }
+  .cta-section p {
+    font-size: 15px;
+    opacity: 0.95;
+    margin-bottom: 28px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .cta-buttons {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .cta-btn {
+    padding: 12px 28px;
+    background: white;
+    color: var(--primary-dark);
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 14px;
+    text-decoration: none;
+    box-shadow: var(--shadow);
+    transition: all 0.2s;
+  }
+  .cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+  }
+  .cta-btn-outline {
+    background: transparent;
+    color: white;
+    border: 2px solid white;
+  }
+  .footer-note {
+    text-align: center;
+    color: var(--text-faint);
+    font-size: 12px;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-content">
+      <div class="logo">
+        <div class="logo-icon">📝</div>
+        <span>清笺 · Qingjian</span>
+      </div>
+      <div class="tag-list">
+        <span class="tag tag-primary">学习工作赛道</span>
+        <span class="tag">#Android 原生</span>
+        <span class="tag">#本地优先</span>
+        <span class="tag">#隐私保护</span>
+        <span class="tag">#AI 不打扰</span>
+      </div>
+      <h1 class="title">清笺 Qingjian</h1>
+      <p class="subtitle">本地优先 · 隐私优先 · AI 不打扰</p>
+      <p class="tagline">一款让「随手记录」回到最纯粹状态的安卓笔记应用</p>
+    </div>
+  </div>
+
+  <!-- Showcase -->
+  <div class="showcase">
+    <div class="phone-mockup">
+      <div class="phone-status-bar">
+        <span>9:41</span>
+        <span>📶 100% 🔋</span>
+      </div>
+      <div class="phone-screen">
+        <div class="app-header">
+          <div class="app-header-title">📝 我的笔记</div>
+          <div class="app-header-sub">共 128 条 · 今日新增 5 条</div>
+        </div>
+        <div class="app-note-list">
+          <div class="note-card">
+            <div class="note-title">💡 产品灵感</div>
+            <div class="note-preview">通勤路上想到的新功能：待办支持设置提醒时间，到点自动响铃通知...</div>
+            <div class="note-meta"><span>#草稿 #产品</span><span>2 分钟前</span></div>
+          </div>
+          <div class="note-card">
+            <div class="note-title">📚 读书笔记</div>
+            <div class="note-preview">「记录是思考的延伸。」 — 今天读书时记下的 3 个要点：...</div>
+            <div class="note-meta"><span>#阅读 #笔记</span><span>1 小时前</span></div>
+          </div>
+          <div class="note-card">
+            <div class="note-title">✅ 今日待办</div>
+            <div class="todo-item">
+              <div class="todo-check checked">✓</div>
+              <div class="todo-text done">完成周报提交</div>
+            </div>
+            <div class="todo-item">
+              <div class="todo-check"></div>
+              <div class="todo-text">回复客户邮件 <span class="todo-time">⏰ 15:00</span></div>
+            </div>
+            <div class="todo-item">
+              <div class="todo-check"></div>
+              <div class="todo-text">整理本周笔记备份 <span class="todo-time">⏰ 18:00</span></div>
+            </div>
+          </div>
+          <div class="note-card">
+            <div class="note-title">🔐 私密笔记</div>
+            <div class="note-preview">🔒 已启用应用锁，需指纹或 PIN 才能查看</div>
+            <div class="note-meta"><span>#私密</span><span>昨天</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature-text">
+      <h3>为什么要做「清笺」？</h3>
+      <p>打开主流笔记应用 → 登录、同步、AI 助手弹窗、广告推荐 —— 只是想写两句话，却被打断了 5 次。</p>
+      <p>清笺想做的事很简单：<strong>打开 → 打字 → 自动保存 → 关闭</strong>，就这么纯粹。</p>
+
+      <div class="feature-bullet">
+        <div class="feature-bullet-icon">📡</div>
+        <div class="feature-bullet-text">
+          <strong>完全离线可用</strong>
+          <span>数据全部存在手机本地 Room 数据库，无账号、无云端、没网也能写</span>
+        </div>
+      </div>
+
+      <div class="feature-bullet">
+        <div class="feature-bullet-icon">🔐</div>
+        <div class="feature-bullet-text">
+          <strong>隐私有保障</strong>
+          <span>PIN + 指纹 + 人脸三重应用锁，敏感内容只有本人能查看</span>
+        </div>
+      </div>
+
+      <div class="feature-bullet">
+        <div class="feature-bullet-icon">🎯</div>
+        <div class="feature-bullet-text">
+          <strong>专注不打扰</strong>
+          <span>没有 AI 写作助手弹窗，没有强制推送，没有广告，只想让你安静写作</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-number">100%</div>
+      <div class="stat-label">本地存储 · 不联网</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">0</div>
+      <div class="stat-label">账号注册 · AI 弹窗</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">3</div>
+      <div class="stat-label">应用锁方式 (PIN/指纹/人脸)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-number">∞</div>
+      <div class="stat-label">离线可用场景</div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <div class="section">
+    <h2 class="section-title">核心功能</h2>
+    <p class="section-desc">一套应用，同时解决笔记 · 待办 · 提醒 · 备份四大需求</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-card-icon icon-1">📝</div>
+        <h3>Markdown 笔记</h3>
+        <p>原生支持 Markdown 渲染，包括标题、列表、表格、代码块、引用、分割线等，结构化排版一目了然。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon icon-2">✅</div>
+        <h3>待办与提醒</h3>
+        <p>待办事项支持设置提醒时间，到点自动发送系统通知并响铃，帮你把事情记牢。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon icon-3">🔒</div>
+        <h3>三重应用锁</h3>
+        <p>PIN 密码 + 指纹识别 + 人脸解锁，敏感笔记、账号备忘只对你一人可见。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon icon-4">💾</div>
+        <h3>JSON 手动备份</h3>
+        <p>一键导出所有笔记为 JSON 文件，存到本地、备份到云盘或传给他人，数据永远在自己手上。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon icon-5">🌙</div>
+        <h3>深色模式与主题</h3>
+        <p>跟随系统或手动切换深色/浅色主题，深夜记录也不刺眼，保护你的眼睛。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-card-icon icon-6">🚫</div>
+        <h3>无 AI · 无广告</h3>
+        <p>没有 AI 写作助手弹窗，没有广告推荐，没有强制推送，纯粹的写作与记录空间。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Target Users & Scenarios -->
+  <div class="section">
+    <h2 class="section-title">目标用户与使用场景</h2>
+    <p class="section-desc">谁在用清笺？在什么时候打开它？</p>
+    <div class="scenario-grid">
+      <div class="scenario-card">
+        <h4>👨‍🎓 学生群体</h4>
+        <p>上课记笔记、整理知识点、列作业清单、设复习提醒，所有内容在一部手机里就能完成，无需电脑、无需联网。</p>
+      </div>
+      <div class="scenario-card">
+        <h4>💼 职场人</h4>
+        <p>开会时速记要点、列每日待办、写创意草稿；通勤路上想到方案立刻记录，不用担心数据同步、账号登录等问题。</p>
+      </div>
+      <div class="scenario-card">
+        <h4>✍️ 自由创作者</h4>
+        <p>记者、作家、自媒体人需要私密、可控的记录空间，清笺的本地存储 + 应用锁组合，让敏感信息只留在设备里。</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Current Pain Points -->
+  <div class="section">
+    <h2 class="section-title">没有清笺，你可能会遇到…</h2>
+    <p class="section-desc">主流笔记应用普遍存在的 5 个痛点</p>
+    <div class="pain-list">
+      <div class="pain-item">
+        <span class="pain-cross">✕</span>
+        <div class="pain-text">
+          <strong>强制登录 + 强制云端同步</strong>
+          <span>只想写点东西却被要求注册账号、绑定手机、开启云同步；没网就完全不能用。</span>
+        </div>
+      </div>
+      <div class="pain-item">
+        <span class="pain-cross">✕</span>
+        <div class="pain-text">
+          <strong>AI 弹窗满天飞</strong>
+          <span>每次打开都被"AI 帮你改写""AI 生成长文""AI 推荐模板"刷屏，简单记录变得复杂。</span>
+        </div>
+      </div>
+      <div class="pain-item">
+        <span class="pain-cross">✕</span>
+        <div class="pain-text">
+          <strong>数据不在自己手上</strong>
+          <span>所有笔记存在厂商服务器，服务一旦关停或账号被封，多年积累的内容瞬间消失。</span>
+        </div>
+      </div>
+      <div class="pain-item">
+        <span class="pain-cross">✕</span>
+        <div class="pain-text">
+          <strong>待办与笔记割裂</strong>
+          <span>写笔记用一个 App、列待办用另一个、设提醒还要再装一个，多套体系来回切换。</span>
+        </div>
+      </div>
+      <div class="pain-item">
+        <span class="pain-cross">✕</span>
+        <div class="pain-text">
+          <strong>隐私内容不敢写</strong>
+          <span>账号、密码、私密想法… 不敢存在云端 App 里，手写又查起来麻烦。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Value & Meaning -->
+  <div class="section">
+    <h2 class="section-title">价值与意义</h2>
+    <p class="section-desc">效率提升 + 社会价值（隐私优先）</p>
+    <div class="value-grid">
+      <div class="value-card">
+        <span class="value-badge">⚡ 效率提升</span>
+        <h3>让记录回到最纯粹的状态</h3>
+        <p>打开即可打字、离线可用、自动保存，从「想到」到「记下」的路径最短；结构化的 Markdown、表格、代码块支持，让笔记不只是文字，更是可整理、可搜索的知识库。</p>
+        <p>内置待办与系统通知提醒，一套应用同时解决「笔记 + 待办 + 提醒」，不用在多个 App 之间反复切换，减少工具焦虑。</p>
+      </div>
+      <div class="value-card">
+        <span class="value-badge">🌱 社会价值</span>
+        <h3>隐私优先：数据主权回归用户</h3>
+        <p>所有笔记和待办数据全部加密存储在手机本地，不上云、不强制联网、不需要登录账号。对于重视个人数据主权的用户（学生、记者、研究者、创作者），这是一个比云笔记明显更安全、更可控的选择。</p>
+        <p>在数据合规与个人隐私意识日益增强的今天，清笺用最简单的方式回答了一个核心问题：「我的字，存在我自己的设备上。」</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech Stack -->
+  <div class="section">
+    <h2 class="section-title">技术实现</h2>
+    <p class="section-desc">Android 原生开发，现代技术栈</p>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <strong>Kotlin</strong>
+        <span>现代 Android 首选语言</span>
+      </div>
+      <div class="tech-card">
+        <strong>Jetpack Compose</strong>
+        <span>声明式 UI 框架</span>
+      </div>
+      <div class="tech-card">
+        <strong>Room Database</strong>
+        <span>本地 SQLite 封装</span>
+      </div>
+      <div class="tech-card">
+        <strong>WorkManager</strong>
+        <span>后台任务与提醒</span>
+      </div>
+      <div class="tech-card">
+        <strong>Material 3</strong>
+        <span>现代化设计规范</span>
+      </div>
+      <div class="tech-card">
+        <strong>Biometric API</strong>
+        <span>指纹 / 人脸解锁</span>
+      </div>
+      <div class="tech-card">
+        <strong>JSON Export</strong>
+        <span>开放的备份格式</span>
+      </div>
+      <div class="tech-card">
+        <strong>Offline-First</strong>
+        <span>离线优先架构</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta-section">
+    <h2>让「随手记录」回到最纯粹的状态</h2>
+    <p>清笺希望成为你手机上那个最安静、最可靠、最不打扰你的笔记应用。打开 → 打字 → 关闭，就这么简单。</p>
+    <div class="cta-buttons">
+      <a class="cta-btn" href="#">📥 立即体验</a>
+      <a class="cta-btn cta-btn-outline" href="#">📖 查看更新日志</a>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    清笺 Qingjian — 本 HTML 由 TRAE Work（Auto 模式）生成，用于创意方案展示
+  </div>
+
+</div>
+
+</body>
+</html>
