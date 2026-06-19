@@ -38,7 +38,15 @@ class NotesApplication : Application() {
             noteImageDao = database.noteImageDao(),
             noteVersionDao = database.noteVersionDao(),
             noteEncryptionDao = database.noteEncryptionDao(),
-            tagGroupDao = database.tagGroupDao()
+            tagGroupDao = database.tagGroupDao(),
+            noteBacklinkDao = database.noteBacklinkDao(),
+            noteAttachmentDao = database.noteAttachmentDao(),
+            noteCommentDao = database.noteCommentDao(),
+            searchHistoryDao = database.searchHistoryDao(),
+            syncConfigDao = database.syncConfigDao(),
+            noteChangeLogDao = database.noteChangeLogDao(),
+            userNoteTemplateDao = database.userNoteTemplateDao(),
+            backlinkScanStateDao = database.backlinkScanStateDao()
         )
     }
 

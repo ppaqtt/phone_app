@@ -54,7 +54,13 @@ data class NotesUiState(
      */
     val isLoading: Boolean = true,
     /** 中价值/中工作量: 标签分组列表 */
-    val tagGroups: List<TagGroupEntity> = emptyList()
+    val tagGroups: List<TagGroupEntity> = emptyList(),
+    /** 只显示草稿 */
+    val showOnlyDrafts: Boolean = false,
+    /** 只显示已锁定 */
+    val showOnlyLocked: Boolean = false,
+    /** 颜色标签筛选 (0 = 不过滤, 其他 = 只显示该颜色) */
+    val activeColorTag: Int = 0
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -67,13 +73,16 @@ class NotesViewModel(
     private val sortOrder = MutableStateFlow(NoteSortOrder.UPDATED_DESC)
     /** 高价值/低工作量: 只显示星标笔记 */
     private val showOnlyFavorites = MutableStateFlow(false)
+    private val showOnlyDrafts = MutableStateFlow(false)
+    private val showOnlyLocked = MutableStateFlow(false)
+    private val activeColorTag = MutableStateFlow(0)
 
     private val notes = activeCategoryId.flatMapLatest { categoryId ->
         if (categoryId == null) repository.observeNotes() else repository.observeNotesByCategory(categoryId)
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites, repository.observeTagGroups()) { args ->
+        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites, repository.observeTagGroups(), showOnlyDrafts, showOnlyLocked, activeColorTag) { args ->
             @Suppress("UNCHECKED_CAST")
             val notesList = args[0] as List<NoteWithCategory>
             val categories = args[1] as List<CategoryEntity>
@@ -82,6 +91,9 @@ class NotesViewModel(
             val sort = args[4] as NoteSortOrder
             val onlyFav = args[5] as Boolean
             val tagGroups = args[6] as List<TagGroupEntity>
+            val onlyDrafts = args[7] as Boolean
+            val onlyLocked = args[8] as Boolean
+            val colorTag = args[9] as Int
             // SQL 已经 ORDER BY is_pinned DESC, updated_at DESC, 但内存 sortBy*
             // 会丢掉 is_pinned 优先级。所有排序都先按置顶降序, 再按星标降序, 最后按用户选的次级 key。
             val pinnedFirst = compareByDescending<NoteWithCategory> { it.note.isPinned }
@@ -89,6 +101,9 @@ class NotesViewModel(
             var filtered = notesList
             // 高价值/低工作量: 星标筛选
             if (onlyFav) filtered = filtered.filter { it.note.isFavorite }
+            if (onlyDrafts) filtered = filtered.filter { it.note.isDraft }
+            if (onlyLocked) filtered = filtered.filter { it.note.isLocked }
+            if (colorTag != 0) filtered = filtered.filter { it.note.colorTag == colorTag }
             if (q.isNotBlank()) {
                 val needle = q.trim()
                 filtered = filtered.filter { n ->
@@ -116,7 +131,10 @@ class NotesViewModel(
                 sortOrder = sort,
                 showOnlyFavorites = onlyFav,
                 isLoading = false,
-                tagGroups = tagGroups
+                tagGroups = tagGroups,
+                showOnlyDrafts = onlyDrafts,
+                showOnlyLocked = onlyLocked,
+                activeColorTag = colorTag
             )
         }.stateIn(
             scope = viewModelScope,
@@ -162,6 +180,49 @@ class NotesViewModel(
     fun setFavorite(noteId: Long, favorite: Boolean) {
         launchSafe("setFavorite") { repository.setFavorite(noteId, favorite) }
     }
+
+    /** 切换"只显示草稿"过滤 */
+    fun setShowOnlyDrafts(value: Boolean) { showOnlyDrafts.value = value }
+    /** 切换"只显示已锁定"过滤 */
+    fun setShowOnlyLocked(value: Boolean) { showOnlyLocked.value = value }
+    /** 设置颜色标签过滤 (0 = 不过滤) */
+    fun setColorTagFilter(colorTag: Int) { activeColorTag.value = colorTag }
+
+    /** 设置单篇笔记的锁定状态 */
+    fun setLocked(noteId: Long, locked: Boolean) {
+        launchSafe("setLocked") { repository.setLocked(noteId, locked) }
+    }
+    /** 设置单篇笔记的草稿状态 */
+    fun setDraft(noteId: Long, draft: Boolean) {
+        launchSafe("setDraft") { repository.setDraft(noteId, draft) }
+    }
+    /** 设置单篇笔记的颜色标签 */
+    fun setColorTag(noteId: Long, colorTag: Int) {
+        launchSafe("setColorTag") { repository.setColorTag(noteId, colorTag) }
+    }
+    /** 设置单篇笔记的预估阅读时间 (秒) */
+    fun setReadTimeSeconds(noteId: Long, seconds: Int) {
+        launchSafe("setReadTimeSeconds") { repository.setReadTimeSeconds(noteId, seconds) }
+    }
+
+    /** 搜索历史: 订阅最近 N 条 */
+    fun observeSearchHistory(limit: Int = 10): kotlinx.coroutines.flow.Flow<List<com.example.notes.data.SearchHistoryEntity>> =
+        repository.observeSearchHistory(limit)
+
+    /** 搜索历史: 记录一次搜索 */
+    fun recordSearch(query: String) {
+        if (query.isBlank()) return
+        viewModelScope.launch { kotlinx.coroutines.Dispatchers.IO.let { withContext(it) { repository.recordSearch(query) } } }
+    }
+
+    /** 搜索历史: 清空全部 */
+    fun clearSearchHistory() {
+        viewModelScope.launch { repository.clearSearchHistory() }
+    }
+
+    /** 用于标签云/字数云: 获取所有笔记的 id+title+content+tags */
+    suspend fun getAllNotesForTagCloud(): List<com.example.notes.data.NoteIdTitleContentTags> =
+        kotlinx.coroutines.Dispatchers.IO.let { withContext(it) { repository.getAllNoteIdsTitleContentTags() } }
 
     /**
      * 保存笔记并替换其全部图片。
@@ -332,6 +393,19 @@ class NotesViewModel(
     fun removeTagFromAllNotes(tag: String) {
         launchSafe("removeTagFromAllNotes") { repository.removeTagFromAllNotes(tag) }
     }
+
+    fun observeSearchHistory(limit: Int = 10) = repository.observeSearchHistory(limit)
+
+    fun recordSearch(query: String) {
+        launchSafe("recordSearch") { repository.recordSearch(query) }
+    }
+
+    fun clearSearchHistory() {
+        launchSafe("clearSearchHistory") { repository.clearSearchHistory() }
+    }
+
+    suspend fun getAllNotesForTagCloud(): List<com.example.notes.data.NoteIdTitleContentTags> =
+        runCatching { repository.getAllNoteIdsTitleContentTags() }.getOrDefault(emptyList())
 
     // --- Trash (F2) ------------------------------------------------------
 

@@ -1,17 +1,34 @@
 package com.example.notes.repository
 
+import com.example.notes.data.BacklinkScanStateDao
+import com.example.notes.data.BacklinkScanStateEntity
 import com.example.notes.data.CategoryDao
 import com.example.notes.data.CategoryEntity
+import com.example.notes.data.NoteAttachmentDao
+import com.example.notes.data.NoteAttachmentEntity
+import com.example.notes.data.NoteBacklinkDao
+import com.example.notes.data.NoteChangeLogDao
+import com.example.notes.data.NoteChangeLogEntity
+import com.example.notes.data.NoteCharCountRow
+import com.example.notes.data.NoteCommentDao
+import com.example.notes.data.NoteCommentEntity
 import com.example.notes.data.NoteDao
 import com.example.notes.data.NoteEntity
+import com.example.notes.data.NoteIdTitleContentTags
 import com.example.notes.data.NoteImageDao
 import com.example.notes.data.NoteImageEntity
 import com.example.notes.data.NoteStatsRow
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.data.SearchHistoryDao
+import com.example.notes.data.SearchHistoryEntity
+import com.example.notes.data.SyncConfigDao
+import com.example.notes.data.SyncConfigEntity
 import com.example.notes.data.TagGroupDao
 import com.example.notes.data.TagGroupEntity
 import com.example.notes.data.TagGroupTagEntity
+import com.example.notes.data.UserNoteTemplateDao
+import com.example.notes.data.UserNoteTemplateEntity
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
@@ -42,7 +59,15 @@ class NotesRepository(
     private val noteImageDao: NoteImageDao,
     private val noteVersionDao: com.example.notes.data.NoteVersionDao,
     private val noteEncryptionDao: com.example.notes.data.NoteEncryptionDao,
-    private val tagGroupDao: TagGroupDao
+    private val tagGroupDao: TagGroupDao,
+    private val noteBacklinkDao: NoteBacklinkDao,
+    private val noteAttachmentDao: NoteAttachmentDao,
+    private val noteCommentDao: NoteCommentDao,
+    private val searchHistoryDao: SearchHistoryDao,
+    private val syncConfigDao: SyncConfigDao,
+    private val noteChangeLogDao: NoteChangeLogDao,
+    private val userNoteTemplateDao: UserNoteTemplateDao,
+    private val backlinkScanStateDao: BacklinkScanStateDao
 ) {
 
     // --- Notes -----------------------------------------------------------
@@ -505,4 +530,103 @@ class NotesRepository(
 
     /** 获取某标签所属的所有分组 id */
     suspend fun getGroupIdsForTag(tagName: String): List<Long> = tagGroupDao.getGroupIdsForTag(tagName.trim())
+
+    // --- 笔记锁定 / 草稿 / 颜色标签 / 阅读时间 ------------------------
+
+    suspend fun setLocked(id: Long, locked: Boolean) = noteDao.setLocked(id, locked)
+    suspend fun setDraft(id: Long, draft: Boolean) = noteDao.setDraft(id, draft)
+    suspend fun setColorTag(id: Long, colorTag: Int) = noteDao.setColorTag(id, colorTag)
+    suspend fun setReadTimeSeconds(id: Long, seconds: Int) = noteDao.setReadTimeSeconds(id, seconds)
+    fun observeDrafts(): Flow<List<NoteEntity>> = noteDao.observeDrafts()
+    fun observeLocked(): Flow<List<NoteEntity>> = noteDao.observeLocked()
+
+    // --- 反向链接 -------------------------------------------------------
+
+    fun observeBacklinksFor(noteId: Long): Flow<List<NoteEntity>> = noteBacklinkDao.observeBacklinksFor(noteId)
+    fun observeForwardLinksFor(noteId: Long): Flow<List<NoteEntity>> = noteBacklinkDao.observeForwardLinksFor(noteId)
+    suspend fun scanAndUpdateBacklinks(noteId: Long, content: String) {
+        val contentHash = content.trim().hashCode()
+        val existing = backlinkScanStateDao.getState(noteId)
+        if (existing != null && existing.lastContentHash == contentHash) return
+
+        database.withTransaction {
+            noteBacklinkDao.deleteAllLinksFrom(noteId)
+
+            val pattern = Regex("""\[\[([^\[\]\n]{1,60})\]\]""")
+            val refs = pattern.findAll(content).mapNotNull { m ->
+                val ref = m.groupValues[1].trim()
+                if (ref.isEmpty()) null else ref
+            }.distinct().toList()
+
+            if (refs.isNotEmpty()) {
+                val matches = noteDao.findNotesByTitleIn(refs)
+                val titleToId = matches.associate { it.title.trim() to it.id }
+                refs.forEach { ref ->
+                    val targetId = titleToId[ref]
+                        ?: matches.firstOrNull { it.title.contains(ref, ignoreCase = true) }?.id
+                        ?: return@forEach
+                    if (targetId != noteId) {
+                        noteBacklinkDao.upsert(
+                            NoteBacklinkEntity(sourceNoteId = noteId, targetNoteId = targetId)
+                        )
+                    }
+                }
+            }
+
+            backlinkScanStateDao.upsert(
+                BacklinkScanStateEntity(noteId = noteId, lastScannedAt = System.currentTimeMillis(), lastContentHash = contentHash)
+            )
+        }
+    }
+
+    // --- 附件（语音/图片/通用） ---------------------------------------
+
+    fun observeAttachmentsFor(noteId: Long): Flow<List<NoteAttachmentEntity>> = noteAttachmentDao.observeByNoteId(noteId)
+    suspend fun addAttachment(attachment: NoteAttachmentEntity) = noteAttachmentDao.insert(attachment)
+    suspend fun removeAttachment(id: Long) = noteAttachmentDao.deleteById(id)
+    suspend fun reorderAttachmentsFor(noteId: Long, ids: List<Long>) {
+        database.withTransaction {
+            ids.forEachIndexed { idx, aid -> noteAttachmentDao.updatePosition(aid, idx) }
+        }
+    }
+
+    // --- 评论 -----------------------------------------------------------
+
+    fun observeCommentsFor(noteId: Long): Flow<List<NoteCommentEntity>> = noteCommentDao.observeByNoteId(noteId)
+    suspend fun addComment(noteId: Long, content: String, createdAt: Long = System.currentTimeMillis()) =
+        noteCommentDao.insert(NoteCommentEntity(noteId = noteId, content = content.trim(), createdAt = createdAt))
+    suspend fun removeComment(id: Long) = noteCommentDao.deleteById(id)
+
+    // --- 搜索历史 -------------------------------------------------------
+
+    fun observeSearchHistory(limit: Int = 10): Flow<List<SearchHistoryEntity>> = searchHistoryDao.observeRecent(limit)
+    suspend fun recordSearch(query: String) {
+        if (query.isBlank()) return
+        searchHistoryDao.upsert(SearchHistoryEntity(query = query.trim(), lastSearchedAt = System.currentTimeMillis()))
+    }
+    suspend fun clearSearchHistory() = searchHistoryDao.clearAll()
+
+    // --- 同步配置 -------------------------------------------------------
+
+    fun observeSyncConfig(): Flow<List<SyncConfigEntity>> = syncConfigDao.observeAll()
+    suspend fun getSyncConfig(key: String): SyncConfigEntity? = syncConfigDao.getByKey(key)
+    suspend fun putSyncConfig(key: String, value: String) =
+        syncConfigDao.upsert(SyncConfigEntity(configKey = key.trim(), configValue = value))
+
+    // --- 用户模板 -------------------------------------------------------
+
+    fun observeUserTemplates(): Flow<List<UserNoteTemplateEntity>> = userNoteTemplateDao.observeAll()
+    suspend fun addUserTemplate(name: String, content: String, tags: String = "", categoryId: Long? = null): Long =
+        userNoteTemplateDao.insert(UserNoteTemplateEntity(name = name.trim(), content = content, tags = tags, categoryId = categoryId, createdAt = System.currentTimeMillis()))
+    suspend fun removeUserTemplate(id: Long) = userNoteTemplateDao.deleteById(id)
+
+    // --- 变更日志 -------------------------------------------------------
+
+    suspend fun recordNoteChange(noteId: Long, changeType: String, changedAt: Long = System.currentTimeMillis()) =
+        noteChangeLogDao.insert(NoteChangeLogEntity(noteId = noteId, changeType = changeType, changedAt = changedAt))
+    fun observeChangesFor(noteId: Long): Flow<List<NoteChangeLogEntity>> = noteChangeLogDao.observeByNoteId(noteId)
+
+    // --- 高级统计 -------------------------------------------------------
+
+    suspend fun getAllNoteIdsTitleContentTags(): List<NoteIdTitleContentTags> = noteDao.getAllIdsTitlesContentTags()
 }

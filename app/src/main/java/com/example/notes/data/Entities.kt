@@ -107,7 +107,23 @@ data class NoteEntity(
      * 用 Boolean 而非 Int 让 Room 自动处理, 搜索/计数更直观。
      */
     @ColumnInfo(name = "is_favorite", defaultValue = "0")
-    val isFavorite: Boolean = false
+    val isFavorite: Boolean = false,
+
+    /** 功能1: 笔记锁定 (写保护)。true 时编辑页只读。 */
+    @ColumnInfo(name = "is_locked", defaultValue = "0")
+    val isLocked: Boolean = false,
+
+    /** 功能20: 草稿模式。true 时在列表显示灰色草稿标记。 */
+    @ColumnInfo(name = "is_draft", defaultValue = "0")
+    val isDraft: Boolean = false,
+
+    /** 功能3: 笔记颜色标签 (用于彩色标签/标记)。0=无, 其它为颜色值。 */
+    @ColumnInfo(name = "color_tag", defaultValue = "0")
+    val colorTag: Int = 0,
+
+    /** 功能: 笔记阅读时间估算 (秒), 0 表示未计算。 */
+    @ColumnInfo(name = "read_time_seconds", defaultValue = "0")
+    val readTimeSeconds: Int = 0
 )
 
 @Entity(
@@ -234,4 +250,195 @@ data class TagGroupTagEntity(
 
     @ColumnInfo(name = "group_id")
     val groupId: Long
+)
+
+/** 功能9: 笔记反向链接表。记录笔记 A 引用了笔记 B, 方便从 B 查到 A。 */
+@Entity(
+    tableName = "note_backlinks",
+    primaryKeys = ["source_note_id", "target_note_id"],
+    foreignKeys = [
+        ForeignKey(entity = NoteEntity::class, parentColumns = ["id"], childColumns = ["source_note_id"], onDelete = ForeignKey.CASCADE),
+        ForeignKey(entity = NoteEntity::class, parentColumns = ["id"], childColumns = ["target_note_id"], onDelete = ForeignKey.CASCADE)
+    ],
+    indices = [Index("target_note_id")]
+)
+data class NoteBacklinkEntity(
+    @ColumnInfo(name = "source_note_id")
+    val sourceNoteId: Long,
+
+    @ColumnInfo(name = "target_note_id")
+    val targetNoteId: Long,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/** 功能11/24: 笔记附件表 (图片/语音/通用文件)。
+ *  类型: "image" | "voice" | "file"
+ *  备注: note_images 表保留用于图片 (老数据), 新附件走本
+ */
+@Entity(
+    tableName = "note_attachments",
+    foreignKeys = [ForeignKey(
+        entity = NoteEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["note_id"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("note_id"), Index("type")]
+)
+data class NoteAttachmentEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "note_id")
+    val noteId: Long,
+
+    /** 附件类型: "image" | "voice" | "file" */
+    @ColumnInfo(name = "type")
+    val type: String,
+
+    /** 本地文件 URI 或路径 */
+    @ColumnInfo(name = "uri")
+    val uri: String,
+
+    /** 文件名, 用于展示 */
+    @ColumnInfo(name = "name", defaultValue = "")
+    val name: String = "",
+
+    /** 对于音频: 时长毫秒 */
+    @ColumnInfo(name = "duration_ms", defaultValue = "0")
+    val durationMs: Long = 0L,
+
+    /** 大小, 单位 byte */
+    @ColumnInfo(name = "size_bytes", defaultValue = "0")
+    val sizeBytes: Long = 0L,
+
+    @ColumnInfo(name = "position")
+    val position: Int = 0,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/** 功能19: 笔记评论/标注表。对笔记添加评论。 */
+@Entity(
+    tableName = "note_comments",
+    foreignKeys = [ForeignKey(
+        entity = NoteEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["note_id"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("note_id"), Index("created_at")]
+)
+data class NoteCommentEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "note_id")
+    val noteId: Long,
+
+    @ColumnInfo(name = "content")
+    val content: String,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/** 功能18: 搜索历史表。记录用户搜索过的关键词。 */
+@Entity(
+    tableName = "search_history",
+    indices = [Index(value = ["query"], unique = true), Index("last_searched_at")]
+)
+data class SearchHistoryEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "query")
+    val query: String,
+
+    @ColumnInfo(name = "last_searched_at")
+    val lastSearchedAt: Long = System.currentTimeMillis(),
+
+    /** 搜索次数, 用于排序/自动补全优先级 */
+    @ColumnInfo(name = "search_count", defaultValue = "1")
+    val searchCount: Int = 1
+)
+
+/** 功能: 同步/WebDAV 配置表 (单表存储 key-value 配置)。 */
+@Entity(tableName = "sync_config", indices = [Index(value = ["config_key"], unique = true)])
+data class SyncConfigEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "config_key")
+    val key: String,
+
+    @ColumnInfo(name = "config_value")
+    val value: String,
+
+    @ColumnInfo(name = "updated_at")
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+/** 功能: 笔记变更记录 (用于同步/增量导出)。 */
+@Entity(
+    tableName = "note_change_log",
+    foreignKeys = [ForeignKey(entity = NoteEntity::class, parentColumns = ["id"], childColumns = ["note_id"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("note_id"), Index("changed_at")]
+)
+data class NoteChangeLogEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "note_id")
+    val noteId: Long,
+
+    /** "create" | "update" | "delete" | "restore" */
+    @ColumnInfo(name = "change_type")
+    val changeType: String,
+
+    @ColumnInfo(name = "changed_at")
+    val changedAt: Long = System.currentTimeMillis()
+)
+
+/** 功能: 模板市场。用户可创建/保存自己的笔记模板, 也可使用系统模板。 */
+@Entity(tableName = "user_note_templates", indices = [Index("created_at")])
+data class UserNoteTemplateEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "name")
+    val name: String,
+
+    @ColumnInfo(name = "content")
+    val content: String,
+
+    /** 逗号分隔的标签, 应用模板时加到笔记 */
+    @ColumnInfo(name = "tags", defaultValue = "")
+    val tags: String = "",
+
+    /** 关联分类, null 表示不设 */
+    @ColumnInfo(name = "category_id")
+    val categoryId: Long? = null,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+/** 功能: 笔记反向链接扫描状态, 避免重复扫描全文。 */
+@Entity(tableName = "backlink_scan_state")
+data class BacklinkScanStateEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "note_id")
+    val noteId: Long,
+
+    /** 上次扫描的时间戳, 0 表示从未扫描 */
+    @ColumnInfo(name = "last_scanned_at", defaultValue = "0")
+    val lastScannedAt: Long = 0L,
+
+    /** 上次扫描时 content 的 hash, 用于快速判断是否需要重新扫描 */
+    @ColumnInfo(name = "last_content_hash", defaultValue = "0")
+    val lastContentHash: Long = 0L
 )

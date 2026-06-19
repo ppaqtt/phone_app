@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,12 +40,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.notes.data.CategoryEntity
+import com.example.notes.data.NoteIdTitleContentTags
 import com.example.notes.data.NoteStatsRow
 import com.example.notes.repository.StatsTotals
 import com.example.notes.ui.viewmodel.NotesViewModel
@@ -63,15 +65,16 @@ fun StatsScreen(
     val totals by viewModel.statsTotals.collectAsState()
     val categories by viewModel.categories.collectAsState()
     var contentRows by remember { mutableStateOf<List<NoteStatsRow>>(emptyList()) }
+    var tagRows by remember { mutableStateOf<List<NoteIdTitleContentTags>>(emptyList()) }
 
-    // 一次性拉全量, 客户端做字数 / 月度统计
     LaunchedEffect(Unit) {
         contentRows = viewModel.getStatsRowsOnce()
+        tagRows = viewModel.getAllNotesForTagCloud()
     }
-    // 笔记增删改后, 重新拉取
     val totalsCount = totals.totalNotes
     LaunchedEffect(totalsCount) {
         contentRows = viewModel.getStatsRowsOnce()
+        tagRows = viewModel.getAllNotesForTagCloud()
     }
 
     Scaffold(
@@ -99,6 +102,9 @@ fun StatsScreen(
         ) {
             TotalsRow(totals)
             WordCountCard(contentRows)
+            TagCloudCard(tagRows)
+            WordCloudCard(tagRows)
+            ReadingTimeCard(contentRows)
             CategoryDistributionCard(categories, contentRows)
             MonthlyTrendCard(contentRows)
         }
@@ -177,10 +183,6 @@ private fun StatTile(
     }
 }
 
-/**
- * F13: 字数统计卡片。
- * 中文字符按 1 字, 英文/数字段按 1 词 计数 (与 NoteEditScreen.MetaInfoRow 保持一致)。
- */
 @Composable
 private fun WordCountCard(rows: List<NoteStatsRow>) {
     val totalChars = remember(rows) { rows.sumOf { countChars(it.content) } }
@@ -215,9 +217,96 @@ private fun StatRow(label: String, value: String) {
     }
 }
 
-/**
- * F13: 分类分布 — 条形图, 横向。每个分类显示 1 个比例条 + 笔记数。
- */
+@Composable
+private fun TagCloudCard(rows: List<NoteIdTitleContentTags>) {
+    val topTags = remember(rows) { buildTagFrequencies(rows).take(20) }
+    SectionCard(title = "标签云") {
+        if (topTags.isEmpty()) {
+            Text(
+                "暂无标签",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            val maxCount = topTags.maxOf { it.second }.coerceAtLeast(1)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalSpacing = 6.dp
+            ) {
+                topTags.forEach { (tag, count) ->
+                    val ratio = (count.toFloat() / maxCount).coerceIn(0f, 1f)
+                    val fontSize = lerp(12f, 24f, ratio).sp
+                    Box(
+                        modifier = Modifier
+                            .clipCompat(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = tag,
+                            style = TextStyle(
+                                fontSize = fontSize,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WordCloudCard(rows: List<NoteIdTitleContentTags>) {
+    val topWords = remember(rows) { buildWordFrequencies(rows).take(30) }
+    SectionCard(title = "字数云") {
+        if (topWords.isEmpty()) {
+            Text(
+                "暂无内容",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            val maxCount = topWords.maxOf { it.second }.coerceAtLeast(1)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalSpacing = 4.dp
+            ) {
+                topWords.forEach { (word, count) ->
+                    val ratio = (count.toFloat() / maxCount).coerceIn(0f, 1f)
+                    val fontSize = lerp(11f, 22f, ratio).sp
+                    Text(
+                        text = word,
+                        style = TextStyle(
+                            fontSize = fontSize,
+                            fontWeight = FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadingTimeCard(rows: List<NoteStatsRow>) {
+    val totalLength = remember(rows) { rows.sumOf { it.content.length } }
+    val totalMinutes = totalLength / 400
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    SectionCard(title = "阅读时间") {
+        Text(
+            text = if (hours > 0) "$hours 小时 $minutes 分钟" else "$minutes 分钟",
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
 @Composable
 private fun CategoryDistributionCard(
     categories: List<CategoryEntity>,
@@ -227,7 +316,6 @@ private fun CategoryDistributionCard(
         val byId = rows.groupingBy { it.categoryId }.eachCount()
         val total = rows.size
         val map = LinkedHashMap<String, Pair<Int, Float>>()
-        // 未分类
         val noneCount = byId[null] ?: 0
         if (noneCount > 0) map["未分类"] = noneCount to (noneCount.toFloat() / total)
         categories.forEach { c ->
@@ -272,24 +360,20 @@ private fun CategoryBar(name: String, count: Int, ratio: Float) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clipCompat(RoundedCornerShape(4.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth(ratio.coerceIn(0.02f, 1f))
                     .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clipCompat(RoundedCornerShape(4.dp))
                     .background(MaterialTheme.colorScheme.primary)
             )
         }
     }
 }
 
-/**
- * F13: 最近 6 个月每月笔记数, 横向柱状图。
- * 没有笔记的月份也占 1 个柱 (高度 0), 保持时间轴连续。
- */
 @Composable
 private fun MonthlyTrendCard(rows: List<NoteStatsRow>) {
     val buckets = remember(rows) { bucketByMonth(rows, 6) }
@@ -318,11 +402,8 @@ private fun MonthlyTrendCard(rows: List<NoteStatsRow>) {
                         modifier = Modifier
                             .width(20.dp)
                             .height(heightDp.dp)
-                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                            .background(
-                                if (count > 0) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
+                            .clipCompat(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            .background(MaterialTheme.colorScheme.primary)
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -389,14 +470,117 @@ private fun countWords(text: String): Int {
     return words
 }
 
-/**
- * 把笔记按 createdAt 分到最近 [months] 个月桶, 返回 ("M月", count) 列表, 升序。
- * 没有笔记的月份补 count=0, 保证图表 X 轴连续。
- */
+private fun buildTagFrequencies(rows: List<NoteIdTitleContentTags>): List<Pair<String, Int>> {
+    val freq = LinkedHashMap<String, Int>()
+    rows.forEach { r ->
+        if (r.tags.isBlank()) return@forEach
+        r.tags.split(Regex("[,，\\s]+")).filter { it.isNotBlank() }.forEach { tag ->
+            val key = tag.trim()
+            if (key.isNotEmpty()) freq[key] = freq.getOrDefault(key, 0) + 1)
+        }
+    }
+    return freq.entries.sortedByDescending { it.value }.map { it.key to it.value }
+}
+
+private fun buildWordFrequencies(rows: List<NoteIdTitleContentTags>): List<Pair<String, Int>> {
+    val freq = LinkedHashMap<String, Int>()
+    val stopwords = setOf(
+        "the", "and", "a", "to", "of", "in", "is", "it", "for", "on",
+        "with", "as", "that", "this", "at", "by", "an", "be", "are", "or",
+        "from", "but", "not", "you", "i", "we", "he", "she", "they", "my",
+        "your", "his", "her", "our", "their", "them", "me", "him", "us",
+        "的", "了", "是", "在", "我", "有", "和", "就", "不", "人", "都",
+        "一", "一个", "也", "到", "他", "你", "她", "我们", "你们", "他们",
+        "这", "那", "这个", "那个", "这些", "那些", "吗", "呢", "啊", "吧",
+        "与", "及", "或", "但", "而", "或", "被", "把", "给", "让", "使"
+    )
+    rows.forEach { r ->
+        r.content.split(Regex("[^\\p{L}\\p{Nd]+"))
+            .map { it.lowercase().trim() }
+            .filter { it.length >= 2 && it !in stopwords }
+            .forEach { word ->
+                if (word.isNotBlank()) freq[word] = freq.getOrDefault(word, 0) + 1
+            }
+    }
+    return freq.entries.sortedByDescending { it.value }.map { it.key to it.value }
+}
+
+private fun lerp(start: Float, end: Float, t: Float): Float {
+    return start + (end - start) * t
+}
+
+/* ----------------- FlowRow 流式布局 ----------------- */
+
+@Composable
+private fun FlowRow(
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+    verticalSpacing: androidx.compose.ui.unit.Dp = 4.dp,
+    content: @Composable () -> Unit
+) {
+    val density = LocalDensity.current
+    val verticalSpacingPx = with(density) { verticalSpacing.roundToPx() }
+    Layout(
+        content = content,
+        modifier = modifier
+    ) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0)) }
+        val maxWidth = constraints.maxWidth
+        val spacingPx = (maxWidth * 0.02f).toInt().coerceAtLeast(4)
+
+        val actualRows = mutableListOf<MutableList<androidx.compose.ui.layout.Placeable>>()
+        var curRow = mutableListOf<androidx.compose.ui.layout.Placeable>()
+        var curWidth = 0
+
+        for (p in placeables) {
+            if (curRow.isEmpty()) {
+                curRow.add(p)
+                curWidth = p.width
+            } else {
+                if (curWidth + spacingPx + p.width > maxWidth) {
+                    actualRows.add(curRow)
+                    curRow = mutableListOf(p)
+                    curWidth = p.width
+                } else {
+                    curRow.add(p)
+                    curWidth += spacingPx + p.width
+                }
+            }
+        }
+        if (curRow.isNotEmpty()) actualRows.add(curRow)
+
+        var totalHeight = 0
+        actualRows.forEach { row ->
+            totalHeight += row.maxOf { it.height }
+        }
+        totalHeight += (actualRows.size - 1) * verticalSpacingPx
+
+        layout(maxWidth, totalHeight.coerceAtLeast(0)) {
+            var y = 0
+            for (row in actualRows) {
+                val h = row.maxOf { it.height }
+                val rowWidth = row.sumOf { it.width } + spacingPx * (row.size - 1)
+                var x = when {
+                    horizontalArrangement == Arrangement.Center -> (maxWidth - rowWidth) / 2
+                    horizontalArrangement == Arrangement.End -> maxWidth - rowWidth
+                    else -> 0
+                }
+                for (p in row) {
+                    p.placeRelative(x, y + (h - p.height) / 2)
+                    x += p.width + spacingPx
+                }
+                y += h + verticalSpacingPx
+            }
+        }
+    }
+}
+
+private fun Modifier.clipCompat(shape: androidx.compose.ui.graphics.Shape): Modifier =
+    this.then(androidx.compose.ui.draw.clip(shape))
+
 private fun bucketByMonth(rows: List<NoteStatsRow>, months: Int): List<Pair<String, Int>> {
     val cal = Calendar.getInstance()
     val sdf = SimpleDateFormat("M月", Locale.getDefault())
-    // 倒推 months-1 个月, 直到当前月
     val base = Calendar.getInstance().apply {
         set(Calendar.DAY_OF_MONTH, 1)
         set(Calendar.HOUR_OF_DAY, 0)

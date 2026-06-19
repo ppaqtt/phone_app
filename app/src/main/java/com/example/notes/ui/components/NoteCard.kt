@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.TableChart
@@ -146,6 +147,33 @@ fun NoteCard(
                                 .clickable(enabled = onPinClick != null) { onPinClick?.invoke() }
                         )
                     }
+                    if (note.colorTag != 0) {
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(colorTagColor(note.colorTag))
+                        )
+                    }
+                    if (note.isLocked) {
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Filled.Lock,
+                            contentDescription = "已锁定",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    if (note.isDraft) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "草稿",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.alpha(0.7f)
+                        )
+                    }
                     // 三个点按钮: 列表项的二级入口, 弹操作弹层 (替代原来的右滑手势)
                     if (onMoreClick != null) {
                         Spacer(Modifier.width(4.dp))
@@ -242,6 +270,17 @@ fun NoteCard(
                         }
                     }
                     Spacer(Modifier.weight(1f))
+                    val estimatedMinutes = if (note.readTimeSeconds > 0) {
+                        (note.readTimeSeconds + 59) / 60
+                    } else {
+                        note.content.length / 400
+                    }
+                    Text(
+                        text = "约 $estimatedMinutes 分钟",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = formatRelativeTime(note.updatedAt),
                         style = MaterialTheme.typography.labelLarge,
@@ -250,6 +289,17 @@ fun NoteCard(
                 }
             }
         }
+    }
+}
+
+private fun colorTagColor(tag: Int): Color {
+    return when (tag) {
+        1 -> Color(0xFFE53935)
+        2 -> Color(0xFFF57C00)
+        3 -> Color(0xFFFDD835)
+        4 -> Color(0xFF43A047)
+        5 -> Color(0xFF1E88E5)
+        else -> Color(0xFF9E9E9E)
     }
 }
 

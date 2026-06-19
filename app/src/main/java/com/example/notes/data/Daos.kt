@@ -216,10 +216,70 @@ interface NoteDao {
     @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND is_favorite = 1")
     fun observeFavoriteCount(): Flow<Int>
 
-    /** 统计某篇笔记的 content 字符数 (为"按字数排序"提供数据源)。
-     *  SQLite 没有 LENGTH(Unicode-aware) 的内建函数, LENGTH 给字节数;
-     *  我们用 `length(replace(content, ' ', ''))` 作为近似字数, 代价 O(N)。
-     */
+    /** 功能1: 设置/取消笔记锁定 (写保护) */
+    @Query("UPDATE notes SET is_locked = :locked WHERE id = :id")
+    suspend fun setLocked(id: Long, locked: Boolean)
+
+    /** 功能20: 设置/取消笔记草稿状态 */
+    @Query("UPDATE notes SET is_draft = :draft WHERE id = :id")
+    suspend fun setDraft(id: Long, draft: Boolean)
+
+    /** 功能3: 设置笔记颜色标签 */
+    @Query("UPDATE notes SET color_tag = :colorTag WHERE id = :id")
+    suspend fun setColorTag(id: Long, colorTag: Int)
+
+    /** 功能21: 设置笔记阅读时间 (秒) */
+    @Query("UPDATE notes SET read_time_seconds = :seconds WHERE id = :id")
+    suspend fun setReadTime(id: Long, seconds: Int)
+
+    /** 功能4: 按创建日期范围筛选笔记 (今天/昨天/本周/本月等) */
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL AND created_at >= :from AND created_at <= :to ORDER BY created_at DESC")
+    suspend fun getNotesInDateRange(from: Long, to: Long): List<NoteEntity>
+
+    /** 功能: 查询草稿数 */
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND is_draft = 1")
+    fun observeDraftCount(): Flow<Int>
+
+    /** 功能: 查询锁定笔记数 */
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND is_locked = 1")
+    fun observeLockedCount(): Flow<Int>
+
+    /** 统计某篇笔记的 (id, content, category_id, created_at), 用于客户端统计字数 */
+    @Query("SELECT id, content, category_id, created_at FROM notes WHERE deleted_at IS NULL")
+    suspend fun getContentForStats(): List<NoteStatsRow>
+
+    /** 功能: 一次性取所有笔记的 id/tags/content, 用于标签提取/聚类/反向链接扫描。 */
+    @Query("SELECT id, title, content, tags FROM notes WHERE deleted_at IS NULL")
+    suspend fun getNotesForLinkAndTagScan(): List<NoteIdTitleContentTags>
+
+    /** 功能: 按 tags 模糊匹配 (搜索扩展) */
+    @Query(
+        """
+        SELECT * FROM notes
+        WHERE deleted_at IS NULL
+          AND (title LIKE '%' || :query || '%'
+               OR content LIKE '%' || :query || '%'
+               OR tags LIKE '%' || :query || '%')
+          AND (:onlyFavorites = 0 OR is_favorite = 1)
+          AND (:onlyPinned = 0 OR is_pinned = 1)
+          AND (:categoryId IS NULL OR category_id = :categoryId)
+          AND (:colorTag = 0 OR color_tag = :colorTag)
+        ORDER BY is_pinned DESC, is_favorite DESC, updated_at DESC
+        """
+    )
+    suspend fun searchAdvanced(
+        query: String,
+        onlyFavorites: Int = 0,
+        onlyPinned: Int = 0,
+        categoryId: Long? = null,
+        colorTag: Int = 0
+    ): List<NoteEntity>
+
+    /** 功能: 取所有 distinct 的 color_tag 值 (用于筛选 Chip 颜色) */
+    @Query("SELECT DISTINCT color_tag FROM notes WHERE deleted_at IS NULL AND color_tag != 0 ORDER BY color_tag")
+    suspend fun getDistinctColorTags(): List<Int>
+
+    /** 统计某篇笔记的 char 数 (字数排序/标签云统计) */
     @Query("SELECT id, length(coalesce(content, '')) AS char_count FROM notes WHERE deleted_at IS NULL")
     suspend fun getCharCounts(): List<NoteCharCountRow>
 }
@@ -238,6 +298,18 @@ data class NoteIdTitle(
     val id: Long,
     @androidx.room.ColumnInfo(name = "title")
     val title: String
+)
+
+/** 功能: 标签/反向链接扫描时使用的轻量投影。 */
+data class NoteIdTitleContentTags(
+    @androidx.room.ColumnInfo(name = "id")
+    val id: Long,
+    @androidx.room.ColumnInfo(name = "title")
+    val title: String,
+    @androidx.room.ColumnInfo(name = "content")
+    val content: String,
+    @androidx.room.ColumnInfo(name = "tags")
+    val tags: String = ""
 )
 
 /** F13: stats 用的轻量投影, 只取 4 个字段减少 IO */
@@ -393,4 +465,144 @@ interface TagGroupDao {
      */
     @Query("SELECT group_id FROM tag_group_tags WHERE tag_name = :tagName")
     suspend fun getGroupIdsForTag(tagName: String): List<Long>
+}
+
+/** 功能9: 笔记反向链接 DAO。 */
+@Dao
+interface NoteBacklinkDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(link: NoteBacklinkEntity)
+
+    @Query("DELETE FROM note_backlinks WHERE source_note_id = :sourceId")
+    suspend fun deleteBySource(sourceId: Long)
+
+    /** 查询某笔记被哪些其他笔记引用。 */
+    @Query(
+        """
+        SELECT n.* FROM notes n
+        INNER JOIN note_backlinks bl ON n.id = bl.source_note_id
+        WHERE bl.target_note_id = :noteId AND n.deleted_at IS NULL
+        ORDER BY bl.created_at DESC
+        """
+    )
+    fun observeBacklinksFor(noteId: Long): Flow<List<NoteEntity>>
+
+    @Query("SELECT * FROM note_backlinks WHERE source_note_id = :sourceId")
+    suspend fun getBacklinksBySource(sourceId: Long): List<NoteBacklinkEntity>
+}
+
+/** 功能11/24: 笔记附件 DAO (图片/语音/文件)。 */
+@Dao
+interface NoteAttachmentDao {
+    @Query("SELECT * FROM note_attachments WHERE note_id = :noteId ORDER BY position ASC")
+    fun observeByNote(noteId: Long): Flow<List<NoteAttachmentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(attachment: NoteAttachmentEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(attachments: List<NoteAttachmentEntity>)
+
+    @Delete
+    suspend fun delete(attachment: NoteAttachmentEntity)
+
+    @Query("DELETE FROM note_attachments WHERE note_id = :noteId AND type = :type")
+    suspend fun deleteByNoteAndType(noteId: Long, type: String)
+
+    @Query("DELETE FROM note_attachments WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    /** 取笔记的第一张图片作为封面 (功能24 封面)。 */
+    @Query("SELECT * FROM note_attachments WHERE note_id = :noteId AND type IN ('image','image_old') ORDER BY position ASC LIMIT 1")
+    suspend fun getCoverImage(noteId: Long): NoteAttachmentEntity?
+}
+
+/** 功能19: 笔记评论 DAO。 */
+@Dao
+interface NoteCommentDao {
+    @Query("SELECT * FROM note_comments WHERE note_id = :noteId ORDER BY created_at DESC")
+    fun observeByNote(noteId: Long): Flow<List<NoteCommentEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(comment: NoteCommentEntity): Long
+
+    @Delete
+    suspend fun delete(comment: NoteCommentEntity)
+
+    @Query("SELECT COUNT(*) FROM note_comments WHERE note_id = :noteId")
+    fun observeCommentCount(noteId: Long): Flow<Int>
+}
+
+/** 功能18: 搜索历史 DAO。 */
+@Dao
+interface SearchHistoryDao {
+    @Query("SELECT * FROM search_history ORDER BY last_searched_at DESC LIMIT :limit")
+    fun observeRecent(limit: Int = 20): Flow<List<SearchHistoryEntity>>
+
+    /** 插入或更新搜索记录（查询已存在则更新时间+计数）。 */
+    @Query("INSERT OR REPLACE INTO search_history (id, query, last_searched_at, search_count) " +
+           "VALUES ((SELECT id FROM search_history WHERE query = :query), :query, :now, " +
+           "COALESCE((SELECT search_count FROM search_history WHERE query = :query), 0) + 1)")
+    suspend fun upsertSearch(query: String, now: Long = System.currentTimeMillis())
+
+    @Query("DELETE FROM search_history WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM search_history")
+    suspend fun clearAll()
+}
+
+/** 功能: 同步配置 DAO。 */
+@Dao
+interface SyncConfigDao {
+    @Query("SELECT * FROM sync_config WHERE config_key = :key")
+    suspend fun getByKey(key: String): SyncConfigEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(config: SyncConfigEntity)
+
+    @Query("DELETE FROM sync_config WHERE config_key = :key")
+    suspend fun deleteByKey(key: String)
+}
+
+/** 功能: 笔记变更记录 DAO（用于同步增量导出）。 */
+@Dao
+interface NoteChangeLogDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(log: NoteChangeLogEntity)
+
+    @Query("SELECT * FROM note_change_log WHERE changed_at >= :since ORDER BY changed_at ASC")
+    suspend fun getChangesSince(since: Long): List<NoteChangeLogEntity>
+
+    @Query("DELETE FROM note_change_log WHERE changed_at < :before")
+    suspend fun purgeOld(before: Long): Int
+}
+
+/** 功能: 用户自定义笔记模板 DAO。 */
+@Dao
+interface UserNoteTemplateDao {
+    @Query("SELECT * FROM user_note_templates ORDER BY created_at DESC")
+    fun observeAll(): Flow<List<UserNoteTemplateEntity>>
+
+    @Query("SELECT * FROM user_note_templates ORDER BY created_at DESC")
+    suspend fun getAllOnce(): List<UserNoteTemplateEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(template: UserNoteTemplateEntity): Long
+
+    @Delete
+    suspend fun delete(template: UserNoteTemplateEntity)
+}
+
+/** 功能: 反向链接扫描状态 DAO。 */
+@Dao
+interface BacklinkScanStateDao {
+    @Query("SELECT * FROM backlink_scan_state WHERE note_id = :noteId")
+    suspend fun getByNoteId(noteId: Long): BacklinkScanStateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsert(state: BacklinkScanStateEntity)
+
+    @Query("DELETE FROM backlink_scan_state WHERE note_id = :noteId")
+    suspend fun deleteByNoteId(noteId: Long)
 }

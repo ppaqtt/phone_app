@@ -444,6 +444,8 @@ fun NoteEditScreen(
     var showHistory by remember { mutableStateOf(false) }
     var showEncryptDialog by remember { mutableStateOf(false) }
     var showDecryptDialog by remember { mutableStateOf(false) }
+    var showColorTagPicker by remember { mutableStateOf(false) }
+    var showAiSummary by remember { mutableStateOf(false) }
     val createPdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri: Uri? ->
@@ -974,6 +976,60 @@ fun NoteEditScreen(
                                 viewModel.setFavorite(id, !current)
                             }
                         )
+                        // 全功能: 草稿切换
+                        DropdownMenuItem(
+                            text = { Text(if (lastSaved?.isDraft == true) "标记为正式" else "标记为草稿") },
+                            leadingIcon = {
+                                Icon(
+                                    if (lastSaved?.isDraft == true) Icons.Filled.Drafts else Icons.Outlined.Drafts,
+                                    contentDescription = "草稿"
+                                )
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                val id = lastSaved?.id ?: return@DropdownMenuItem
+                                val current = lastSaved?.isDraft ?: false
+                                viewModel.setDraft(id, !current)
+                            }
+                        )
+                        // 全功能: 锁定切换
+                        DropdownMenuItem(
+                            text = { Text(if (lastSaved?.isLocked == true) "取消锁定" else "锁定笔记") },
+                            leadingIcon = {
+                                Icon(
+                                    if (lastSaved?.isLocked == true) Icons.Filled.Lock else Icons.Outlined.Lock,
+                                    contentDescription = "锁定"
+                                )
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                val id = lastSaved?.id ?: return@DropdownMenuItem
+                                val current = lastSaved?.isLocked ?: false
+                                viewModel.setLocked(id, !current)
+                            }
+                        )
+                        // 全功能: 颜色标签选择
+                        DropdownMenuItem(
+                            text = { Text("颜色标签") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Palette, contentDescription = "颜色")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showColorTagPicker = true
+                            }
+                        )
+                        // 全功能: AI 摘要入口
+                        DropdownMenuItem(
+                            text = { Text("AI 摘要") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.AutoAwesome, contentDescription = "AI")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showAiSummary = true
+                            }
+                        )
                         // 进阶功能: 加密/解密
                         DropdownMenuItem(
                             text = { Text("加密笔记") },
@@ -1429,6 +1485,67 @@ fun NoteEditScreen(
                         }
                     }
                 }
+            }
+        )
+    }
+    if (showColorTagPicker && lastSaved != null) {
+        AlertDialog(
+            onDismissRequest = { showColorTagPicker = false },
+            title = { Text("选择颜色标签") },
+            text = {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    val colors = listOf(
+                        0 to Color(0xFF9CA3AF),
+                        1 to Color(0xFFEF4444),
+                        2 to Color(0xFFF59E0B),
+                        3 to Color(0xFFEAB308),
+                        4 to Color(0xFF22C55E),
+                        5 to Color(0xFF3B82F6)
+                    )
+                    val current = lastSaved?.colorTag ?: 0
+                    colors.forEach { (tag, color) ->
+                        FilterChip(
+                            selected = current == tag,
+                            onClick = {
+                                viewModel.setColorTag(lastSaved!!.id, tag)
+                                showColorTagPicker = false
+                            },
+                            leadingIcon = {
+                                Box(modifier = Modifier.size(12.dp).background(color, shape = androidx.compose.foundation.shape.CircleShape))
+                            },
+                            label = { Text(if (tag == 0) "无" else "颜色 $tag") }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showColorTagPicker = false }) { Text("关闭") }
+            }
+        )
+    }
+    if (showAiSummary) {
+        AlertDialog(
+            onDismissRequest = { showAiSummary = false },
+            title = { Text("AI 摘要") },
+            text = {
+                val summaryText = remember(title, content.text) {
+                    val fullText = (title + "\n" + content.text).trim()
+                    if (fullText.isBlank()) return@remember "当前笔记内容为空, 无法生成摘要。"
+                    val sentences = fullText.split('。', '!', '?', '\n').map { it.trim() }.filter { it.length in 4..120 }
+                    val picked = sentences.take(3)
+                    if (picked.isEmpty()) {
+                        "摘要: ${fullText.take(200)}${if (fullText.length > 200) "…" else ""}"
+                    } else {
+                        "摘要:\n" + picked.joinToString("\n") { "• $it" }
+                    }
+                }
+                Text(summaryText, style = MaterialTheme.typography.bodyMedium)
+            },
+            confirmButton = {
+                TextButton(onClick = { showAiSummary = false }) { Text("关闭") }
             }
         )
     }

@@ -16,7 +16,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class,
         NoteVersionEntity::class, NoteEncryptionEntity::class,
-        TagGroupEntity::class, TagGroupTagEntity::class
+        TagGroupEntity::class, TagGroupTagEntity::class,
+        NoteBacklinkEntity::class, NoteAttachmentEntity::class,
+        NoteCommentEntity::class, SearchHistoryEntity::class,
+        SyncConfigEntity::class, NoteChangeLogEntity::class,
+        UserNoteTemplateEntity::class, BacklinkScanStateEntity::class
     ],
     // v10 → v11: 添加 todos 表（待办任务）
     // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
@@ -31,7 +35,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // 高价值/低工作量: v14 → v15 给 notes 加 is_favorite 列 (笔记星标)
     // 中价值/中工作量: v15 → v16 给 categories 加 is_pinned 列 (分类置顶)
     // 中价值/中工作量: v16 → v17 添加 tag_groups 和 tag_group_tags 表 (标签分组)
-    version = 17,
+    // 全功能: v17 → v18: notes 加 is_locked/is_draft/color_tag/read_time_seconds 列;
+    //                添加 note_backlinks/note_attachments/note_comments/search_history/
+    //                sync_config/note_change_log/user_note_templates/backlink_scan_state 表
+    version = 18,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -48,6 +55,14 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun noteVersionDao(): NoteVersionDao
     abstract fun noteEncryptionDao(): NoteEncryptionDao
     abstract fun tagGroupDao(): TagGroupDao
+    abstract fun noteBacklinkDao(): NoteBacklinkDao
+    abstract fun noteAttachmentDao(): NoteAttachmentDao
+    abstract fun noteCommentDao(): NoteCommentDao
+    abstract fun searchHistoryDao(): SearchHistoryDao
+    abstract fun syncConfigDao(): SyncConfigDao
+    abstract fun noteChangeLogDao(): NoteChangeLogDao
+    abstract fun userNoteTemplateDao(): UserNoteTemplateDao
+    abstract fun backlinkScanStateDao(): BacklinkScanStateDao
 
     companion object {
         @Volatile
@@ -343,6 +358,188 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
+         * 全功能: v17 → v18: notes 加 is_locked/is_draft/color_tag/read_time_seconds 列,
+         * 新增 8 张表 (note_backlinks/note_attachments/note_comments/search_history/
+         * sync_config/note_change_log/user_note_templates/backlink_scan_state)。
+         */
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // notes 表扩展 4 个整型列 (默认 0)
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `is_locked` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `is_draft` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `color_tag` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `read_time_seconds` INTEGER NOT NULL DEFAULT 0")
+
+                // note_backlinks 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `note_backlinks` (
+                        `source_note_id` INTEGER NOT NULL,
+                        `target_note_id` INTEGER NOT NULL,
+                        `created_at` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`source_note_id`, `target_note_id`),
+                        FOREIGN KEY(`source_note_id`) REFERENCES `notes`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`target_note_id`) REFERENCES `notes`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_backlinks_target_note_id` ON `note_backlinks` (`target_note_id`)")
+
+                // note_attachments 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `note_attachments` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `note_id` INTEGER NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `uri` TEXT NOT NULL,
+                        `name` TEXT NOT NULL DEFAULT '',
+                        `duration_ms` INTEGER NOT NULL DEFAULT 0,
+                        `size_bytes` INTEGER NOT NULL DEFAULT 0,
+                        `position` INTEGER NOT NULL DEFAULT 0,
+                        `created_at` INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(`note_id`) REFERENCES `notes`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_attachments_note_id` ON `note_attachments` (`note_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_attachments_type` ON `note_attachments` (`type`)")
+
+                // note_comments 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `note_comments` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `note_id` INTEGER NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `created_at` INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(`note_id`) REFERENCES `notes`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_comments_note_id` ON `note_comments` (`note_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_comments_created_at` ON `note_comments` (`created_at`)")
+
+                // search_history 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `search_history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `query` TEXT NOT NULL UNIQUE,
+                        `last_searched_at` INTEGER NOT NULL DEFAULT 0,
+                        `search_count` INTEGER NOT NULL DEFAULT 1
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_query` ON `search_history` (`query`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_last_searched_at` ON `search_history` (`last_searched_at`)")
+
+                // sync_config 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `sync_config` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `config_key` TEXT NOT NULL UNIQUE,
+                        `config_value` TEXT NOT NULL,
+                        `updated_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_config_config_key` ON `sync_config` (`config_key`)")
+
+                // note_change_log 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `note_change_log` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `note_id` INTEGER NOT NULL,
+                        `change_type` TEXT NOT NULL,
+                        `changed_at` INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(`note_id`) REFERENCES `notes`(`id`)
+                            ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_change_log_note_id` ON `note_change_log` (`note_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_change_log_changed_at` ON `note_change_log` (`changed_at`)")
+
+                // user_note_templates 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `user_note_templates` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `tags` TEXT NOT NULL DEFAULT '',
+                        `category_id` INTEGER,
+                        `created_at` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_user_note_templates_created_at` ON `user_note_templates` (`created_at`)")
+
+                // backlink_scan_state 表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `backlink_scan_state` (
+                        `note_id` INTEGER NOT NULL PRIMARY KEY,
+                        `last_scanned_at` INTEGER NOT NULL DEFAULT 0,
+                        `last_content_hash` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+            }
+        }
+
+        /**
+         * 全功能: v18 → v17: 降级时删除 notes 新列 (重建表) 和新表。
+         */
+        private val MIGRATION_18_17 = object : Migration(18, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 删除新表
+                db.execSQL("DROP TABLE IF EXISTS `backlink_scan_state`")
+                db.execSQL("DROP TABLE IF EXISTS `user_note_templates`")
+                db.execSQL("DROP TABLE IF EXISTS `note_change_log`")
+                db.execSQL("DROP TABLE IF EXISTS `sync_config`")
+                db.execSQL("DROP TABLE IF EXISTS `search_history`")
+                db.execSQL("DROP TABLE IF EXISTS `note_comments`")
+                db.execSQL("DROP TABLE IF EXISTS `note_attachments`")
+                db.execSQL("DROP TABLE IF EXISTS `note_backlinks`")
+
+                // notes 重建 (移除 is_locked/is_draft/color_tag/read_time_seconds)
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `notes_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `category_id` INTEGER,
+                        `tags` TEXT NOT NULL,
+                        `is_pinned` INTEGER NOT NULL,
+                        `priority` INTEGER NOT NULL,
+                        `color` INTEGER NOT NULL,
+                        `reminder_time` INTEGER,
+                        `reminder_repeat` TEXT NOT NULL DEFAULT 'NONE',
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        `deleted_at` INTEGER,
+                        `template_type` INTEGER NOT NULL DEFAULT 0,
+                        `is_favorite` INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(`category_id`) REFERENCES `categories`(`id`)
+                            ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO notes_new (id, title, content, category_id, tags, is_pinned,
+                        priority, color, reminder_time, reminder_repeat, created_at, updated_at,
+                        deleted_at, template_type, is_favorite)
+                    SELECT id, title, content, category_id, tags, is_pinned, priority, color,
+                        reminder_time, reminder_repeat, created_at, updated_at, deleted_at,
+                        template_type, is_favorite FROM notes
+                """.trimIndent())
+                db.execSQL("DROP TABLE `notes`")
+                db.execSQL("ALTER TABLE notes_new RENAME TO `notes`")
+                // 重建必要索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_category_id` ON `notes` (`category_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_pinned` ON `notes` (`is_pinned`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_updated_at` ON `notes` (`updated_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_deleted_at` ON `notes` (`deleted_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_tags` ON `notes` (`tags`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_reminder_time` ON `notes` (`reminder_time`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_priority` ON `notes` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_created_at` ON `notes` (`created_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_favorite` ON `notes` (`is_favorite`)")
+            }
+        }
+
+        /**
          * 进阶功能: v14 → v13: 降级时删除 note_versions 和 note_encryption 表。
          */
         private val MIGRATION_14_13 = object : Migration(14, 13) {
@@ -485,6 +682,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15,
                     MIGRATION_15_14, MIGRATION_15_16, MIGRATION_16_15,
                     MIGRATION_16_17, MIGRATION_17_16,
+                    MIGRATION_17_18, MIGRATION_18_17,
                     MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
                     MIGRATION_11_10, MIGRATION_10_9
                 )

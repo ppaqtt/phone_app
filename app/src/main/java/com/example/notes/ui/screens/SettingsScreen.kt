@@ -351,10 +351,35 @@ private fun AboutInfoCard() {
         )
     ) {
         Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            InfoRow(label = "应用名称", value = "清笺")
+            InfoRow(label = "应用名称", value = "清笺笔记")
             InfoRow(label = "当前版本", value = "v${BuildConfig.VERSION_NAME}")
             InfoRow(label = "开发者", value = "平平的小破站")
             InfoRow(label = "版权所有", value = "© 2026 清笺")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "个人开发 · 非商业用途",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "本应用为个人项目，不含广告和用户数据上传",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             // F22: ICP 备案号 — 点击跳转到工信部备案管理系统
             Row(
                 modifier = Modifier

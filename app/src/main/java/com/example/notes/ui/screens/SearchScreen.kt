@@ -1,6 +1,5 @@
 package com.example.notes.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,12 +16,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,14 +41,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
 import com.example.notes.ui.components.NoteCard
 import com.example.notes.ui.viewmodel.NotesViewModel
-import com.example.notes.util.SearchHistoryManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,30 +57,20 @@ fun SearchScreen(
     onBack: () -> Unit,
     onOpenNote: (Long) -> Unit
 ) {
-    val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
-    val historyManager = remember { SearchHistoryManager.getInstance(context) }
-    val searchHistory by historyManager.history.collectAsState()
-    // P29: 记录最后一次手动入栈的 query, 避免历史项被点击后再次入栈
+    val searchHistory by viewModel.observeSearchHistory(limit = 10).collectAsState(initial = emptyList())
     var lastRecordedQuery by remember { mutableStateOf("") }
 
-    // P30: 页面打开时自动聚焦到搜索框
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
 
-    // 当用户输入并搜索时，保存到历史
-    // P18: trim 后再入历史, 避免 "  test  " 和 "test" 被视为两条
-    // P29: 跳过由历史项触发的 query 变化
-    LaunchedEffect(state.query) {
-        val q = state.query.trim()
-        if (q.isNotBlank() && state.notes.isNotEmpty() && q != lastRecordedQuery) {
-            // 只有 query 不在历史里时, 才 addSearch 避免重复入栈
-            if (q !in searchHistory) {
-                historyManager.addSearch(q)
-                lastRecordedQuery = q
-            }
+    fun triggerSearch(q: String) {
+        val trimmed = q.trim()
+        if (trimmed.isNotBlank() && trimmed != lastRecordedQuery) {
+            viewModel.recordSearch(trimmed)
+            lastRecordedQuery = trimmed
         }
     }
 
@@ -96,7 +82,11 @@ fun SearchScreen(
                         value = state.query,
                         onValueChange = { viewModel.setQuery(it) },
                         placeholder = { Text("搜索笔记内容、标题、标签") },
-                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "搜索") },
+                        leadingIcon = {
+                            IconButton(onClick = { triggerSearch(state.query) }) {
+                                Icon(Icons.Filled.Search, contentDescription = "搜索")
+                            }
+                        },
                         trailingIcon = {
                             if (state.query.isNotEmpty()) {
                                 IconButton(onClick = { viewModel.setQuery("") }) {
@@ -108,6 +98,12 @@ fun SearchScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(focusRequester)
+                            .onKeyEvent { event ->
+                                if (event.key == Key.Enter) {
+                                    triggerSearch(state.query)
+                                    true
+                                } else false
+                            }
                     )
                 },
                 navigationIcon = {
@@ -126,7 +122,7 @@ fun SearchScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // 高价值/低工作量: 搜索增强 - 分类过滤 Chips
+            // 分类过滤 Chips
             if (state.query.isNotBlank() && state.categories.isNotEmpty()) {
                 Row(
                     modifier = Modifier
@@ -165,16 +161,25 @@ fun SearchScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f)
                             )
-                            TextButton(onClick = { historyManager.clearHistory() }) {
+                            TextButton(onClick = { viewModel.clearSearchHistory() }) {
                                 Text("清空", style = MaterialTheme.typography.labelSmall)
                             }
                         }
-                        searchHistory.forEach { query ->
-                            HistoryItem(
-                                query = query,
-                                onClick = { viewModel.setQuery(query) },
-                                onDelete = { historyManager.removeSearch(query) }
-                            )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            searchHistory.forEach { item ->
+                                HistoryChip(
+                                    query = item.query,
+                                    onClick = {
+                                        viewModel.setQuery(item.query)
+                                        triggerSearch(item.query)
+                                    }
+                                )
+                            }
                         }
                     }
                 } else {
@@ -192,7 +197,7 @@ fun SearchScreen(
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(bottom = 24.dp),
-                    state = rememberLazyListState(),  // P101: 自动 saveable, 旋转后保留滚动位置
+                    state = rememberLazyListState(),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     items(state.notes, key = { it.note.id }) { nwc ->
@@ -209,38 +214,20 @@ fun SearchScreen(
 }
 
 @Composable
-private fun HistoryItem(
+private fun HistoryChip(
     query: String,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            Icons.Filled.History,
-            contentDescription = "搜索历史",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.size(12.dp))
-        Text(
-            query,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        IconButton(onClick = onDelete) {
+    FilterChip(
+        selected = false,
+        onClick = onClick,
+        leadingIcon = {
             Icon(
-                Icons.Filled.Delete,
-                contentDescription = "删除",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+                Icons.Filled.History,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
             )
-        }
-    }
+        },
+        label = { Text(text = query, maxLines = 1) }
+    )
 }

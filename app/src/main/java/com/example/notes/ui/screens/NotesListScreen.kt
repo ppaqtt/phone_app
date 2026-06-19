@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.MoreVert
@@ -474,6 +475,48 @@ fun NotesListScreen(
                             }
                         } else null
                     )
+                }
+                item {
+                    FilterChip(
+                        selected = state.showOnlyDrafts,
+                        onClick = { viewModel.setShowOnlyDrafts(!state.showOnlyDrafts) },
+                        label = { Text("草稿") }
+                    )
+                }
+                item {
+                    FilterChip(
+                        selected = state.showOnlyLocked,
+                        onClick = { viewModel.setShowOnlyLocked(!state.showOnlyLocked) },
+                        label = { Text("已锁定") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    )
+                }
+                (1..5).forEach { colorIdx ->
+                    item {
+                        val color = colorTagColor(colorIdx)
+                        val selected = state.activeColorTag == colorIdx
+                        FilterChip(
+                            selected = selected,
+                            onClick = {
+                                viewModel.setColorTagFilter(if (selected) 0 else colorIdx)
+                            },
+                            label = { Text(" ") },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                )
+                            }
+                        )
+                    }
                 }
             }
 
@@ -1143,4 +1186,15 @@ private fun computeCategoryIndent(
         cur = map[cur]?.parentId
     }
     return depth
+}
+
+private fun colorTagColor(tag: Int): Color {
+    return when (tag) {
+        1 -> Color(0xFFE53935)
+        2 -> Color(0xFFF57C00)
+        3 -> Color(0xFFFDD835)
+        4 -> Color(0xFF43A047)
+        5 -> Color(0xFF1E88E5)
+        else -> Color(0xFF9E9E9E)
+    }
 }
