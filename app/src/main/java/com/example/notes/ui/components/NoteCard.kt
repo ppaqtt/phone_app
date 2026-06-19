@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -47,6 +49,7 @@ import com.example.notes.data.DEFAULT_COLOR
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.util.formatRelativeTime
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NoteCard(
     noteWithCategory: NoteWithCategory,
@@ -56,6 +59,8 @@ fun NoteCard(
     coverImageUri: String? = null,
     /** 可选: 搜索高亮关键字 (来自 SearchScreen 等场景) */
     highlightQuery: String? = null,
+    /** 进阶功能: 长按回调 (多选模式) */
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val note = noteWithCategory.note
@@ -66,11 +71,24 @@ fun NoteCard(
         Color(note.color)
     }
 
-    Card(
-        onClick = onClick,
-        modifier = modifier
+    // 进阶功能: 若有 onLongClick, 用 Box+combinedClickable 包装以支持长按
+    val cardModifier = if (onLongClick != null) {
+        modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
+    } else {
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+    }
+
+    Card(
+        onClick = if (onLongClick == null) onClick else { {} },
+        modifier = cardModifier,
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)

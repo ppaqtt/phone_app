@@ -159,7 +159,61 @@ interface NoteDao {
     /** F15: 更新提醒重复模式 (NONE / DAILY / WEEKLY / MONTHLY / YEARLY) */
     @Query("UPDATE notes SET reminder_repeat = :repeat WHERE id = :id")
     suspend fun setReminderRepeat(id: Long, repeat: String)
+
+    // --- 笔记内链 (进阶功能) ----------------------------------------------
+
+    /**
+     * 进阶功能: 按标题模糊匹配笔记 (用于解析 [[笔记标题]] 内链)。
+     * 不走 FTS 是因为内链解析需精确标题, LIKE 足够。
+     * @param excludeId 当前笔记 id, 排除自身避免自链接。
+     */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM notes
+        WHERE deleted_at IS NULL
+          AND id != :excludeId
+          AND title = :title
+        LIMIT 1
+        """
+    )
+    suspend fun findByExactTitle(title: String, excludeId: Long = 0L): NoteWithCategory?
+
+    /** 进阶功能: 模糊搜索标题 (用于内链自动补全) */
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM notes
+        WHERE deleted_at IS NULL
+          AND title LIKE '%' || :keyword || '%'
+        ORDER BY updated_at DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchByTitlePrefix(keyword: String, limit: Int = 10): List<NoteWithCategory>
+
+    /** 进阶功能: 取出所有有效笔记的标题, 用于反向链接扫描 */
+    @Query("SELECT id, title FROM notes WHERE deleted_at IS NULL")
+    suspend fun getAllIdTitlePairs(): List<NoteIdTitle>
+
+    /** 进阶功能: 通过标题查找笔记 id (用于反向链接索引) */
+    @Query("SELECT id FROM notes WHERE title = :title AND deleted_at IS NULL LIMIT 1")
+    suspend fun getIdByTitle(title: String): Long?
+
+    // --- 笔记模板 (进阶功能) ----------------------------------------------
+
+    /** 进阶功能: 笔记模板字段 (作为普通列存, 0=无模板, 1=日记, 2=会议, 3=读书, 4=周报) */
+    @Query("UPDATE notes SET template_type = :templateType WHERE id = :id")
+    suspend fun setTemplateType(id: Long, templateType: Int)
 }
+
+/** 进阶功能: 内链解析用的轻量投影 */
+data class NoteIdTitle(
+    @androidx.room.ColumnInfo(name = "id")
+    val id: Long,
+    @androidx.room.ColumnInfo(name = "title")
+    val title: String
+)
 
 /** F13: stats 用的轻量投影, 只取 4 个字段减少 IO */
 data class NoteStatsRow(

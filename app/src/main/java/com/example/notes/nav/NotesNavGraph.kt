@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -25,6 +26,7 @@ import com.example.notes.ui.screens.TodoListScreen
 import com.example.notes.ui.screens.TrashScreen
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.WidgetIntent
+import kotlinx.coroutines.launch
 
 object Routes {
     const val LIST = "list"
@@ -50,6 +52,7 @@ fun NotesNavGraph(
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val repository = remember {
         (context.applicationContext as NotesApplication).repository
     }
@@ -105,6 +108,16 @@ fun NotesNavGraph(
             NotesListScreen(
                 viewModel = viewModel,
                 onAddNote = { navController.navigate(Routes.edit(0L)) { launchSingleTop = true } },
+                onCreateFromTemplate = { templateType ->
+                    // 进阶功能: 用模板新建笔记
+                    scope.launch {
+                        val context = navController.context.applicationContext
+                        val newId = viewModel.createNoteFromTemplate(context, templateType)
+                        if (newId > 0L) {
+                            navController.navigate(Routes.edit(newId)) { launchSingleTop = true }
+                        }
+                    }
+                },
                 onOpenNote = { id -> navController.navigate(Routes.edit(id)) { launchSingleTop = true } },
                 onOpenCategories = { navController.navigate(Routes.CATEGORIES) { launchSingleTop = true } },
                 onOpenTags = { navController.navigate(Routes.TAGS) { launchSingleTop = true } },

@@ -12,8 +12,10 @@ import com.example.notes.data.NoteWithCategoryAndImages
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 /**
@@ -34,7 +36,9 @@ class NotesRepository(
     private val database: RoomDatabase,
     private val noteDao: NoteDao,
     private val categoryDao: CategoryDao,
-    private val noteImageDao: NoteImageDao
+    private val noteImageDao: NoteImageDao,
+    private val noteVersionDao: com.example.notes.data.NoteVersionDao,
+    private val noteEncryptionDao: com.example.notes.data.NoteEncryptionDao
 ) {
 
     // --- Notes -----------------------------------------------------------
@@ -381,5 +385,77 @@ class NotesRepository(
                 .i("imported categories=${categoryIdMap.size} notes=${noteIdMap.size} images=${imageEntities.size}")
             Triple(categoryIdMap.size, noteIdMap.size, imageEntities.size)
         }
+    }
+
+    // --- 进阶功能: 笔记内链 / 模板 / 历史版本 / 加密 / 批量导出 -------
+
+    /** 进阶功能: 按精确标题查笔记 (内链跳转) */
+    suspend fun findByExactTitle(title: String, excludeId: Long = 0L): NoteWithCategory? =
+        noteDao.findByExactTitle(title, excludeId)
+
+    /** 进阶功能: 模糊搜索标题 (内链自动补全) */
+    suspend fun searchByTitlePrefix(keyword: String, limit: Int = 10): List<NoteWithCategory> =
+        noteDao.searchByTitlePrefix(keyword, limit)
+
+    /** 进阶功能: 标题 -> id 解析 */
+    suspend fun getIdByTitle(title: String): Long? = noteDao.getIdByTitle(title)
+
+    /** 进阶功能: 历史版本列表 (Flow) */
+    fun observeNoteVersions(noteId: Long) = noteVersionDao.observeByNote(noteId)
+
+    /** 进阶功能: 保存一个历史版本快照 */
+    suspend fun saveNoteVersion(noteId: Long, title: String, content: String) {
+        noteVersionDao.insert(com.example.notes.data.NoteVersionEntity(noteId = noteId, title = title, content = content))
+        // 保留最近 20 个版本
+        val overflow = noteVersionDao.getOverflow(noteId, keepCount = 20)
+        if (overflow.isNotEmpty()) {
+            noteVersionDao.deleteByIds(overflow.map { it.id })
+        }
+    }
+
+    /** 进阶功能: 删除某个历史版本 */
+    suspend fun deleteNoteVersion(versionId: Long) = noteVersionDao.deleteByIds(listOf(versionId))
+
+    /** 进阶功能: 覆盖笔记标题与内容 (历史版本恢复用) */
+    suspend fun updateNoteContent(id: Long, title: String, content: String) {
+        val current = noteDao.getNoteOnce(id) ?: return
+        noteDao.update(
+            current.copy(
+                title = title,
+                content = content,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    /** 进阶功能: 设置笔记加密 (加密 content 后清空原文) */
+    suspend fun setNoteEncrypted(noteId: Long, encryptedContent: String, salt: String) {
+        noteEncryptionDao.upsert(
+            com.example.notes.data.NoteEncryptionEntity(
+                noteId = noteId,
+                encryptedContent = encryptedContent,
+                salt = salt
+            )
+        )
+        // 把原 content 清空 (只保留 title), 这样搜索时不会泄漏密文, 列表展示也只看标题
+        val current = noteDao.getNoteOnce(noteId) ?: return
+        noteDao.update(current.copy(content = "", updatedAt = System.currentTimeMillis()))
+    }
+
+    /** 进阶功能: 读取加密记录 */
+    suspend fun getNoteEncryption(noteId: Long) = noteEncryptionDao.get(noteId)
+
+    /** 进阶功能: 解除加密 (恢复原文) */
+    suspend fun removeNoteEncryption(noteId: Long, plainContent: String) {
+        noteEncryptionDao.delete(noteId)
+        val current = noteDao.getNoteOnce(noteId) ?: return
+        noteDao.update(current.copy(content = plainContent, updatedAt = System.currentTimeMillis()))
+    }
+
+    /** 进阶功能: 批量按 id 取笔记 (用于 zip 导出) */
+    suspend fun getNotesByIds(ids: List<Long>): List<NoteEntity> = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyList()
+        // 走通用 query, 避免为单次使用加 DAO
+        ids.mapNotNull { id -> noteDao.getNoteOnce(id) }
     }
 }

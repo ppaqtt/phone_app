@@ -62,6 +62,11 @@ import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
@@ -418,6 +423,13 @@ fun NoteEditScreen(
 
     // F10: PDF / 长图导出 - SAF 启动器
     var showExportMenu by remember { mutableStateOf(false) }
+
+    // 进阶功能: 弹窗状态
+    var showReader by remember { mutableStateOf(false) }
+    var showMindMap by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
+    var showEncryptDialog by remember { mutableStateOf(false) }
+    var showDecryptDialog by remember { mutableStateOf(false) }
     val createPdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri: Uri? ->
@@ -583,6 +595,20 @@ fun NoteEditScreen(
         val noteIdToSave = lastSaved?.id ?: 0L
         val colorArgb = color.toArgb()
         val now = System.currentTimeMillis()
+
+        // 进阶功能: 保存历史版本 (仅在已存在笔记且内容真正发生变化时)
+        if (noteIdToSave > 0L && lastSaved != null) {
+            val lastContent = lastSaved!!.content
+            val lastTitle = lastSaved!!.title
+            if (lastContent != content.text || lastTitle != title) {
+                try {
+                    viewModel.saveNoteVersion(noteIdToSave, lastTitle, lastContent)
+                } catch (e: Exception) {
+                    // 静默失败, 不影响主流程
+                }
+            }
+        }
+
         // P45: 改用挂起 saveNote, 拿到数据库返回的真实 id (新建时 != 0)
         val savedId = viewModel.saveNote(
             context = context,
@@ -811,6 +837,60 @@ fun NoteEditScreen(
                                 val fileName = com.example.notes.util.NoteExporter
                                     .defaultFileName(title.ifBlank { "笔记" }, "md")
                                 createMdLauncher.launch(fileName)
+                            }
+                        )
+                        // 进阶功能: 阅读模式
+                        DropdownMenuItem(
+                            text = { Text("阅读模式 (含朗读)") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.MenuBook, contentDescription = "阅读")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showReader = true
+                            }
+                        )
+                        // 进阶功能: 思维导图
+                        DropdownMenuItem(
+                            text = { Text("思维导图") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.AccountTree, contentDescription = "导图")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showMindMap = true
+                            }
+                        )
+                        // 进阶功能: 历史版本
+                        DropdownMenuItem(
+                            text = { Text("历史版本") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.History, contentDescription = "历史")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showHistory = true
+                            }
+                        )
+                        // 进阶功能: 加密/解密
+                        DropdownMenuItem(
+                            text = { Text("加密笔记") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Lock, contentDescription = "加密")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showEncryptDialog = true
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("解密笔记") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.LockOpen, contentDescription = "解密")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showDecryptDialog = true
                             }
                         )
                     }
@@ -1186,6 +1266,67 @@ fun NoteEditScreen(
             onConfirm = { newTags ->
                 tags = newTags
                 showTagsDialog = false
+            }
+        )
+    }
+
+    // === 进阶功能: 弹窗 ===
+    if (showReader) {
+        ReaderScreen(
+            title = title.ifBlank { "无标题" },
+            content = content.text,
+            onClose = { showReader = false }
+        )
+    }
+    if (showMindMap) {
+        MindMapScreen(
+            title = title.ifBlank { "无标题" },
+            content = content.text,
+            onClose = { showMindMap = false }
+        )
+    }
+    if (showHistory && lastSaved != null) {
+        NoteHistoryScreen(
+            noteId = lastSaved!!.id,
+            viewModel = viewModel,
+            onClose = { showHistory = false }
+        )
+    }
+    // 加密/解密对话框
+    if (showEncryptDialog) {
+        EncryptDialog(
+            mode = EncryptMode.Encrypt,
+            onDismiss = { showEncryptDialog = false },
+            onConfirm = { password ->
+                scope.launch {
+                    if (lastSaved != null) {
+                        val ok = viewModel.encryptNote(lastSaved!!.id, password)
+                        showEncryptDialog = false
+                        if (ok) context.toastShort("已加密, 请妥善保管密码")
+                        else context.toastShort("加密失败")
+                    }
+                }
+            }
+        )
+    }
+    if (showDecryptDialog) {
+        EncryptDialog(
+            mode = EncryptMode.Decrypt,
+            onDismiss = { showDecryptDialog = false },
+            onConfirm = { password ->
+                scope.launch {
+                    if (lastSaved != null) {
+                        val plain = viewModel.decryptNote(lastSaved!!.id, password)
+                        showDecryptDialog = false
+                        if (plain != null) {
+                            repository.removeNoteEncryption(lastSaved!!.id, plain)
+                            content = TextFieldValue(plain)
+                            context.toastShort("已解密")
+                        } else {
+                            context.toastShort("密码错误")
+                        }
+                    }
+                }
             }
         )
     }

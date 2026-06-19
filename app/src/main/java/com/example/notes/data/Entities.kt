@@ -91,7 +91,14 @@ data class NoteEntity(
      * 3) 0L 当作 1970 不会被误当有效值, 因为回收站逻辑只看 IS NULL。
      */
     @ColumnInfo(name = "deleted_at", defaultValue = "NULL")
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+
+    /**
+     * 进阶功能: 笔记模板类型。0=无模板, 1=日记, 2=会议, 3=读书, 4=周报。
+     * 用整数而非 enum 字符串: 1) 索引小; 2) 排序快; 3) 数据库可读。
+     */
+    @ColumnInfo(name = "template_type", defaultValue = "0")
+    val templateType: Int = 0
 )
 
 @Entity(

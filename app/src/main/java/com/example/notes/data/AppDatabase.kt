@@ -13,7 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * 启用外键约束 (SQLite 默认关闭), 防止删除分类时存在孤儿 category_id。
  */
 @Database(
-    entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class],
+    entities = [
+        NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class,
+        NoteVersionEntity::class, NoteEncryptionEntity::class
+    ],
     // v10 → v11: 添加 todos 表（待办任务）
     // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
     //           给 note_images 加 position 索引 (手动 MIGRATION_9_10)
@@ -22,7 +25,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
-    version = 12,
+    // 进阶功能: v12 → v13 给 notes 加 template_type 字段（笔记模板）
+    // 进阶功能: v13 → v14 添加 note_versions 和 note_encryption 表（历史版本 + 笔记加密）
+    version = 14,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -36,6 +41,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun noteImageDao(): NoteImageDao
     abstract fun todoDao(): TodoDao
+    abstract fun noteVersionDao(): NoteVersionDao
+    abstract fun noteEncryptionDao(): NoteEncryptionDao
 
     companion object {
         @Volatile
@@ -110,6 +117,102 @@ abstract class AppDatabase : RoomDatabase() {
         private val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `todos` ADD COLUMN `reminder_repeat` TEXT NOT NULL DEFAULT 'NONE'")
+            }
+        }
+
+        /**
+         * 进阶功能: v12 → v13: 给 notes 表加 template_type 字段（笔记模板）。
+         * 0=无模板, 1=日记, 2=会议, 3=读书, 4=周报
+         */
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `template_type` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /**
+         * 进阶功能: v13 → v12: 降级时删除 template_type 字段。
+         * SQLite 不支持 DROP COLUMN, 走重建表。
+         */
+        private val MIGRATION_13_12 = object : Migration(13, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `notes_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `category_id` INTEGER,
+                        `tags` TEXT NOT NULL,
+                        `is_pinned` INTEGER NOT NULL,
+                        `priority` INTEGER NOT NULL,
+                        `color` INTEGER NOT NULL,
+                        `reminder_time` INTEGER,
+                        `reminder_repeat` TEXT NOT NULL DEFAULT 'NONE',
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        `deleted_at` INTEGER,
+                        FOREIGN KEY(`category_id`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO notes_new (id, title, content, category_id, tags, is_pinned, priority, color, reminder_time, reminder_repeat, created_at, updated_at, deleted_at)
+                    SELECT id, title, content, category_id, tags, is_pinned, priority, color, reminder_time, reminder_repeat, created_at, updated_at, deleted_at FROM notes
+                """.trimIndent())
+                db.execSQL("DROP TABLE IF EXISTS `notes`")
+                db.execSQL("ALTER TABLE notes_new RENAME TO `notes`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_category_id` ON `notes` (`category_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_pinned` ON `notes` (`is_pinned`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_updated_at` ON `notes` (`updated_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_deleted_at` ON `notes` (`deleted_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_tags` ON `notes` (`tags`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_reminder_time` ON `notes` (`reminder_time`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_priority` ON `notes` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_created_at` ON `notes` (`created_at`)")
+            }
+        }
+
+        /**
+         * 进阶功能: v13 → v14: 添加 note_versions 表 (历史版本) 和 note_encryption 表 (单篇笔记加密)。
+         */
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 历史版本表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `note_versions` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `noteId` INTEGER NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `saved_at` INTEGER NOT NULL,
+                        FOREIGN KEY(`noteId`) REFERENCES `notes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_versions_noteId` ON `note_versions` (`noteId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_versions_saved_at` ON `note_versions` (`saved_at`)")
+
+                // 加密表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `note_encryption` (
+                        `noteId` INTEGER NOT NULL,
+                        `encrypted_content` TEXT NOT NULL,
+                        `salt` TEXT NOT NULL,
+                        `encrypted_at` INTEGER NOT NULL,
+                        PRIMARY KEY(`noteId`),
+                        FOREIGN KEY(`noteId`) REFERENCES `notes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+            }
+        }
+
+        /**
+         * 进阶功能: v14 → v13: 降级时删除 note_versions 和 note_encryption 表。
+         */
+        private val MIGRATION_14_13 = object : Migration(14, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_note_versions_noteId`")
+                db.execSQL("DROP INDEX IF EXISTS `index_note_versions_saved_at`")
+                db.execSQL("DROP TABLE IF EXISTS `note_versions`")
+                db.execSQL("DROP TABLE IF EXISTS `note_encryption`")
             }
         }
 
@@ -241,7 +344,9 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
-                    MIGRATION_11_10, MIGRATION_10_9, MIGRATION_12_11
+                    MIGRATION_12_13, MIGRATION_13_14,
+                    MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
+                    MIGRATION_11_10, MIGRATION_10_9
                 )
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {

@@ -24,9 +24,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Label
@@ -38,6 +43,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.filled.Star
@@ -65,6 +71,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -84,14 +91,18 @@ import com.example.notes.ui.viewmodel.NoteSortOrder
 import com.example.notes.ui.viewmodel.NotesViewModel
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.NoteShareUtil
+import com.example.notes.util.toastShort
 import kotlinx.coroutines.launch
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun NotesListScreen(
     viewModel: NotesViewModel,
     onAddNote: () -> Unit,
+    onCreateFromTemplate: (Int) -> Unit = {},
     onOpenNote: (Long) -> Unit,
     onOpenCategories: () -> Unit,
     onOpenTags: () -> Unit,
@@ -115,9 +126,25 @@ fun NotesListScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+    // 进阶功能: 多选模式与已选笔记 id 集合
+    var multiSelectMode by remember { mutableStateOf(false) }
+    val selectedIds = remember { mutableStateListOf<Long>() }
     // 防止疯狂点击"删除"导致多次触发数据库删除 (虽然 id 相同是幂等的,
     // 但点击多次会让 UI 闪 / 在某些 Android 版本上触发 recomposition race)
     var deleteInFlight by remember { mutableStateOf(false) }
+
+    // 进阶功能: 批量导出 ZIP - SAF 创建文档启动器
+    val createZipLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        if (uri != null && selectedIds.isNotEmpty()) {
+            val ids = selectedIds.toList()
+            scope.launch {
+                val count = viewModel.exportNotesAsZip(context, ids, uri)
+                context.toastShort("已导出 $count 篇笔记到 ZIP")
+            }
+        }
+    }
 
     fun dismissActions() { actionTarget = null }
 
@@ -163,17 +190,63 @@ fun NotesListScreen(
         // P97: 绑定 SnackbarHost, 让删除撤销提示在屏幕底部显示
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("笔记", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            text = "共 ${state.notes.size} 条",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            if (multiSelectMode) {
+                // 进阶功能: 多选模式顶栏
+                TopAppBar(
+                    title = { Text("已选 ${selectedIds.size} 项") },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            multiSelectMode = false
+                            selectedIds.clear()
+                        }) {
+                            Icon(Icons.Filled.Close, contentDescription = "退出多选")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { selectedIds.clear() }) {
+                            Icon(Icons.Filled.Deselect, contentDescription = "全不选")
+                        }
+                        // 进阶功能: 批量导出 ZIP
+                        IconButton(
+                            onClick = {
+                                if (selectedIds.isEmpty()) {
+                                    context.toastShort("请先选择要导出的笔记")
+                                } else {
+                                    val fileName = "notes_export_${System.currentTimeMillis()}.zip"
+                                    createZipLauncher.launch(fileName)
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Filled.Archive, contentDescription = "批量导出 ZIP")
+                        }
+                        // 进阶功能: 批量删除
+                        IconButton(onClick = {
+                            if (selectedIds.isEmpty()) {
+                                context.toastShort("请先选择要删除的笔记")
+                            } else {
+                                showDeleteDialog = true
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.DeleteSweep,
+                                contentDescription = "批量删除",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
-                },
+                )
+            } else {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text("笔记", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "共 ${state.notes.size} 条",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
                 actions = {
                     // 3 个最常用入口始终可见
                     IconButton(onClick = onOpenSearch) {
@@ -241,6 +314,15 @@ fun NotesListScreen(
                                     onOpenTodos()
                                 }
                             )
+                            // 进阶功能: 多选模式
+                            DropdownMenuItem(
+                                text = { Text("多选模式") },
+                                leadingIcon = { Icon(Icons.Filled.Checklist, contentDescription = "多选") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    multiSelectMode = true
+                                }
+                            )
                         }
                     }
                 },
@@ -248,21 +330,58 @@ fun NotesListScreen(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
+            }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddNote,
-                icon = { Icon(Icons.Filled.Add, contentDescription = "新建笔记") },
-                text = { Text("新建笔记") },
-                // 用实色 primary + onPrimary 才有足够对比度, 默认 primaryContainer 太淡
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(
-                    defaultElevation = 6.dp,
-                    pressedElevation = 8.dp
-                ),
-                shape = RoundedCornerShape(16.dp)
-            )
+            var fabExpanded by remember { mutableStateOf(false) }
+            Column(horizontalAlignment = Alignment.End) {
+                if (fabExpanded) {
+                    ExtendedFloatingActionButton(
+                        onClick = {
+                            fabExpanded = false
+                            onAddNote()
+                        },
+                        text = { Text("空白笔记") },
+                        icon = { Icon(Icons.Filled.NoteAdd, contentDescription = null) },
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    com.example.notes.util.NoteTemplates.all.forEach { tmpl ->
+                        ExtendedFloatingActionButton(
+                            onClick = {
+                                fabExpanded = false
+                                onCreateFromTemplate(tmpl.type)
+                            },
+                            text = { Text(tmpl.name) },
+                            icon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        if (fabExpanded) {
+                            fabExpanded = false
+                        } else {
+                            fabExpanded = true
+                        }
+                    },
+                    icon = {
+                        Icon(Icons.Filled.Add, contentDescription = "新建笔记")
+                    },
+                    text = { Text(if (fabExpanded) "选择模板" else "新建笔记") },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 6.dp,
+                        pressedElevation = 8.dp
+                    ),
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -337,7 +456,27 @@ fun NotesListScreen(
                         // 改用"卡片右侧三个点"二级入口, 替代之前难触发的右滑手势
                         NoteCard(
                             noteWithCategory = nwc,
-                            onClick = { onOpenNote(nwc.note.id) },
+                            onClick = {
+                                if (multiSelectMode) {
+                                    // 进阶功能: 多选模式 - 点击切换选中
+                                    if (selectedIds.contains(nwc.note.id)) {
+                                        selectedIds.remove(nwc.note.id)
+                                    } else {
+                                        selectedIds.add(nwc.note.id)
+                                    }
+                                } else {
+                                    onOpenNote(nwc.note.id)
+                                }
+                            },
+                            onLongClick = {
+                                // 进阶功能: 长按进入多选模式
+                                if (!multiSelectMode) {
+                                    multiSelectMode = true
+                                }
+                                if (!selectedIds.contains(nwc.note.id)) {
+                                    selectedIds.add(nwc.note.id)
+                                }
+                            },
                             onPinClick = null,
                             onMoreClick = { actionTarget = nwc }
                         )
@@ -414,7 +553,48 @@ fun NotesListScreen(
     }
 
     if (showDeleteDialog) {
-        actionTarget?.let { target ->
+        // 进阶功能: 多选模式批量删除走另一条分支
+        if (multiSelectMode) {
+            AlertDialog(
+                onDismissRequest = { if (!deleteInFlight) { showDeleteDialog = false } },
+                title = { Text("批量删除") },
+                text = { Text("确认要删除已选的 ${selectedIds.size} 篇笔记吗?删除后 5 秒内可撤销。") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            if (deleteInFlight) return@TextButton
+                            deleteInFlight = true
+                            val ids = selectedIds.toList()
+                            val count = ids.size
+                            // 逐个调用 (deleteNoteWithUndo 走的是 ViewModel, 内部入栈可撤销)
+                            ids.forEach { viewModel.deleteNoteWithUndo(it) }
+                            showDeleteDialog = false
+                            selectedIds.clear()
+                            multiSelectMode = false
+                            scope.launch {
+                                val result = snackbarHostState.showSnackbar(
+                                    message = "已删除 $count 篇笔记",
+                                    actionLabel = "撤销",
+                                    withDismissAction = true,
+                                    duration = androidx.compose.material3.SnackbarDuration.Short
+                                )
+                                if (result == SnackbarResult.ActionPerformed) {
+                                    // 撤销最近一次即可 (因为我们逐个入栈, 撤销只恢复最后一条)
+                                    viewModel.undoLastDelete()
+                                }
+                            }
+                        },
+                        enabled = !deleteInFlight
+                    ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { if (!deleteInFlight) { showDeleteDialog = false } },
+                        enabled = !deleteInFlight
+                    ) { Text("取消") }
+                }
+            )
+        } else actionTarget?.let { target ->
             AlertDialog(
                 onDismissRequest = { if (!deleteInFlight) { showDeleteDialog = false; dismissActions() } },
                 title = { Text("删除笔记") },

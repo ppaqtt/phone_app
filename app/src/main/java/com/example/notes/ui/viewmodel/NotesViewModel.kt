@@ -403,6 +403,132 @@ class NotesViewModel(
             _backupState.value = BackupState.Idle
         }
     }
+
+    // --- 进阶功能: 笔记内链 / 模板 / 历史版本 / 加密 -----------------------
+
+    /** 进阶功能: 按精确标题查笔记 (用于内链 [[标题]] 跳转) */
+    suspend fun findNoteByTitle(title: String, excludeId: Long = 0L) =
+        repository.findByExactTitle(title, excludeId)
+
+    /** 进阶功能: 模糊搜索标题 (用于内链自动补全) */
+    suspend fun searchNotesByTitlePrefix(keyword: String, limit: Int = 10) =
+        repository.searchByTitlePrefix(keyword, limit)
+
+    /** 进阶功能: 解析内链, 返回 (id, title) 列表 */
+    suspend fun resolveNoteLinks(content: String, currentNoteId: Long = 0L): List<Pair<Long?, String>> {
+        val titles = com.example.notes.util.NoteLinkHelper.extractUniqueTitles(content)
+        return titles.map { title ->
+            val id = repository.getIdByTitle(title)
+            id to title
+        }
+    }
+
+    /** 进阶功能: 模板新建笔记 (一步完成: 渲染模板 + 插入数据库) */
+    suspend fun createNoteFromTemplate(
+        context: Context,
+        templateType: Int,
+        categoryId: Long? = null
+    ): Long {
+        val template = com.example.notes.util.NoteTemplates.get(templateType) ?: return 0L
+        val title = com.example.notes.util.NoteTemplates.render(template.title)
+        val content = com.example.notes.util.NoteTemplates.render(template.content)
+        val id = repository.saveNote(
+            NoteEntity(
+                title = title,
+                content = content,
+                categoryId = categoryId,
+                templateType = templateType
+            )
+        )
+        com.example.notes.widget.NotesAppWidget.requestRefresh(context)
+        return id
+    }
+
+    /** 进阶功能: 历史版本列表 */
+    fun observeNoteVersions(noteId: Long) = repository.observeNoteVersions(noteId)
+
+    /** 进阶功能: 保存一个历史版本快照 (UI 编辑保存时调用) */
+    suspend fun saveNoteVersion(noteId: Long, title: String, content: String) {
+        repository.saveNoteVersion(noteId, title, content)
+    }
+
+    /** 进阶功能: 删除某个历史版本 */
+    fun deleteNoteVersion(versionId: Long) {
+        launchSafe("deleteNoteVersion") { repository.deleteNoteVersion(versionId) }
+    }
+
+    /** 进阶功能: 恢复某历史版本 (会先把当前内容作为新版本存档) */
+    suspend fun restoreNoteVersion(noteId: Long, version: com.example.notes.data.NoteVersionEntity) {
+        val current = repository.getNoteOnce(noteId) ?: return
+        // 把当前快照存入历史
+        repository.saveNoteVersion(current.id, current.title, current.content)
+        // 用历史覆盖当前
+        repository.updateNoteContent(
+            id = noteId,
+            title = version.title,
+            content = version.content
+        )
+    }
+
+    /** 进阶功能: 加密笔记正文 */
+    suspend fun encryptNote(noteId: Long, password: String): Boolean {
+        val note = repository.getNoteOnce(noteId) ?: return false
+        if (note.content.isEmpty()) return true
+        val encrypted = com.example.notes.util.NoteEncryptor.encrypt(note.content, password)
+        val salt = com.example.notes.util.NoteEncryptor.newSalt()
+        repository.setNoteEncrypted(noteId, encrypted, salt)
+        return true
+    }
+
+    /** 进阶功能: 解除加密 */
+    suspend fun decryptNote(noteId: Long, password: String): String? {
+        val record = repository.getNoteEncryption(noteId) ?: return null
+        return runCatching {
+            com.example.notes.util.NoteEncryptor.decrypt(record.encryptedContent, password)
+        }.getOrNull()
+    }
+
+    /** 进阶功能: 检查笔记是否已加密 */
+    suspend fun isNoteEncrypted(noteId: Long): Boolean =
+        repository.getNoteEncryption(noteId) != null
+
+    /** 进阶功能: 批量导出选中笔记为 Markdown 压缩包 (zip) */
+    suspend fun exportNotesAsZip(
+        context: Context,
+        noteIds: List<Long>,
+        targetUri: Uri
+    ): Int = withContext(Dispatchers.IO) {
+        val notes = repository.getNotesByIds(noteIds)
+        val tempDir = java.io.File(context.cacheDir, "export_zip_${System.currentTimeMillis()}").apply { mkdirs() }
+        var writtenCount = 0
+        notes.forEach { n ->
+            val title = n.title.ifBlank { "无标题" }
+            val safeName = title.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(60)
+            val file = java.io.File(tempDir, "$safeName.md")
+            val sb = StringBuilder()
+            if (n.title.isNotBlank()) sb.append("# ").append(n.title).appendLine().appendLine()
+            if (n.tags.isNotBlank()) sb.appendLine("> 标签: ${n.tags}")
+            sb.append(n.content)
+            file.writeText(sb.toString(), Charsets.UTF_8)
+            writtenCount++
+        }
+        val zipFile = java.io.File(context.cacheDir, "notes_export_${System.currentTimeMillis()}.zip")
+        java.util.zip.ZipOutputStream(java.io.FileOutputStream(zipFile)).use { zos ->
+            tempDir.listFiles()?.forEach { f ->
+                zos.putNextEntry(java.util.zip.ZipEntry(f.name))
+                f.inputStream().use { it.copyTo(zos) }
+                zos.closeEntry()
+            }
+        }
+        context.contentResolver.openOutputStream(targetUri, "wt")?.use { out ->
+            java.io.FileInputStream(zipFile).use { it.copyTo(out) }
+        }
+        // 清理临时
+        tempDir.listFiles()?.forEach { it.delete() }
+        tempDir.delete()
+        zipFile.delete()
+        writtenCount
+    }
 }
 
 /**
