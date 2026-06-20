@@ -63,13 +63,45 @@ fun UpdateAvailableDialog(
     val context = LocalContext.current
     var downloadId by remember { mutableLongStateOf(-1L) }
     var showDownloading by remember { mutableStateOf(false) }
+    var showWifiConfirm by remember { mutableStateOf(false) }
 
     if (showDownloading) {
         DownloadProgressDialog(
             version = release.version,
             downloadId = downloadId,
+            release = release,
             onCancel = { showDownloading = false },
             onInstalled = onDismiss
+        )
+        return
+    }
+
+    if (showWifiConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showWifiConfirm = false },
+            title = { Text("当前为移动数据") },
+            text = { Text("下载设置为 \"仅 WiFi\"，是否继续使用移动数据下载？ (约 10~30 MB)") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showWifiConfirm = false
+                    val fallbackId = AppUpdateChecker.enqueueDownloadFallback(
+                        context, release, null
+                    )
+                    if (fallbackId != null) {
+                        downloadId = fallbackId
+                        showDownloading = true
+                        Toast.makeText(context, "开始下载更新...", Toast.LENGTH_SHORT).show()
+                    } else {
+                        openInBrowser(context, release.htmlUrl.ifBlank { release.bestApkUrl() })
+                    }
+                }) { Text("继续下载") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showWifiConfirm = false
+                    openInBrowser(context, release.htmlUrl.ifBlank { release.bestApkUrl() })
+                }) { Text("用浏览器") }
+            }
         )
         return
     }
@@ -130,13 +162,26 @@ fun UpdateAvailableDialog(
                     OutlinedButton(
                         onClick = {
                             val id = AppUpdateChecker.enqueueDownload(context, release)
-                            if (id != null) {
+                            if (id != null && id >= 0L) {
                                 downloadId = id
                                 showDownloading = true
                                 Toast.makeText(context, "开始下载更新...", Toast.LENGTH_SHORT).show()
+                            } else if (id == -2L) {
+                                // 被 WiFi 限制: 询问用户
+                                showWifiConfirm = true
                             } else {
-                                Toast.makeText(context, "启动下载失败，将打开浏览器", Toast.LENGTH_SHORT).show()
-                                openInBrowser(context, release.htmlUrl.ifBlank { release.bestApkUrl() })
+                                // 普通下载失败: 尝试换源
+                                val fallbackId = AppUpdateChecker.enqueueDownloadFallback(
+                                    context, release, release.bestApkUrl()
+                                )
+                                if (fallbackId != null) {
+                                    downloadId = fallbackId
+                                    showDownloading = true
+                                    Toast.makeText(context, "主源不可用, 切换到备用源下载...", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "启动下载失败, 将打开浏览器", Toast.LENGTH_SHORT).show()
+                                    openInBrowser(context, release.htmlUrl.ifBlank { release.bestApkUrl() })
+                                }
                             }
                         },
                         modifier = Modifier.weight(1f)
@@ -189,21 +234,58 @@ private fun openInBrowser(context: Context, url: String) {
 private fun DownloadProgressDialog(
     version: String,
     downloadId: Long,
+    release: AppUpdateChecker.ReleaseInfo,
     onCancel: () -> Unit,
     onInstalled: () -> Unit
 ) {
     val context = LocalContext.current
+    var currentDownloadId by remember { mutableLongStateOf(downloadId) }
     var progress by remember { mutableStateOf(0f) }
     var message by remember { mutableStateOf("正在下载更新包...") }
     var finished by remember { mutableStateOf(false) }
+    var switched by remember { mutableStateOf(false) }
 
-    LaunchedEffect(downloadId) {
+    LaunchedEffect(currentDownloadId) {
         while (isActive && !finished) {
-            val p = AppUpdateChecker.getDownloadProgress(context, downloadId)
+            val p = AppUpdateChecker.getDownloadProgress(context, currentDownloadId)
             if (p == null) {
-                message = "下载已完成或已取消，请在通知栏查看"
-                finished = true
-                break
+                // 可能已完成或已失败 - 检查真实状态
+                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+                val cursor = try {
+                    dm.query(android.app.DownloadManager.Query().setFilterById(currentDownloadId))
+                } catch (_: Exception) { null }
+                var status = android.app.DownloadManager.STATUS_FAILED
+                var reason = 0
+                cursor?.use {
+                    if (it.moveToFirst()) {
+                        status = it.getInt(it.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS))
+                        reason = it.getInt(it.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_REASON))
+                    }
+                }
+                if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                    finished = true
+                    message = "下载完成，点击\"立即安装\"更新应用"
+                    break
+                } else if (!switched) {
+                    // 下载失败: 尝试换源
+                    switched = true
+                    val fallback = AppUpdateChecker.enqueueDownloadFallback(
+                        context, release, null
+                    )
+                    if (fallback != null) {
+                        currentDownloadId = fallback
+                        message = "当前源下载失败, 已切换到备用源... (错误 $reason)"
+                        continue
+                    } else {
+                        finished = true
+                        message = "下载失败, 请在通知栏重试或手动在浏览器下载"
+                        break
+                    }
+                } else {
+                    finished = true
+                    message = "下载已失败或已取消，请在通知栏查看"
+                    break
+                }
             }
             val downloaded = p.first
             val total = p.second
@@ -249,9 +331,10 @@ private fun DownloadProgressDialog(
         confirmButton = {
             if (finished) {
                 TextButton(onClick = {
-                    val uri = AppUpdateChecker.getDownloadedUri(context, downloadId)
+                    val uri = AppUpdateChecker.getDownloadedUri(context, currentDownloadId)
                     if (uri != null) {
                         AppUpdateChecker.installApk(context, uri)
+                        AppUpdateChecker.cleanupOldApks(context)
                         onInstalled()
                     } else {
                         Toast.makeText(context, "未找到下载文件，请在通知栏操作", Toast.LENGTH_LONG).show()

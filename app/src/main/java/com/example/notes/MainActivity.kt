@@ -111,7 +111,7 @@ class MainActivity : AppCompatActivity() {
                     // 启动时自动检查更新: Splash 结束后 + 间隔够长 + 不是被忽略版本时弹窗
                     LaunchedEffect(showSplash) {
                         if (showSplash) return@LaunchedEffect
-                        if (!AppUpdateChecker.shouldAutoCheck(this@MainActivity)) return@LaunchedEffect
+                        if (!AppUpdateChecker.shouldAutoCheckWithPreferences(this@MainActivity)) return@LaunchedEffect
                         // 轻量异步: 不阻塞 UI, 失败即静默
                         val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
                             runCatching { AppUpdateChecker.checkForUpdate(forceRefresh = true, persistContext = this@MainActivity) }

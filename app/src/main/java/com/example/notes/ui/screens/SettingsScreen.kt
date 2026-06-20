@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gavel
@@ -257,6 +258,7 @@ fun SettingsScreen(
                     }
                 }
             )
+            UpdateSettingsCard()
             FeedbackCard()
             QQGroupCard()  // P102: 官方群聊入口
             ChangelogCard()
@@ -1182,6 +1184,132 @@ private fun UpdateCheckCard(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateSettingsCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var wifiOnly by remember { mutableStateOf(AppUpdateChecker.isWifiOnlyDownload(context)) }
+    var autoCheck by remember { mutableStateOf(AppUpdateChecker.isAutoCheckEnabled(context)) }
+    var cleaning by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "更新设置",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(8.dp))
+
+            // WiFi 仅下载
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        wifiOnly = !wifiOnly
+                        AppUpdateChecker.setWifiOnlyDownload(context, wifiOnly)
+                    }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("仅 WiFi 下载更新包", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "避免使用移动数据流量下载（约 10~30 MB）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = wifiOnly,
+                    onCheckedChange = {
+                        wifiOnly = it
+                        AppUpdateChecker.setWifiOnlyDownload(context, it)
+                    }
+                )
+            }
+
+            // 启动自动检查
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        autoCheck = !autoCheck
+                        AppUpdateChecker.setAutoCheckEnabled(context, autoCheck)
+                    }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("启动时自动检查更新", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "打开应用时后台检查是否有新版本",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = autoCheck,
+                    onCheckedChange = {
+                        autoCheck = it
+                        AppUpdateChecker.setAutoCheckEnabled(context, it)
+                    }
+                )
+            }
+
+            // 清理旧 APK
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = !cleaning) {
+                        cleaning = true
+                        scope.launch {
+                            AppUpdateChecker.cleanupOldApks(context)
+                            delay(300)
+                            Toast.makeText(context, "已清理旧版本安装包", Toast.LENGTH_SHORT).show()
+                            cleaning = false
+                        }
+                    }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("清理旧版本安装包", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "删除下载目录中历史版本的 APK 文件",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (cleaning) {
+                    androidx.compose.material3.CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.DeleteSweep,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

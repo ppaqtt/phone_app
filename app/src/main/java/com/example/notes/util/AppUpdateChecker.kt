@@ -81,6 +81,8 @@ object AppUpdateChecker {
     private const val KEY_LAST_CHECK_AT = "last_check_at"
     private const val KEY_IGNORED_VERSION = "ignored_version"
     private const val KEY_LAST_AUTO_CHECK_AT = "last_auto_check_at"
+    private const val KEY_WIFI_ONLY = "wifi_only"
+    private const val KEY_AUTO_CHECK = "auto_check"
 
     /**
      * 网络不可用时的兜底最新版本号。
@@ -108,6 +110,18 @@ object AppUpdateChecker {
         val network: Network = cm.activeNetwork ?: return false
         val capabilities = cm.getNetworkCapabilities(network) ?: return false
         return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
+    /** 是否当前为 WiFi / 以太网 (不计量) 网络。用于 WiFi 下载限制。 */
+    fun isWifiNetwork(context: Context): Boolean {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+        val network: Network = cm.activeNetwork ?: return false
+        val capabilities = cm.getNetworkCapabilities(network) ?: return false
+        val isInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        val hasTransport = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        return isInternet && hasTransport
     }
 
     enum class NetworkErrorType {
@@ -477,17 +491,53 @@ object AppUpdateChecker {
             .apply()
     }
 
-    // ========== 应用内下载 APK (DownloadManager) ==========
+    // ========== 用户偏好设置 ==========
+
+    /** 是否仅 WiFi 下下载 APK (默认 true)。 */
+    fun isWifiOnlyDownload(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_WIFI_ONLY, true)
+    }
+
+    fun setWifiOnlyDownload(context: Context, value: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_WIFI_ONLY, value)
+            .apply()
+    }
+
+    /** 是否启动时自动检查更新 (默认 true)。 */
+    fun isAutoCheckEnabled(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_AUTO_CHECK, true)
+    }
+
+    fun setAutoCheckEnabled(context: Context, value: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_AUTO_CHECK, value)
+            .apply()
+    }
+
     /**
-     * 启动 DownloadManager 下载 APK。
-     * 返回 DownloadManager 的 downloadId，用于后续查询进度/状态。
-     * 如果 apkUrl 为空则返回 null。
+     * 在启动自动检查路径上额外判断: WiFi 限制 + 自动检查开关。
      */
-    fun enqueueDownload(context: Context, release: ReleaseInfo): Long? {
-        val url = release.bestApkUrl().ifBlank { return null }
-        val fileName = "qingjian-${release.version}.apk"
+    fun shouldAutoCheckWithPreferences(context: Context): Boolean {
+        if (!isAutoCheckEnabled(context)) return false
+        return shouldAutoCheck(context)
+    }
+
+    // ========== 应用内下载 APK (DownloadManager) ==========
+
+    /**
+     * 用指定 URL 启动 DownloadManager 下载 APK。
+     * 返回 DownloadManager 的 downloadId。
+     */
+    private fun enqueueDownloadByUrl(context: Context, url: String, version: String): Long? {
+        val fileName = "qingjian-$version.apk"
+        val wifiOnly = isWifiOnlyDownload(context)
         val request = android.app.DownloadManager.Request(Uri.parse(url))
-            .setTitle("轻笺笔记 v${release.version}")
+            .setTitle("轻笺笔记 v$version")
             .setDescription("正在下载更新包...")
             .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(
@@ -495,14 +545,79 @@ object AppUpdateChecker {
                 fileName
             )
             .setMimeType("application/vnd.android.package-archive")
-            .setAllowedOverMetered(true)
+            .setAllowedOverMetered(!wifiOnly)
             .setAllowedOverRoaming(false)
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
         return try {
             dm.enqueue(request)
         } catch (e: Exception) {
-            Timber.tag("UpdateChecker").w(e, "DownloadManager enqueue failed")
+            Timber.tag("UpdateChecker").w(e, "DownloadManager enqueue failed for $url")
             null
+        }
+    }
+
+    /**
+     * 启动下载 APK (首选源)。
+     * 返回 downloadId，或在 WiFi 限制下返回 null。
+     */
+    fun enqueueDownload(context: Context, release: ReleaseInfo): Long? {
+        if (isWifiOnlyDownload(context) && !isWifiNetwork(context)) {
+            Timber.tag("UpdateChecker").d("Blocked by WiFi-only setting")
+            return -2L // 特殊标记: 被 WiFi 限制
+        }
+        return enqueueDownloadByUrl(context, release.bestApkUrl(), release.version)
+    }
+
+    /**
+     * 多源下载换源。当主源 (Gitee) 下载失败时自动切换到次源 (GitHub)。
+     * 返回新的 downloadId，全部失败返回 null。
+     */
+    fun enqueueDownloadFallback(context: Context, release: ReleaseInfo, failedUrl: String?): Long? {
+        val primary = release.bestApkUrl()
+        val secondary = if (primary == release.apkUrlGitee) release.apkUrlGithub else release.apkUrlGitee
+        val urls = listOfNotNull(
+            release.apkUrlGitee,
+            release.apkUrlGithub,
+            release.htmlUrl
+        ).filter { it.isNotBlank() && it != failedUrl }
+        for (url in urls) {
+            if (url.isBlank()) continue
+            val id = enqueueDownloadByUrl(context, url, release.version)
+            if (id != null) {
+                Timber.tag("UpdateChecker").d("Switched to $url")
+                return id
+            }
+        }
+        return null
+    }
+
+    /**
+     * 清理 DownloadManager 中已下载但未安装的旧版本 APK 记录，释放存储空间。
+     * 仅清理本应用下载目录下文件名匹配 "qingjian-*.apk" 且版本号 < 当前版本的文件。
+     */
+    fun cleanupOldApks(context: Context) {
+        try {
+            val dir = android.os.Environment.getExternalStoragePublicDirectory(
+                android.os.Environment.DIRECTORY_DOWNLOADS
+            )
+            val current = currentVersion()
+            val files = dir?.listFiles { f ->
+                f?.name?.matches(Regex("qingjian-.*\\.apk")) == true
+            } ?: return
+            val currentNum = parseVersion(current)
+            for (f in files) {
+                try {
+                    val versionInName = f.name.replace("qingjian-", "")
+                        .replace(".apk", "")
+                        .trim()
+                    if (compareVersions(versionInName, current) < 0) {
+                        f.delete()
+                        Timber.tag("UpdateChecker").d("Deleted old APK: ${f.name}")
+                    }
+                } catch (_: Exception) {}
+            }
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "cleanupOldApks failed")
         }
     }
 
