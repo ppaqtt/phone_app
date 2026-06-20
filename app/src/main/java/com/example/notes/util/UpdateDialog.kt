@@ -245,6 +245,7 @@ private fun DownloadProgressDialog(
     var message by remember { mutableStateOf("正在下载更新包...") }
     var finished by remember { mutableStateOf(false) }
     var switched by remember { mutableStateOf(false) }
+    var showSignatureWarning by remember { mutableStateOf(false) }
 
     LaunchedEffect(currentDownloadId) {
         while (isActive && !finished) {
@@ -360,9 +361,16 @@ private fun DownloadProgressDialog(
                 TextButton(onClick = {
                     val uri = AppUpdateChecker.getDownloadedUri(context, currentDownloadId)
                     if (uri != null) {
-                        AppUpdateChecker.installApk(context, uri)
-                        AppUpdateChecker.cleanupOldApks()
-                        onInstalled()
+                        // 安装前校验签名
+                        if (AppUpdateChecker.isApkSignatureValid(context, uri)) {
+                            AppUpdateChecker.installApk(context, uri)
+                            AppUpdateChecker.cleanupOldApks()
+                            onInstalled()
+                        } else {
+                            // 签名不匹配: 删除 APK 并警告用户
+                            AppUpdateChecker.deleteDownloadedApk(context, uri)
+                            showSignatureWarning = true
+                        }
                     } else {
                         Toast.makeText(context, "未找到下载文件，请在通知栏操作", Toast.LENGTH_LONG).show()
                     }
@@ -373,6 +381,31 @@ private fun DownloadProgressDialog(
             TextButton(onClick = onCancel) { Text(if (finished) "关闭" else "后台继续") }
         }
     )
+
+    // 签名校验失败警告弹窗
+    if (showSignatureWarning) {
+        AlertDialog(
+            onDismissRequest = { showSignatureWarning = false },
+            title = { Text("签名校验失败") },
+            text = {
+                Column {
+                    Text("下载的 APK 签名与本应用不一致，可能被篡改或来自非官方渠道。")
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "已删除该文件，请通过官方渠道重新下载。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSignatureWarning = false
+                    onCancel()
+                }) { Text("知道了") }
+            }
+        )
+    }
 }
 
 /**

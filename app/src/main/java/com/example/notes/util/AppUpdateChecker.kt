@@ -675,6 +675,170 @@ object AppUpdateChecker {
         }
     }
 
+    // ========== APK 签名校验 ==========
+
+    /**
+     * 校验下载的 APK 签名是否与本应用签名一致。
+     * 防止 DNS 污染 / CDN 被篡改导致用户安装恶意 APK。
+     *
+     * @return true = 签名一致, 可安全安装; false = 签名不匹配, 应删除 APK 并警告用户
+     */
+    fun isApkSignatureValid(context: Context, apkUri: Uri): Boolean {
+        return try {
+            val currentSig = getCurrentAppSignature(context)
+            val apkSig = getApkSignatureFromUri(context, apkUri)
+            if (currentSig == null || apkSig == null) {
+                Timber.tag("UpdateChecker").w("Signature check failed: current=$currentSig, apk=$apkSig")
+                return false
+            }
+            val match = currentSig == apkSig
+            Timber.tag("UpdateChecker").d("Signature check: current=$currentSig, apk=$apkSig, match=$match")
+            match
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "isApkSignatureValid failed")
+            false
+        }
+    }
+
+    /**
+     * 获取本应用的签名证书指纹 (SHA-256)。
+     */
+    private fun getCurrentAppSignature(context: Context): String? {
+        return try {
+            val pm = context.packageManager
+            // Android 13+ 使用 getPackageInfo(packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            val flags = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                @Suppress("DEPRECATION")
+                android.content.pm.PackageManager.GET_SIGNATURES
+            }
+            val info = pm.getPackageInfo(context.packageName, flags)
+            val sigs = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                info.signingInfo?.apkContentsSigners ?: return null
+            } else {
+                @Suppress("DEPRECATION")
+                info.signatures ?: return null
+            }
+            if (sigs.isEmpty()) return null
+            // 取第一个签名证书的 SHA-256 指纹
+            val cert = sigs[0].toByteArray()
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val digest = md.digest(cert)
+            // 转成十六进制字符串 (小写, 无分隔符)
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "getCurrentAppSignature failed")
+            null
+        }
+    }
+
+    /**
+     * 从 APK 文件 Uri 获取签名证书指纹 (SHA-256)。
+     * 使用 PackageManager 的 getPackageArchiveInfo 解析 APK。
+     */
+    private fun getApkSignatureFromUri(context: Context, apkUri: Uri): String? {
+        return try {
+            // 将 Uri 转为本地文件路径
+            val apkPath = getApkFilePathFromUri(context, apkUri)
+            if (apkPath == null) {
+                Timber.tag("UpdateChecker").w("Cannot resolve APK path from Uri: $apkUri")
+                return null
+            }
+            getApkSignatureFromPath(context, apkPath)
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "getApkSignatureFromUri failed")
+            null
+        }
+    }
+
+    /**
+     * 从 APK 文件路径获取签名证书指纹。
+     */
+    fun getApkSignatureFromPath(context: Context, apkPath: String): String? {
+        return try {
+            val pm = context.packageManager
+            val flags = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                @Suppress("DEPRECATION")
+                android.content.pm.PackageManager.GET_SIGNATURES
+            }
+            val info = pm.getPackageArchiveInfo(apkPath, flags)
+            if (info == null) {
+                Timber.tag("UpdateChecker").w("getPackageArchiveInfo returned null for $apkPath")
+                return null
+            }
+            val sigs = if (android.os.Build.VERSION.SDK_INT >= 33) {
+                info.signingInfo?.apkContentsSigners ?: return null
+            } else {
+                @Suppress("DEPRECATION")
+                info.signatures ?: return null
+            }
+            if (sigs.isEmpty()) return null
+            val cert = sigs[0].toByteArray()
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            val digest = md.digest(cert)
+            digest.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "getApkSignatureFromPath failed for $apkPath")
+            null
+        }
+    }
+
+    /**
+     * 从 DownloadManager 返回的 Uri 解析本地文件路径。
+     * DownloadManager 返回的通常是 content://downloads/... 或 file:///...
+     */
+    private fun getApkFilePathFromUri(context: Context, uri: Uri): String? {
+        return try {
+            when (uri.scheme) {
+                "file" -> uri.path
+                "content" -> {
+                    // 尝试通过 ContentResolver 查询 _data 列
+                    val cursor = context.contentResolver.query(uri, null, null, null, null)
+                    cursor?.use {
+                        if (it.moveToFirst()) {
+                            val dataIndex = it.getColumnIndex("_data")
+                            if (dataIndex >= 0) {
+                                return it.getString(dataIndex)
+                            }
+                        }
+                    }
+                    // 如果 _data 列不存在, 尝试直接打开文件并复制到临时路径
+                    null
+                }
+                else -> null
+            }
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "getApkFilePathFromUri failed for $uri")
+            null
+        }
+    }
+
+    /**
+     * 删除下载的 APK 文件 (签名校验失败时调用)。
+     */
+    fun deleteDownloadedApk(context: Context, apkUri: Uri): Boolean {
+        return try {
+            val path = getApkFilePathFromUri(context, apkUri)
+            if (path != null) {
+                val file = java.io.File(path)
+                if (file.exists()) {
+                    val deleted = file.delete()
+                    Timber.tag("UpdateChecker").d("Deleted APK at $path: $deleted")
+                    return deleted
+                }
+            }
+            // 如果无法获取路径, 尝试通过 ContentResolver 删除
+            context.contentResolver.delete(apkUri, null, null)
+            true
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "deleteDownloadedApk failed")
+            false
+        }
+    }
+
     @Volatile private var cachedRemote: ReleaseInfo? = null
     @Volatile private var cachedAt: Long = 0L
     private val cacheValidMillis = 6 * 60 * 60 * 1000L
