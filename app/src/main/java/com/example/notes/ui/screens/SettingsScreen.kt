@@ -369,19 +369,6 @@ private fun AboutInfoCard() {
             InfoRow(label = "当前版本", value = "v${BuildConfig.VERSION_NAME}")
             InfoRow(label = "开发者", value = "平平的小破站")
             InfoRow(label = "版权所有", value = "© 2026 清笺")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "浙ICP备2025194709号-6A",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
-            }
             // F22: ICP 备案号 — 点击跳转到工信部备案管理系统
             Row(
                 modifier = Modifier

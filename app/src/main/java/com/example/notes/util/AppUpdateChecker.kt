@@ -571,18 +571,21 @@ object AppUpdateChecker {
     /**
      * 多源下载换源。当主源 (Gitee) 下载失败时自动切换到次源 (GitHub)。
      * 返回新的 downloadId，全部失败返回 null。
+     *
+     * 注意: fallback 路径同样遵守 WiFi-only 限制。被限制时返回 -2L 让调用方处理。
      */
     fun enqueueDownloadFallback(context: Context, release: ReleaseInfo, failedUrl: String?): Long? {
+        if (isWifiOnlyDownload(context) && !isWifiNetwork(context)) {
+            return -2L
+        }
         val urls = listOfNotNull(
-            release.apkUrlGitee,
-            release.apkUrlGithub,
-            release.htmlUrl
+            String.format(Locale.US, GITEE_DOWNLOAD_TEMPLATE, release.version, release.version),
+            String.format(Locale.US, GITHUB_DOWNLOAD_TEMPLATE, release.version, release.version)
         ).filter { it.isNotBlank() && it != failedUrl }
         for (url in urls) {
-            if (url.isBlank()) continue
             val id = enqueueDownloadByUrl(context, url, release.version)
             if (id != null) {
-                Timber.tag("UpdateChecker").d("Switched to $url")
+                Timber.tag("UpdateChecker").d("Fallback: switched to $url")
                 return id
             }
         }
@@ -618,12 +621,17 @@ object AppUpdateChecker {
         }
     }
 
-    /** 查询下载进度，返回 Pair(已下载字节, 总字节)。失败则返回 null。 */
-    fun getDownloadProgress(context: Context, downloadId: Long): Pair<Long, Long>? {
+    /** 查询下载进度。
+     * 返回 Triple(status, downloaded, total)，其中:
+     * - status: STATUS_SUCCESSFUL / STATUS_FAILED / STATUS_RUNNING 等
+     * - total 为 -1 表示大小未知 (此时应显示不确定进度条)
+     * 无法查询返回 null。
+     */
+    fun getDownloadProgressEx(context: Context, downloadId: Long): Triple<Int, Long, Long>? {
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
         val query = android.app.DownloadManager.Query().setFilterById(downloadId)
         val cursor = dm.query(query)
-        try {
+        return try {
             if (!cursor.moveToFirst()) return null
             val status = cursor.getInt(
                 cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS)
@@ -634,12 +642,10 @@ object AppUpdateChecker {
             val bytesTotal = cursor.getLong(
                 cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
             )
-            if (status == android.app.DownloadManager.STATUS_FAILED || bytesTotal <= 0L)
-                return null
-            return bytesDownloaded to bytesTotal
+            Triple(status, bytesDownloaded, bytesTotal)
         } catch (e: Exception) {
-            Timber.tag("UpdateChecker").w(e, "getDownloadProgress failed")
-            return null
+            Timber.tag("UpdateChecker").w(e, "getDownloadProgressEx failed")
+            null
         } finally {
             cursor.close()
         }
@@ -717,8 +723,10 @@ object AppUpdateChecker {
         val apkUrlGitee: String,
         val apkUrlGithub: String
     ) {
-        fun bestApkUrl(): String =
-            if (apkUrlGitee.isNotBlank()) apkUrlGitee else apkUrlGithub
+        /** 优先使用模板生成的 Gitee 下载 URL（Gitee 页面解析出的 URL 不可靠） */
+        fun bestApkUrl(): String = String.format(
+            Locale.US, GITEE_DOWNLOAD_TEMPLATE, version, version
+        ).ifBlank { apkUrlGithub }
     }
 
     data class UpdateCheckResult(

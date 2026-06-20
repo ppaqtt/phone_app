@@ -248,9 +248,9 @@ private fun DownloadProgressDialog(
 
     LaunchedEffect(currentDownloadId) {
         while (isActive && !finished) {
-            val p = AppUpdateChecker.getDownloadProgress(context, currentDownloadId)
-            if (p == null) {
-                // 可能已完成或已失败 - 检查真实状态
+            val info = AppUpdateChecker.getDownloadProgressEx(context, currentDownloadId)
+            if (info == null) {
+                // 可能已完成或已失败
                 val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
                 val cursor = try {
                     dm.query(android.app.DownloadManager.Query().setFilterById(currentDownloadId))
@@ -273,10 +273,14 @@ private fun DownloadProgressDialog(
                     val fallback = AppUpdateChecker.enqueueDownloadFallback(
                         context, release, null
                     )
-                    if (fallback != null) {
+                    if (fallback != null && fallback >= 0L) {
                         currentDownloadId = fallback
                         message = "当前源下载失败, 已切换到备用源... (错误 $reason)"
                         continue
+                    } else if (fallback == -2L) {
+                        finished = true
+                        message = "当前为移动数据，下载设置为\"仅 WiFi\"，请切换网络或用浏览器下载"
+                        break
                     } else {
                         finished = true
                         message = "下载失败, 请在通知栏重试或手动在浏览器下载"
@@ -288,10 +292,19 @@ private fun DownloadProgressDialog(
                     break
                 }
             }
-            val downloaded = p.first
-            val total = p.second
-            progress = if (total > 0) downloaded.toFloat() / total else 0f
-            if (progress >= 1f) {
+            val (status, downloaded, total) = info
+            if (status == android.app.DownloadManager.STATUS_SUCCESSFUL) {
+                finished = true
+                message = "下载完成，点击\"立即安装\"更新应用"
+                progress = 1f
+                break
+            }
+            if (total > 0L) {
+                progress = downloaded.toFloat() / total
+            } else {
+                progress = -1f // -1 表示大小未知 -> 显示不确定进度条
+            }
+            if (progress >= 1f && total > 0L) {
                 finished = true
                 message = "下载完成，点击\"立即安装\"更新应用"
             }
@@ -307,16 +320,29 @@ private fun DownloadProgressDialog(
                 Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(12.dp))
                 if (!finished) {
-                    LinearProgressIndicator(
-                        progress = progress,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "${(progress * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.align(Alignment.End)
-                    )
+                    if (progress < 0f) {
+                        // 大小未知 (total = -1): 显示不确定进度条
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "正在下载...",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.align(Alignment.End)
+                        )
+                    } else {
+                        LinearProgressIndicator(
+                            progress = progress,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "${(progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.align(Alignment.End)
+                        )
+                    }
                 } else {
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Icon(

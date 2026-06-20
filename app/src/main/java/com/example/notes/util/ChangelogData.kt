@@ -20,6 +20,10 @@ object ChangelogData {
                 "新增：清理旧版本 APK — 设置页一键清理下载目录中已安装的旧版本 APK, 释放存储空间",
                 "优化：UpdateAvailableDialog 整合 WiFi 限制 + 换源逻辑 — 不再因网络环境导致下载卡住或静默失败",
                 "优化：DownloadManager 请求 — setAllowedOverMetered 与 wifiOnly 开关联动, 系统层面阻止移动数据下载",
+                "优化：下载进度查询 — 新增 getDownloadProgressEx 返回 status/downloaded/total 三元组; total=-1 时显示不确定进度条, 避免卡 0%",
+                "优化：下载 URL 生成 — bestApkUrl 改用 `GITEE_DOWNLOAD_TEMPLATE` 直接拼装为 `https://gitee.com/ppkjgzs/phone_app/releases/download/vX.Y.Z/qingjian-X.Y.Z.apk`, 不再依赖 Gitee 页面解析的不可靠字段",
+                "修复：enqueueDownloadFallback 绕过 WiFi-only 限制 — fallback 路径同样检查 WiFi-only, 被限制时返回 -2L 提示调用方",
+                "修复：关于页备案号重复 — 移除顶部静态\"浙ICP备2025194709号-6A\"文本行, 仅保留可点击的\"ICP 备案\"入口卡片",
                 "修复：数据库 schema 校验错误 — v17→v18 migration 中 search_history / sync_config / note_change_log / user_note_templates / backlink_scan_state 五张表的列默认值与 Entity 定义不符, 导致 Room 迁移时报错崩溃",
                 "升级：版本号 v1.35.00 → v1.36.00 (versionCode 60 → 61)"
             )
