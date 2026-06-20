@@ -1,5 +1,6 @@
 package com.example.notes.util
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -218,7 +219,7 @@ private fun openInBrowser(context: Context, url: String) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
-    }.onFailure { e ->
+    }.onFailure { e: Throwable ->
         Toast.makeText(
             context,
             "无法打开浏览器: ${e.message}",
@@ -307,7 +308,7 @@ private fun DownloadProgressDialog(
                 Spacer(Modifier.height(12.dp))
                 if (!finished) {
                     LinearProgressIndicator(
-                        progress = { progress },
+                        progress = progress,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(6.dp))

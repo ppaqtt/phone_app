@@ -156,12 +156,15 @@ class MainActivity : AppCompatActivity() {
                     // 启动时自动检查更新: 发现新版后弹对话框
                     val s = autoUpdateState
                     if (s is AutoUpdateState.Showing) {
-                        UpdateAvailableDialog(
-                            currentVersion = s.result.currentVersion,
-                            release = s.result.releaseInfo,
-                            errorMessage = null,
-                            onDismiss = { autoUpdateState = AutoUpdateState.Idle }
-                        )
+                        val info = s.result.releaseInfo
+                        if (info != null) {
+                            UpdateAvailableDialog(
+                                currentVersion = s.result.currentVersion,
+                                release = info,
+                                errorMessage = null,
+                                onDismiss = { autoUpdateState = AutoUpdateState.Idle }
+                            )
+                        }
                     }
                 }
             }
