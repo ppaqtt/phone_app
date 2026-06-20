@@ -7,6 +7,7 @@ import com.example.notes.data.CategoryEntity
 import com.example.notes.data.NoteAttachmentDao
 import com.example.notes.data.NoteAttachmentEntity
 import com.example.notes.data.NoteBacklinkDao
+import com.example.notes.data.NoteBacklinkEntity
 import com.example.notes.data.NoteChangeLogDao
 import com.example.notes.data.NoteChangeLogEntity
 import com.example.notes.data.NoteCharCountRow
@@ -547,7 +548,7 @@ class NotesRepository(
     fun observeBacklinksFor(noteId: Long): Flow<List<NoteEntity>> = noteBacklinkDao.observeBacklinksFor(noteId)
     fun observeForwardLinksFor(noteId: Long): Flow<List<NoteEntity>> = noteBacklinkDao.observeForwardLinksFor(noteId)
     suspend fun scanAndUpdateBacklinks(noteId: Long, content: String) {
-        val contentHash = content.trim().hashCode()
+        val contentHash = content.trim().hashCode().toLong()
         val existing = backlinkScanStateDao.getByNoteId(noteId)
         if (existing != null && existing.lastContentHash == contentHash) return
 

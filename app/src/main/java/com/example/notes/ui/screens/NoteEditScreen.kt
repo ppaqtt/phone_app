@@ -196,7 +196,7 @@ private val ColorSaver: Saver<Color, Int> = Saver(
     restore = { Color(it) }
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun NoteEditScreen(
     noteId: Long,
@@ -627,24 +627,6 @@ fun NoteEditScreen(
         audioUris.addAll(foundUris)
     }
 
-    // 中价值/中工作量: 自动保存指示器 — 30秒 debounce 后自动保存
-    LaunchedEffect(loaded, isDirty) {
-        if (!loaded) return@LaunchedEffect
-        if (!isDirty) {
-            autoSaveStatus = AutoSaveStatus.Idle
-            return@LaunchedEffect
-        }
-        autoSaveStatus = AutoSaveStatus.Pending
-        delay(30_000L)  // 30秒自动保存
-        if (autoSaveStatus != AutoSaveStatus.Pending) return@LaunchedEffect
-        autoSaveStatus = AutoSaveStatus.Saving
-        try {
-            saveNote()
-        } catch (e: Exception) {
-            autoSaveStatus = AutoSaveStatus.Pending
-        }
-    }
-
     /**
      * P51: 改为纯 suspend 函数, 不再内部 rememberCoroutineScope() (会崩)。
      * 由 [saveNoteThen] 在 Composable scope 内启动协程调用。
@@ -742,6 +724,24 @@ fun NoteEditScreen(
             } finally {
                 busy = false
             }
+        }
+    }
+
+    // 中价值/中工作量: 自动保存指示器 — 30秒 debounce 后自动保存
+    LaunchedEffect(loaded, isDirty) {
+        if (!loaded) return@LaunchedEffect
+        if (!isDirty) {
+            autoSaveStatus = AutoSaveStatus.Idle
+            return@LaunchedEffect
+        }
+        autoSaveStatus = AutoSaveStatus.Pending
+        delay(30_000L)  // 30秒自动保存
+        if (autoSaveStatus != AutoSaveStatus.Pending) return@LaunchedEffect
+        autoSaveStatus = AutoSaveStatus.Saving
+        try {
+            saveNote()
+        } catch (e: Exception) {
+            autoSaveStatus = AutoSaveStatus.Pending
         }
     }
 
