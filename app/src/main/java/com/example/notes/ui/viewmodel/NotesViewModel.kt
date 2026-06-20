@@ -60,7 +60,9 @@ data class NotesUiState(
     /** 只显示已锁定 */
     val showOnlyLocked: Boolean = false,
     /** 颜色标签筛选 (0 = 不过滤, 其他 = 只显示该颜色) */
-    val activeColorTag: Int = 0
+    val activeColorTag: Int = 0,
+    /** 只显示已归档笔记 */
+    val showOnlyArchived: Boolean = false
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -76,13 +78,14 @@ class NotesViewModel(
     private val showOnlyDrafts = MutableStateFlow(false)
     private val showOnlyLocked = MutableStateFlow(false)
     private val activeColorTag = MutableStateFlow(0)
+    private val showOnlyArchived = MutableStateFlow(false)
 
     private val notes = activeCategoryId.flatMapLatest { categoryId ->
         if (categoryId == null) repository.observeNotes() else repository.observeNotesByCategory(categoryId)
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites, repository.observeTagGroups(), showOnlyDrafts, showOnlyLocked, activeColorTag) { args ->
+        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites, repository.observeTagGroups(), showOnlyDrafts, showOnlyLocked, activeColorTag, showOnlyArchived) { args ->
             @Suppress("UNCHECKED_CAST")
             val notesList = args[0] as List<NoteWithCategory>
             val categories = args[1] as List<CategoryEntity>
@@ -94,6 +97,7 @@ class NotesViewModel(
             val onlyDrafts = args[7] as Boolean
             val onlyLocked = args[8] as Boolean
             val colorTag = args[9] as Int
+            val onlyArchived = args[10] as Boolean
             // SQL 已经 ORDER BY is_pinned DESC, updated_at DESC, 但内存 sortBy*
             // 会丢掉 is_pinned 优先级。所有排序都先按置顶降序, 再按星标降序, 最后按用户选的次级 key。
             val pinnedFirst = compareByDescending<NoteWithCategory> { it.note.isPinned }
@@ -104,6 +108,12 @@ class NotesViewModel(
             if (onlyDrafts) filtered = filtered.filter { it.note.isDraft }
             if (onlyLocked) filtered = filtered.filter { it.note.isLocked }
             if (colorTag != 0) filtered = filtered.filter { it.note.colorTag == colorTag }
+            // 归档: 默认排除归档=true 时只显示归档, 否则默认排除归档
+            if (onlyArchived) {
+                filtered = filtered.filter { it.note.isArchived }
+            } else {
+                filtered = filtered.filterNot { it.note.isArchived }
+            }
             if (q.isNotBlank()) {
                 val needle = q.trim()
                 filtered = filtered.filter { n ->
@@ -134,7 +144,8 @@ class NotesViewModel(
                 tagGroups = tagGroups,
                 showOnlyDrafts = onlyDrafts,
                 showOnlyLocked = onlyLocked,
-                activeColorTag = colorTag
+                activeColorTag = colorTag,
+                showOnlyArchived = onlyArchived
             )
         }.stateIn(
             scope = viewModelScope,
@@ -187,6 +198,8 @@ class NotesViewModel(
     fun setShowOnlyLocked(value: Boolean) { showOnlyLocked.value = value }
     /** 设置颜色标签过滤 (0 = 不过滤) */
     fun setColorTagFilter(colorTag: Int) { activeColorTag.value = colorTag }
+    /** 切换"只显示归档"过滤 */
+    fun setShowOnlyArchived(value: Boolean) { showOnlyArchived.value = value }
 
     /** 设置单篇笔记的锁定状态 */
     fun setLocked(noteId: Long, locked: Boolean) {
@@ -199,6 +212,10 @@ class NotesViewModel(
     /** 设置单篇笔记的颜色标签 */
     fun setColorTag(noteId: Long, colorTag: Int) {
         launchSafe("setColorTag") { repository.setColorTag(noteId, colorTag) }
+    }
+    /** 设置单篇笔记的归档状态 */
+    fun setArchived(noteId: Long, archived: Boolean) {
+        launchSafe("setArchived") { repository.setArchived(noteId, archived) }
     }
     /** 设置单篇笔记的预估阅读时间 (秒) */
     fun setReadTimeSeconds(noteId: Long, seconds: Int) {

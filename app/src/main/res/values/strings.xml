@@ -16,4 +16,13 @@
     <string name="shortcut_search_long">搜索笔记</string>
     <string name="shortcut_trash_short">回收站</string>
     <string name="shortcut_trash_long">查看已删除的笔记</string>
+
+    <!-- F4: 桌面 Shortcuts (new_note / search / stats) -->
+    <string name="shortcut_new_note">新建笔记</string>
+    <string name="shortcut_new_note_long">新建一条空白笔记</string>
+    <string name="shortcut_new_note_disabled">此功能已禁用</string>
+    <string name="shortcut_search">搜索</string>
+    <string name="shortcut_search_long">搜索笔记内容</string>
+    <string name="shortcut_stats">统计</string>
+    <string name="shortcut_stats_long">查看笔记统计</string>
 </resources>

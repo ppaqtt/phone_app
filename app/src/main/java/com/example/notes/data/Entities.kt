@@ -37,7 +37,8 @@ const val DEFAULT_COLOR: Int = 0xFFFFFFFF.toInt()
         Index("tags"),
         Index("reminder_time"),
         Index("priority"),
-        Index("created_at")
+        Index("created_at"),
+        Index("is_archived")
     ]
 )
 data class NoteEntity(
@@ -123,7 +124,11 @@ data class NoteEntity(
 
     /** 功能: 笔记阅读时间估算 (秒), 0 表示未计算。 */
     @ColumnInfo(name = "read_time_seconds", defaultValue = "0")
-    val readTimeSeconds: Int = 0
+    val readTimeSeconds: Int = 0,
+
+    /** 功能: 笔记归档。true 时主列表默认隐藏, 仅在归档筛选下显示。 */
+    @ColumnInfo(name = "is_archived", defaultValue = "0")
+    val isArchived: Boolean = false
 )
 
 @Entity(

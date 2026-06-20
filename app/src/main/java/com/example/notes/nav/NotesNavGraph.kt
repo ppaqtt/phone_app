@@ -72,6 +72,9 @@ fun NotesNavGraph(
             is WidgetIntent.OpenTrash -> {
                 navController.navigate(Routes.TRASH) { launchSingleTop = true }
             }
+            is WidgetIntent.OpenStats -> {
+                navController.navigate(Routes.STATS) { launchSingleTop = true }
+            }
             null -> Unit
         }
     }

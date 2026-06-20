@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CameraAlt
@@ -80,6 +81,7 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
@@ -949,6 +951,29 @@ fun NoteEditScreen(
                                 createMdLauncher.launch(fileName)
                             }
                         )
+                        // 功能: 快速分享（纯文本）
+                        DropdownMenuItem(
+                            text = { Text("分享") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Share, contentDescription = "分享")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                val titleText = title.ifBlank { "笔记" }
+                                val contentText = content.text
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TITLE, titleText)
+                                    putExtra(Intent.EXTRA_SUBJECT, titleText)
+                                    putExtra(Intent.EXTRA_TEXT, "$titleText\n\n$contentText")
+                                }
+                                runCatching {
+                                    context.startActivity(Intent.createChooser(intent, "分享笔记"))
+                                }.onFailure {
+                                    context.toastShort("未找到可分享的应用")
+                                }
+                            }
+                        )
                         // 进阶功能: 阅读模式
                         DropdownMenuItem(
                             text = { Text("阅读模式 (含朗读)") },
@@ -1048,6 +1073,22 @@ fun NoteEditScreen(
                             onClick = {
                                 showExportMenu = false
                                 showColorTagPicker = true
+                            }
+                        )
+                        // 功能: 归档 / 取消归档
+                        DropdownMenuItem(
+                            text = { Text(if (lastSaved?.isArchived == true) "取消归档" else "归档笔记") },
+                            leadingIcon = {
+                                Icon(
+                                    if (lastSaved?.isArchived == true) Icons.Filled.FileDownload else Icons.Filled.Archive,
+                                    contentDescription = "归档"
+                                )
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                val id = lastSaved?.id ?: return@DropdownMenuItem
+                                val current = lastSaved?.isArchived ?: false
+                                viewModel.setArchived(id, !current)
                             }
                         )
                         // 进阶功能: 加密/解密
@@ -1463,6 +1504,43 @@ fun NoteEditScreen(
                     }
                 )
                 }
+            }
+
+            // === 底部: 阅读时间估算 / 字数统计 Chips ===
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val wordCount = content.text.trim().length
+                val charCount = content.text.length
+                val estimatedMinutes = if (wordCount <= 0) 0 else (wordCount + 399) / 400
+                androidx.compose.material3.FilterChip(
+                    selected = false,
+                    onClick = {},
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.MenuBook,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    label = { Text("约 ${estimatedMinutes} 分钟") }
+                )
+                Spacer(Modifier.width(8.dp))
+                androidx.compose.material3.FilterChip(
+                    selected = false,
+                    onClick = {},
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.TextFields,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    },
+                    label = { Text("字数 $wordCount / 字符数 $charCount") }
+                )
             }
 
             // === 底部工具栏 (7 项, AI 已移除) ===

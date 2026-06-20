@@ -35,10 +35,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // 高价值/低工作量: v14 → v15 给 notes 加 is_favorite 列 (笔记星标)
     // 中价值/中工作量: v15 → v16 给 categories 加 is_pinned 列 (分类置顶)
     // 中价值/中工作量: v16 → v17 添加 tag_groups 和 tag_group_tags 表 (标签分组)
-    // 全功能: v17 → v18: notes 加 is_locked/is_draft/color_tag/read_time_seconds 列;
-    //                添加 note_backlinks/note_attachments/note_comments/search_history/
-    //                sync_config/note_change_log/user_note_templates/backlink_scan_state 表
-    version = 18,
+    // 全功能: v18 → v19: notes 加 is_archived 列 + 索引
+    version = 19,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -540,6 +538,68 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
+         * 功能: v18 → v19: notes 加 is_archived 列 (DEFAULT 0) + 索引
+         */
+        private val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `is_archived` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_archived` ON `notes` (`is_archived`)")
+            }
+        }
+
+        /**
+         * 功能: v19 → v18: 降级时删除 is_archived 列 (需要重建表)
+         */
+        private val MIGRATION_19_18 = object : Migration(19, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `notes_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `category_id` INTEGER,
+                        `tags` TEXT NOT NULL DEFAULT '',
+                        `is_pinned` INTEGER NOT NULL DEFAULT 0,
+                        `priority` INTEGER NOT NULL DEFAULT 0,
+                        `color` INTEGER NOT NULL DEFAULT -1,
+                        `reminder_time` INTEGER,
+                        `reminder_repeat` TEXT NOT NULL DEFAULT 'NONE',
+                        `created_at` INTEGER NOT NULL DEFAULT 0,
+                        `updated_at` INTEGER NOT NULL DEFAULT 0,
+                        `deleted_at` INTEGER,
+                        `template_type` INTEGER NOT NULL DEFAULT 0,
+                        `is_favorite` INTEGER NOT NULL DEFAULT 0,
+                        `is_locked` INTEGER NOT NULL DEFAULT 0,
+                        `is_draft` INTEGER NOT NULL DEFAULT 0,
+                        `color_tag` INTEGER NOT NULL DEFAULT 0,
+                        `read_time_seconds` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO notes_new (id, title, content, category_id, tags, is_pinned,
+                        priority, color, reminder_time, reminder_repeat, created_at, updated_at,
+                        deleted_at, template_type, is_favorite, is_locked, is_draft, color_tag,
+                        read_time_seconds)
+                    SELECT id, title, content, category_id, tags, is_pinned, priority, color,
+                        reminder_time, reminder_repeat, created_at, updated_at, deleted_at,
+                        template_type, is_favorite, is_locked, is_draft, color_tag,
+                        read_time_seconds FROM notes
+                """.trimIndent())
+                db.execSQL("DROP TABLE `notes`")
+                db.execSQL("ALTER TABLE notes_new RENAME TO `notes`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_category_id` ON `notes` (`category_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_pinned` ON `notes` (`is_pinned`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_updated_at` ON `notes` (`updated_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_deleted_at` ON `notes` (`deleted_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_tags` ON `notes` (`tags`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_reminder_time` ON `notes` (`reminder_time`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_priority` ON `notes` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_created_at` ON `notes` (`created_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_favorite` ON `notes` (`is_favorite`)")
+            }
+        }
+
+        /**
          * 进阶功能: v14 → v13: 降级时删除 note_versions 和 note_encryption 表。
          */
         private val MIGRATION_14_13 = object : Migration(14, 13) {
@@ -683,6 +743,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_15_14, MIGRATION_15_16, MIGRATION_16_15,
                     MIGRATION_16_17, MIGRATION_17_16,
                     MIGRATION_17_18, MIGRATION_18_17,
+                    MIGRATION_18_19, MIGRATION_19_18,
                     MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
                     MIGRATION_11_10, MIGRATION_10_9
                 )

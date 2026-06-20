@@ -511,6 +511,20 @@ fun NotesListScreen(
                         }
                     )
                 }
+                item {
+                    FilterChip(
+                        selected = state.showOnlyArchived,
+                        onClick = { viewModel.setShowOnlyArchived(!state.showOnlyArchived) },
+                        label = { Text("归档") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Filled.Archive,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    )
+                }
                 (1..5).forEach { colorIdx ->
                     item {
                         val color = colorTagColor(colorIdx)

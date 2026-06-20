@@ -536,9 +536,11 @@ class NotesRepository(
     suspend fun setLocked(id: Long, locked: Boolean) = noteDao.setLocked(id, locked)
     suspend fun setDraft(id: Long, draft: Boolean) = noteDao.setDraft(id, draft)
     suspend fun setColorTag(id: Long, colorTag: Int) = noteDao.setColorTag(id, colorTag)
-    suspend fun setReadTimeSeconds(id: Long, seconds: Int) = noteDao.setReadTimeSeconds(id, seconds)
+    suspend fun setReadTimeSeconds(id: Long, seconds: Int) = noteDao.setReadTime(id, seconds)
+    suspend fun setArchived(id: Long, archived: Boolean) = noteDao.setArchived(id, archived)
     fun observeDrafts(): Flow<List<NoteEntity>> = noteDao.observeDrafts()
     fun observeLocked(): Flow<List<NoteEntity>> = noteDao.observeLocked()
+    fun observeArchivedNotes(): Flow<List<NoteEntity>> = noteDao.observeArchivedNotes()
 
     // --- 反向链接 -------------------------------------------------------
 

@@ -158,9 +158,12 @@ class MainActivity : AppCompatActivity() {
                     NotesAppWidget.EXTRA_NOTE_ID, 0L)
                 if (id > 0L) WidgetIntent.OpenNote(id) else null
             }
-            // F4: 快捷方式入口
+            // F4: 快捷方式入口 (旧版 action, 兼容保留)
             ACTION_OPEN_SEARCH -> WidgetIntent.OpenSearch
             ACTION_OPEN_TRASH -> WidgetIntent.OpenTrash
+            // F4: 桌面 Shortcuts 新版 action
+            ACTION_SEARCH -> WidgetIntent.OpenSearch
+            ACTION_STATS -> WidgetIntent.OpenStats
             else -> {
                 // P98-FIX: 未知 action 打日志, 便于排查第三方应用 / 旧版快捷方式
                 // 唤起失败的问题 (例如小部件点击没反应), 不打日志的话难以定位。
@@ -176,9 +179,12 @@ class MainActivity : AppCompatActivity() {
         // F3: 桌面小部件启动 Activity 的两个 action
         const val ACTION_NEW_NOTE = "com.example.notes.action.NEW_NOTE"
         const val ACTION_OPEN_NOTE = "com.example.notes.action.OPEN_NOTE"
-        // F4: App 快捷方式启动 Activity 的 action
+        // F4: App 快捷方式启动 Activity 的 action (旧版, 兼容保留)
         const val ACTION_OPEN_SEARCH = "com.example.notes.action.OPEN_SEARCH"
         const val ACTION_OPEN_TRASH = "com.example.notes.action.OPEN_TRASH"
+        // F4: 桌面 Shortcuts 新版 action (长按图标弹出的快捷方式)
+        const val ACTION_SEARCH = "com.example.notes.ACTION_SEARCH"
+        const val ACTION_STATS = "com.example.notes.ACTION_STATS"
     }
 }
 
@@ -192,6 +198,7 @@ sealed interface WidgetIntent {
     data class OpenNote(val noteId: Long) : WidgetIntent
     object OpenSearch : WidgetIntent
     object OpenTrash : WidgetIntent
+    object OpenStats : WidgetIntent
 }
 
 @androidx.compose.runtime.Composable

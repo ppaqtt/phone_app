@@ -1,44 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  F4: App 快捷方式。长按桌面图标 → 弹出"新建笔记 / 搜索 / 回收站"3 个入口。
-  - 复用 F3 的 ACTION_NEW_NOTE action, 无需新增解析逻辑
-  - 搜索和回收站走自定义 action, MainActivity 解析后跳对应路由
--->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
-
     <shortcut
         android:shortcutId="new_note"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/shortcut_new_note_short"
-        android:shortcutLongLabel="@string/shortcut_new_note_long">
+        android:icon="@android:drawable/ic_menu_edit"
+        android:shortcutShortLabel="@string/shortcut_new_note"
+        android:shortcutLongLabel="@string/shortcut_new_note_long"
+        android:shortcutDisabledMessage="@string/shortcut_new_note_disabled">
         <intent
-            android:action="com.example.notes.action.NEW_NOTE"
+            android:action="com.example.notes.ACTION_NEW_NOTE"
             android:targetPackage="com.example.notes"
             android:targetClass="com.example.notes.MainActivity" />
-        <categories android:name="android.shortcut.conversation" />
     </shortcut>
-
     <shortcut
         android:shortcutId="search"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/shortcut_search_short"
+        android:icon="@android:drawable/ic_menu_search"
+        android:shortcutShortLabel="@string/shortcut_search"
         android:shortcutLongLabel="@string/shortcut_search_long">
         <intent
-            android:action="com.example.notes.action.OPEN_SEARCH"
+            android:action="com.example.notes.ACTION_SEARCH"
             android:targetPackage="com.example.notes"
             android:targetClass="com.example.notes.MainActivity" />
     </shortcut>
-
     <shortcut
-        android:shortcutId="trash"
+        android:shortcutId="stats"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="@string/shortcut_trash_short"
-        android:shortcutLongLabel="@string/shortcut_trash_long">
+        android:icon="@android:drawable/ic_menu_recent_history"
+        android:shortcutShortLabel="@string/shortcut_stats"
+        android:shortcutLongLabel="@string/shortcut_stats_long">
         <intent
-            android:action="com.example.notes.action.OPEN_TRASH"
+            android:action="com.example.notes.ACTION_STATS"
             android:targetPackage="com.example.notes"
             android:targetClass="com.example.notes.MainActivity" />
     </shortcut>

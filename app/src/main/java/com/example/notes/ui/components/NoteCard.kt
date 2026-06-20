@@ -276,6 +276,12 @@ fun NoteCard(
                         note.content.length / 400
                     }
                     Text(
+                        text = "${note.content.length} 字",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
                         text = "约 $estimatedMinutes 分钟",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

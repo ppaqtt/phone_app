@@ -232,6 +232,14 @@ interface NoteDao {
     @Query("UPDATE notes SET read_time_seconds = :seconds WHERE id = :id")
     suspend fun setReadTime(id: Long, seconds: Int)
 
+    /** 功能: 设置/取消笔记归档状态 */
+    @Query("UPDATE notes SET is_archived = :archived WHERE id = :id")
+    suspend fun setArchived(id: Long, archived: Boolean)
+
+    /** 功能: 观察所有已归档笔记 (主列表隐藏) */
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL AND is_archived = 1 ORDER BY updated_at DESC")
+    fun observeArchivedNotes(): Flow<List<NoteEntity>>
+
     /** 功能4: 按创建日期范围筛选笔记 (今天/昨天/本周/本月等) */
     @Query("SELECT * FROM notes WHERE deleted_at IS NULL AND created_at >= :from AND created_at <= :to ORDER BY created_at DESC")
     suspend fun getNotesInDateRange(from: Long, to: Long): List<NoteEntity>
