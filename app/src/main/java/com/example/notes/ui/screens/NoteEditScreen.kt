@@ -17,12 +17,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -88,10 +90,12 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -126,6 +130,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import timber.log.Timber
 import androidx.compose.ui.unit.dp
@@ -171,9 +176,9 @@ private enum class ColumnsTab(val label: String) {
 
 /** 中价值/中工作量: 自动保存状态 */
 private sealed class AutoSaveStatus {
-    data object Idle : AutoSaveStatus()       // 无待保存内容
-    data object Pending : AutoSaveStatus()    // 有变更，等待自动保存
-    data object Saving : AutoSaveStatus()      // 保存中
+    object Idle : AutoSaveStatus()       // 无待保存内容
+    object Pending : AutoSaveStatus()    // 有变更，等待自动保存
+    object Saving : AutoSaveStatus()      // 保存中
     data class Saved(val timestamp: Long) : AutoSaveStatus()  // 已保存
 }
 
@@ -712,7 +717,6 @@ fun NoteEditScreen(
             ReminderManager.showScheduleResult(context, result)
         }
         // 中价值/中工作量: 自动保存指示器 — 保存成功后更新时间戳
-        val now = System.currentTimeMillis()
         lastAutoSaveTime = now
         autoSaveStatus = AutoSaveStatus.Saved(now)
 
@@ -3547,7 +3551,7 @@ private fun AttachmentDialog(
                             if (isRecording) {
                                 Spacer(Modifier.height(6.dp))
                                 androidx.compose.material3.LinearProgressIndicator(
-                                    progress = { recordingProgress },
+                                    progress = recordingProgress,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(4.dp),

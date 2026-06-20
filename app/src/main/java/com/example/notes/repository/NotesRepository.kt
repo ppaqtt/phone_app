@@ -548,11 +548,11 @@ class NotesRepository(
     fun observeForwardLinksFor(noteId: Long): Flow<List<NoteEntity>> = noteBacklinkDao.observeForwardLinksFor(noteId)
     suspend fun scanAndUpdateBacklinks(noteId: Long, content: String) {
         val contentHash = content.trim().hashCode()
-        val existing = backlinkScanStateDao.getState(noteId)
+        val existing = backlinkScanStateDao.getByNoteId(noteId)
         if (existing != null && existing.lastContentHash == contentHash) return
 
         database.withTransaction {
-            noteBacklinkDao.deleteAllLinksFrom(noteId)
+            noteBacklinkDao.deleteBySource(noteId)
 
             val pattern = Regex("""\[\[([^\[\]\n]{1,60})\]\]""")
             val refs = pattern.findAll(content).mapNotNull { m ->
@@ -561,7 +561,13 @@ class NotesRepository(
             }.distinct().toList()
 
             if (refs.isNotEmpty()) {
-                val matches = noteDao.findNotesByTitleIn(refs)
+                val allNotes = noteDao.getNotesForLinkAndTagScan()
+                val matches = refs.flatMap { ref ->
+                    allNotes.filter {
+                        it.title.trim().equals(ref, ignoreCase = true) ||
+                        it.title.contains(ref, ignoreCase = true)
+                    }
+                }.distinctBy { it.id }
                 val titleToId = matches.associate { it.title.trim() to it.id }
                 refs.forEach { ref ->
                     val targetId = titleToId[ref]
@@ -583,7 +589,7 @@ class NotesRepository(
 
     // --- 附件（语音/图片/通用） ---------------------------------------
 
-    fun observeAttachmentsFor(noteId: Long): Flow<List<NoteAttachmentEntity>> = noteAttachmentDao.observeByNoteId(noteId)
+    fun observeAttachmentsFor(noteId: Long): Flow<List<NoteAttachmentEntity>> = noteAttachmentDao.observeByNote(noteId)
     suspend fun addAttachment(attachment: NoteAttachmentEntity) = noteAttachmentDao.insert(attachment)
     suspend fun removeAttachment(id: Long) = noteAttachmentDao.deleteById(id)
     suspend fun reorderAttachmentsFor(noteId: Long, ids: List<Long>) {
@@ -594,7 +600,7 @@ class NotesRepository(
 
     // --- 评论 -----------------------------------------------------------
 
-    fun observeCommentsFor(noteId: Long): Flow<List<NoteCommentEntity>> = noteCommentDao.observeByNoteId(noteId)
+    fun observeCommentsFor(noteId: Long): Flow<List<NoteCommentEntity>> = noteCommentDao.observeByNote(noteId)
     suspend fun addComment(noteId: Long, content: String, createdAt: Long = System.currentTimeMillis()) =
         noteCommentDao.insert(NoteCommentEntity(noteId = noteId, content = content.trim(), createdAt = createdAt))
     suspend fun removeComment(id: Long) = noteCommentDao.deleteById(id)
@@ -604,7 +610,7 @@ class NotesRepository(
     fun observeSearchHistory(limit: Int = 10): Flow<List<SearchHistoryEntity>> = searchHistoryDao.observeRecent(limit)
     suspend fun recordSearch(query: String) {
         if (query.isBlank()) return
-        searchHistoryDao.upsert(SearchHistoryEntity(query = query.trim(), lastSearchedAt = System.currentTimeMillis()))
+        searchHistoryDao.upsertSearch(query.trim())
     }
     suspend fun clearSearchHistory() = searchHistoryDao.clearAll()
 
@@ -613,7 +619,7 @@ class NotesRepository(
     fun observeSyncConfig(): Flow<List<SyncConfigEntity>> = syncConfigDao.observeAll()
     suspend fun getSyncConfig(key: String): SyncConfigEntity? = syncConfigDao.getByKey(key)
     suspend fun putSyncConfig(key: String, value: String) =
-        syncConfigDao.upsert(SyncConfigEntity(configKey = key.trim(), configValue = value))
+        syncConfigDao.upsert(SyncConfigEntity(key = key.trim(), value = value))
 
     // --- 用户模板 -------------------------------------------------------
 
@@ -626,9 +632,9 @@ class NotesRepository(
 
     suspend fun recordNoteChange(noteId: Long, changeType: String, changedAt: Long = System.currentTimeMillis()) =
         noteChangeLogDao.insert(NoteChangeLogEntity(noteId = noteId, changeType = changeType, changedAt = changedAt))
-    fun observeChangesFor(noteId: Long): Flow<List<NoteChangeLogEntity>> = noteChangeLogDao.observeByNoteId(noteId)
+    fun observeChangesFor(noteId: Long): Flow<List<NoteChangeLogEntity>> = noteChangeLogDao.observeByNote(noteId)
 
     // --- 高级统计 -------------------------------------------------------
 
-    suspend fun getAllNoteIdsTitleContentTags(): List<NoteIdTitleContentTags> = noteDao.getAllIdsTitlesContentTags()
+    suspend fun getAllNoteIdsTitleContentTags(): List<NoteIdTitleContentTags> = noteDao.getNotesForLinkAndTagScan()
 }

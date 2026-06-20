@@ -42,3 +42,7 @@ fun formatRelativeTime(ts: Long, now: Long = System.currentTimeMillis()): String
         else -> formatTimestamp(ts)
     }
 }
+
+object TimeFormat {
+    fun formatDateTime(ts: Long): String = formatTimestamp(ts)
+}

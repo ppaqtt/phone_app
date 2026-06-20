@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Category

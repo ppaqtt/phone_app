@@ -65,7 +65,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardActions
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
@@ -157,7 +160,7 @@ fun SettingsScreen(
         if (uri != null) {
             scope.launch {
                 val result = viewModel.exportAllNotesAsZip(context, uri)
-                snackbarHostState.showSnackbar(result)
+                snackbarHostState.showSnackbar("已导出 $result 条笔记")
             }
         }
     }
@@ -815,7 +818,9 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                     context.toastShort("已立即锁定")
                 },
                 onForgotPin = { showForgotPin = true },
-                onChangeLength = { showLengthPicker = true }
+                onChangeLength = { showLengthPicker = true },
+                hasSecurityQuestion = store.hasSecurityQuestion,
+                onSetupSecurityQuestion = { showSecurityQuestionDialog = true }
             )
         }
     }
@@ -831,6 +836,7 @@ private fun AppLockCardContent(
     canUseBiometric: Boolean,
     biometricEnabled: Boolean,
     biometricStatus: BiometricHelper.Status,
+    hasSecurityQuestion: Boolean,
     onBiometricToggle: (Boolean) -> Unit,
     onSetup: () -> Unit,
     onChange: () -> Unit,
@@ -838,7 +844,8 @@ private fun AppLockCardContent(
     onDisable: () -> Unit,
     onLockNow: () -> Unit,
     onForgotPin: () -> Unit,
-    onChangeLength: () -> Unit
+    onChangeLength: () -> Unit,
+    onSetupSecurityQuestion: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -949,10 +956,10 @@ private fun AppLockCardContent(
                     TextButton(onClick = onForgotPin, modifier = Modifier.fillMaxWidth()) {
                         Text("忘记密码?", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    TextButton(onClick = { showSecurityQuestionDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { onSetupSecurityQuestion() }, modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            if (store.hasSecurityQuestion) "修改密保问题 ✓" else "设置密保问题",
-                            color = if (store.hasSecurityQuestion)
+                            if (hasSecurityQuestion) "修改密保问题 ✓" else "设置密保问题",
+                            color = if (hasSecurityQuestion)
                                 MaterialTheme.colorScheme.primary
                             else
                                 MaterialTheme.colorScheme.onSurfaceVariant
@@ -1037,7 +1044,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                 placeholder = { Text("https://example.com/remote.php/dav") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                onDone = { saveField("webdav_url", url); context.toastShort("已保存服务器地址") }
+                keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { saveField("webdav_url", url); context.toastShort("已保存服务器地址") })
             )
             Spacer(Modifier.height(8.dp))
 
@@ -1048,7 +1056,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                     label = { Text("用户名") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
-                    onDone = { saveField("webdav_user", user); context.toastShort("已保存用户名") }
+                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { saveField("webdav_user", user); context.toastShort("已保存用户名") })
                 )
                 OutlinedTextField(
                     value = password,
@@ -1068,7 +1077,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    onDone = { saveField("webdav_password", password); context.toastShort("已保存密码") }
+                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { saveField("webdav_password", password); context.toastShort("已保存密码") })
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -1080,7 +1090,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                 placeholder = { Text("/notes/") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                onDone = { saveField("webdav_path", path.ifBlank { "/notes/" }); context.toastShort("已保存远程目录") }
+                keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { saveField("webdav_path", path.ifBlank { "/notes/" }); context.toastShort("已保存远程目录") })
             )
             Spacer(Modifier.height(12.dp))
 

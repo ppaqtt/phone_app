@@ -68,6 +68,14 @@ import kotlinx.coroutines.delay
  * - 设置时: 用户可在顶部选择 PIN 或 手势
  * - 解锁时: 根据 store.lockType 显示对应的解锁界面, 用户也可临时切换
  */
+sealed class ForgotStep {
+    object Hidden : ForgotStep()
+    object Asking : ForgotStep()
+    data class VerifyingQuestion(val question: String) : ForgotStep()
+    object ResettingPin : ForgotStep()
+    object Success : ForgotStep()
+}
+
 @Composable
 fun AppLockScreen(
     store: AppLockStore,
@@ -76,15 +84,6 @@ fun AppLockScreen(
     newPinLength: Int? = null
 ) {
     val context = LocalContext.current
-
-    /** 忘记密码流程步骤 */
-    private sealed class ForgotStep {
-        data object Hidden : ForgotStep()
-        data object Asking : ForgotStep()
-        data class VerifyingQuestion(val question: String) : ForgotStep()
-        data object ResettingPin : ForgotStep()
-        data object Success : ForgotStep()
-    }
 
     // === 共享状态 ===
     var errorText by remember { mutableStateOf<String?>(null) }

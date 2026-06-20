@@ -47,6 +47,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.unit.dp
+import com.example.notes.data.SearchHistoryEntity
 import com.example.notes.ui.components.NoteCard
 import com.example.notes.ui.viewmodel.NotesViewModel
 
@@ -59,7 +60,7 @@ fun SearchScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val focusRequester = remember { FocusRequester() }
-    val searchHistory by viewModel.observeSearchHistory(limit = 10).collectAsState(initial = emptyList())
+    val searchHistory by viewModel.observeSearchHistory(limit = 10).collectAsState(initial = emptyList<SearchHistoryEntity>())
     var lastRecordedQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {

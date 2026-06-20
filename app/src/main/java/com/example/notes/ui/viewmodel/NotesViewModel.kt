@@ -236,25 +236,6 @@ class NotesViewModel(
         launchSafe("setReadTimeSeconds") { repository.setReadTimeSeconds(noteId, seconds) }
     }
 
-    /** 搜索历史: 订阅最近 N 条 */
-    fun observeSearchHistory(limit: Int = 10): kotlinx.coroutines.flow.Flow<List<com.example.notes.data.SearchHistoryEntity>> =
-        repository.observeSearchHistory(limit)
-
-    /** 搜索历史: 记录一次搜索 */
-    fun recordSearch(query: String) {
-        if (query.isBlank()) return
-        viewModelScope.launch { kotlinx.coroutines.Dispatchers.IO.let { withContext(it) { repository.recordSearch(query) } } }
-    }
-
-    /** 搜索历史: 清空全部 */
-    fun clearSearchHistory() {
-        viewModelScope.launch { repository.clearSearchHistory() }
-    }
-
-    /** 用于标签云/字数云: 获取所有笔记的 id+title+content+tags */
-    suspend fun getAllNotesForTagCloud(): List<com.example.notes.data.NoteIdTitleContentTags> =
-        kotlinx.coroutines.Dispatchers.IO.let { withContext(it) { repository.getAllNoteIdsTitleContentTags() } }
-
     /**
      * 保存笔记并替换其全部图片。
      * @param imageUris 图片 URI 列表，按顺序保存

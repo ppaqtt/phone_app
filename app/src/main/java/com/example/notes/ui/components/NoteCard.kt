@@ -36,6 +36,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -118,7 +119,7 @@ fun NoteCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (highlightQuery.isNullOrBlank()) note.title.ifBlank { "无标题" }
+                        text = if (highlightQuery.isNullOrBlank()) AnnotatedString(note.title.ifBlank { "无标题" })
                             else highlightAnnotated(note.title.ifBlank { "无标题" }, highlightQuery),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
@@ -193,7 +194,7 @@ fun NoteCard(
                 if (note.content.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        text = if (highlightQuery.isNullOrBlank()) note.content
+                        text = if (highlightQuery.isNullOrBlank()) AnnotatedString(note.content)
                             else highlightAnnotated(note.content, highlightQuery),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
