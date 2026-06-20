@@ -9,14 +9,6 @@
     <string name="widget_new_note">+ 新建笔记</string>
     <string name="widget_count">%1$d 条</string>
 
-    <!-- F4: App 快捷方式文案 (长按桌面图标) -->
-    <string name="shortcut_new_note_short">新建笔记</string>
-    <string name="shortcut_new_note_long">立即新建一条笔记</string>
-    <string name="shortcut_search_short">搜索</string>
-    <string name="shortcut_search_long">搜索笔记</string>
-    <string name="shortcut_trash_short">回收站</string>
-    <string name="shortcut_trash_long">查看已删除的笔记</string>
-
     <!-- F4: 桌面 Shortcuts (new_note / search / stats) -->
     <string name="shortcut_new_note">新建笔记</string>
     <string name="shortcut_new_note_long">新建一条空白笔记</string>
