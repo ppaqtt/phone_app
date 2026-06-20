@@ -577,7 +577,7 @@ private fun FlowRow(
 }
 
 private fun Modifier.clipCompat(shape: androidx.compose.ui.graphics.Shape): Modifier =
-    this.then(androidx.compose.ui.draw.clip(shape))
+    this.clip(shape)
 
 private fun bucketByMonth(rows: List<NoteStatsRow>, months: Int): List<Pair<String, Int>> {
     val cal = Calendar.getInstance()

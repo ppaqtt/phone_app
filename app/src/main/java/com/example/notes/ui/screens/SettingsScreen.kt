@@ -68,8 +68,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardActions
-import androidx.compose.ui.text.input.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
@@ -1045,8 +1043,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                 placeholder = { Text("https://example.com/remote.php/dav") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { saveField("webdav_url", url); context.toastShort("已保存服务器地址") })
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { saveField("webdav_url", url); context.toastShort("已保存服务器地址") })
             )
             Spacer(Modifier.height(8.dp))
 
@@ -1057,8 +1055,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                     label = { Text("用户名") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
-                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { saveField("webdav_user", user); context.toastShort("已保存用户名") })
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { saveField("webdav_user", user); context.toastShort("已保存用户名") })
                 )
                 OutlinedTextField(
                     value = password,
@@ -1078,8 +1076,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { saveField("webdav_password", password); context.toastShort("已保存密码") })
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { saveField("webdav_password", password); context.toastShort("已保存密码") })
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -1091,8 +1089,8 @@ private fun WebDavCard(viewModel: NotesViewModel) {
                 placeholder = { Text("/notes/") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = androidx.compose.ui.text.input.KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { saveField("webdav_path", path.ifBlank { "/notes/" }); context.toastShort("已保存远程目录") })
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { saveField("webdav_path", path.ifBlank { "/notes/" }); context.toastShort("已保存远程目录") })
             )
             Spacer(Modifier.height(12.dp))
 
