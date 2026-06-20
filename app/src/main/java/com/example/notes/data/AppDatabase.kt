@@ -37,7 +37,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // 中价值/中工作量: v16 → v17 添加 tag_groups 和 tag_group_tags 表 (标签分组)
     // 全功能: v18 → v19: notes 加 is_archived 列 + 索引
     // 修复: v19 → v20: 重建 search_history 表, 修正 3 处 schema 不匹配
-    version = 20,
+    // 修复: v20 → v21: 重建 sync_config 表, 修正 updated_at DEFAULT 0 + index 缺 UNIQUE
+    version = 21,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -433,12 +434,12 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `sync_config` (
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `config_key` TEXT NOT NULL UNIQUE,
+                        `config_key` TEXT NOT NULL,
                         `config_value` TEXT NOT NULL,
-                        `updated_at` INTEGER NOT NULL DEFAULT 0
+                        `updated_at` INTEGER NOT NULL
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_sync_config_config_key` ON `sync_config` (`config_key`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_sync_config_config_key` ON `sync_config` (`config_key`)")
 
                 // note_change_log 表
                 db.execSQL("""
@@ -446,7 +447,7 @@ abstract class AppDatabase : RoomDatabase() {
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         `note_id` INTEGER NOT NULL,
                         `change_type` TEXT NOT NULL,
-                        `changed_at` INTEGER NOT NULL DEFAULT 0,
+                        `changed_at` INTEGER NOT NULL,
                         FOREIGN KEY(`note_id`) REFERENCES `notes`(`id`)
                             ON UPDATE NO ACTION ON DELETE CASCADE
                     )
@@ -460,9 +461,9 @@ abstract class AppDatabase : RoomDatabase() {
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         `name` TEXT NOT NULL,
                         `content` TEXT NOT NULL,
-                        `tags` TEXT NOT NULL DEFAULT '',
+                        `tags` TEXT NOT NULL,
                         `category_id` INTEGER,
-                        `created_at` INTEGER NOT NULL DEFAULT 0
+                        `created_at` INTEGER NOT NULL
                     )
                 """.trimIndent())
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_user_note_templates_created_at` ON `user_note_templates` (`created_at`)")
@@ -472,7 +473,7 @@ abstract class AppDatabase : RoomDatabase() {
                     CREATE TABLE IF NOT EXISTS `backlink_scan_state` (
                         `note_id` INTEGER NOT NULL PRIMARY KEY,
                         `last_scanned_at` INTEGER NOT NULL DEFAULT 0,
-                        `last_content_hash` INTEGER NOT NULL DEFAULT 0
+                        `last_content_hash` INTEGER NOT NULL
                     )
                 """.trimIndent())
             }
@@ -568,6 +569,27 @@ abstract class AppDatabase : RoomDatabase() {
                 """.trimIndent())
                 db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_search_history_query` ON `search_history` (`query`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_last_searched_at` ON `search_history` (`last_searched_at`)")
+            }
+        }
+
+        /**
+         * 修复: v20 → v21: 重建 sync_config 表, 修正 2 处 schema 不匹配:
+         * - updated_at 移除 DEFAULT 0 (Entity 无此默认值)
+         * - index_sync_config_config_key 改为 UNIQUE
+         * WebDAV 配置通常为空表或只有几条, 重建丢失风险极低。
+         */
+        private val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `sync_config`")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `sync_config` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `config_key` TEXT NOT NULL,
+                        `config_value` TEXT NOT NULL,
+                        `updated_at` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_sync_config_config_key` ON `sync_config` (`config_key`)")
             }
         }
 
@@ -768,6 +790,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_16_17, MIGRATION_17_16,
                     MIGRATION_17_18, MIGRATION_18_17,
                     MIGRATION_18_19, MIGRATION_19_18, MIGRATION_19_20,
+                    MIGRATION_20_21,
                     MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
                     MIGRATION_11_10, MIGRATION_10_9
                 )
