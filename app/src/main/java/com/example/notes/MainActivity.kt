@@ -31,6 +31,8 @@ import com.example.notes.ui.viewmodel.ViewModelFactory
 import com.example.notes.util.NotificationPermission
 import com.example.notes.util.PermissionIntroPrefs
 import com.example.notes.util.SecurityChecker
+import com.example.notes.util.UpdateAvailableDialog
+import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.rememberNotificationPermissionRequest
 import com.example.notes.widget.NotesAppWidget
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +82,10 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     var showSplash by remember { mutableStateOf(true) }
                     var showPermissionIntro by remember { mutableStateOf(false) }
+                    // 启动时自动检查更新: 弹窗状态 + 最新版信息
+                    var autoUpdateState by remember {
+                        mutableStateOf<AutoUpdateState>(AutoUpdateState.Idle)
+                    }
                     // 从 intent.data 解析深链接, host == "privacy" 时跳隐私政策页
                     val pendingLegalUri = remember { parseLegalUri(intent) }
                     var showLegal by remember { mutableStateOf(pendingLegalUri != null) }
@@ -99,6 +105,24 @@ class MainActivity : AppCompatActivity() {
                     LaunchedEffect(showSplash, showPermissionIntro) {
                         if (!showSplash && !showPermissionIntro && !NotificationPermission.hasPermission(this@MainActivity)) {
                             permRequest.value = true
+                        }
+                    }
+
+                    // 启动时自动检查更新: Splash 结束后 + 间隔够长 + 不是被忽略版本时弹窗
+                    LaunchedEffect(showSplash) {
+                        if (showSplash) return@LaunchedEffect
+                        if (!AppUpdateChecker.shouldAutoCheck(this@MainActivity)) return@LaunchedEffect
+                        // 轻量异步: 不阻塞 UI, 失败即静默
+                        val result = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                            runCatching { AppUpdateChecker.checkForUpdate(forceRefresh = true, persistContext = this@MainActivity) }
+                                .getOrNull()
+                        }
+                        AppUpdateChecker.markAutoChecked(this@MainActivity)
+                        if (result != null && result.hasUpdate && result.releaseInfo != null) {
+                            // 被用户忽略的版本不弹
+                            if (!AppUpdateChecker.isVersionIgnored(this@MainActivity, result.releaseInfo.version)) {
+                                autoUpdateState = AutoUpdateState.Showing(result)
+                            }
                         }
                     }
 
@@ -126,6 +150,17 @@ class MainActivity : AppCompatActivity() {
                                     widgetIntent = widgetIntent
                                 )
                             }
+                        )
+                    }
+
+                    // 启动时自动检查更新: 发现新版后弹对话框
+                    val s = autoUpdateState
+                    if (s is AutoUpdateState.Showing) {
+                        UpdateAvailableDialog(
+                            currentVersion = s.result.currentVersion,
+                            release = s.result.releaseInfo,
+                            errorMessage = null,
+                            onDismiss = { autoUpdateState = AutoUpdateState.Idle }
                         )
                     }
                 }
@@ -189,6 +224,17 @@ class MainActivity : AppCompatActivity() {
 }
 
 /** F3 + F4: 桌面入口对 MainActivity 启动意图的封装, NotesNavGraph 据此决定初始路由
+ *
+ * P112-FIX: Kotlin 1.8.22 不支持 `data object` (Kotlin 1.9+ 才有), 改用 `object`。
+ * 影响: 失去自动生成的 toString/equals/hashCode, 但 sealed interface 的子类型
+ * 用单例 object 引用 (WidgetIntent.NewNote 等) 不依赖这些, 业务无副作用。 */
+sealed interface AutoUpdateState {
+    object Idle : AutoUpdateState
+    data class Showing(val result: AppUpdateChecker.UpdateCheckResult) : AutoUpdateState
+}
+
+/**
+ * F3 + F4: 桌面入口对 MainActivity 启动意图的封装, NotesNavGraph 据此决定初始路由
  *
  * P112-FIX: Kotlin 1.8.22 不支持 `data object` (Kotlin 1.9+ 才有), 改用 `object`。
  * 影响: 失去自动生成的 toString/equals/hashCode, 但 sealed interface 的子类型

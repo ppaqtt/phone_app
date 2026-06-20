@@ -1,15 +1,19 @@
 package com.example.notes.util
 
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.Uri
+import android.widget.Toast
 import com.example.notes.BuildConfig
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.Locale
 import kotlinx.coroutines.withContext
 import okhttp3.ConnectionPool
 import okhttp3.Dns
@@ -46,10 +50,14 @@ object AppUpdateChecker {
     /** 主端点 1: Gitee 码云 (国内最快) */
     private const val GITEE_API = "https://gitee.com/api/v5/repos/ppkjgzs/phone_app/releases/latest"
 
-    /** 主端点 2: jsDelivr CDN (fastly, 国内可访问) - 省略分支 = 使用默认分支 */
+    /** 主端点 2: Gitee 直接下载（release 附件 APK） */
+    private const val GITEE_DOWNLOAD_TEMPLATE =
+        "https://gitee.com/ppkjgzs/phone_app/releases/download/v%s/qingjian-%s.apk"
+
+    /** 主端点 3: jsDelivr CDN (fastly, 国内可访问) - 省略分支 = 使用默认分支 */
     private const val JSDELIVR_FASTLY = "https://fastly.jsdelivr.net/gh/ppaqtt/phone_app/VERSION"
 
-    /** 主端点 3: jsDelivr CDN (cdn.jsdelivr.net, 国内备用) - 省略分支 = 使用默认分支 */
+    /** 主端点 4: jsDelivr CDN (cdn.jsdelivr.net, 国内备用) - 省略分支 = 使用默认分支 */
     private const val JSDELIVR_CDNJS = "https://cdn.jsdelivr.net/gh/ppaqtt/phone_app/VERSION"
 
     /** 备用端点 1: GitHub API (海外, 国内大概率超时) */
@@ -58,15 +66,21 @@ object AppUpdateChecker {
     /** 备用端点 2: GitHub Releases 重定向 (海外) */
     private const val GITHUB_RELEASES_PAGE = "https://github.com/ppaqtt/phone_app/releases/latest"
 
-    /** 备用端点 3: raw.githubusercontent.com (海外) - try main 分支 */
+    /** 备用端点 3: GitHub 直接下载 APK（release 附件） */
+    private const val GITHUB_DOWNLOAD_TEMPLATE =
+        "https://github.com/ppaqtt/phone_app/releases/download/v%s/qingjian-%s.apk"
+
+    /** 备用端点 4: raw.githubusercontent.com (海外) - try main 分支 */
     private const val RAW_VERSION_URL_MAIN = "https://raw.githubusercontent.com/ppaqtt/phone_app/main/VERSION"
 
-    /** 备用端点 3b: raw.githubusercontent.com (海外) - try master 分支 */
+    /** 备用端点 4b: raw.githubusercontent.com (海外) - try master 分支 */
     private const val RAW_VERSION_URL_MASTER = "https://raw.githubusercontent.com/ppaqtt/phone_app/master/VERSION"
 
     private const val PREFS_NAME = "app_update_checker"
     private const val KEY_LAST_KNOWN_VERSION = "last_known_version"
     private const val KEY_LAST_CHECK_AT = "last_check_at"
+    private const val KEY_IGNORED_VERSION = "ignored_version"
+    private const val KEY_LAST_AUTO_CHECK_AT = "last_auto_check_at"
 
     /**
      * 网络不可用时的兜底最新版本号。
@@ -187,12 +201,16 @@ object AppUpdateChecker {
                         val tag = json.optString("tag_name").removePrefix("v").ifBlank {
                             throw ClassifiedException(NetworkErrorType.PARSE_ERROR, "no tag_name")
                         }
+                        val giteeHtml = json.optString("html_url")
                         return@withContext ReleaseInfo(
                             version = tag,
                             name = json.optString("name").ifBlank { tag },
                             notes = json.optString("body"),
-                            htmlUrl = json.optString("html_url").ifBlank { GITHUB_RELEASES_PAGE },
-                            publishedAt = json.optString("published_at")
+                            htmlUrl = giteeHtml.ifBlank { GITHUB_RELEASES_PAGE },
+                            publishedAt = json.optString("published_at"),
+                            apkUrlGitee = giteeHtml.takeIf { it.isNotBlank() }
+                                ?.plus("/attach_files") ?: "",
+                            apkUrlGithub = String.format(Locale.US, GITHUB_DOWNLOAD_TEMPLATE, tag, tag)
                         )
                     }
                 } catch (e: Exception) {
@@ -235,7 +253,9 @@ object AppUpdateChecker {
                                 name = "v$version",
                                 notes = "",
                                 htmlUrl = GITHUB_RELEASES_PAGE,
-                                publishedAt = ""
+                                publishedAt = "",
+                                apkUrlGitee = String.format(Locale.US, GITEE_DOWNLOAD_TEMPLATE, version, version),
+                                apkUrlGithub = String.format(Locale.US, GITHUB_DOWNLOAD_TEMPLATE, version, version)
                             )
                         }
                         Timber.tag("UpdateChecker").w("$sourceName: invalid version format: $version")
@@ -280,7 +300,12 @@ object AppUpdateChecker {
                             name = json.optString("name").ifBlank { tag },
                             notes = json.optString("body"),
                             htmlUrl = json.optString("html_url").ifBlank { GITHUB_RELEASES_PAGE },
-                            publishedAt = json.optString("published_at")
+                            publishedAt = json.optString("published_at"),
+                            apkUrlGitee = String.format(Locale.US, GITEE_DOWNLOAD_TEMPLATE, tag, tag),
+                            apkUrlGithub = json.optString("html_url")
+                                .takeIf { it.isNotBlank() }
+                                ?.plus("/download/v$tag/qingjian-$tag.apk")
+                                ?: String.format(Locale.US, GITHUB_DOWNLOAD_TEMPLATE, tag, tag)
                         )
                     }
                 } catch (e: Exception) {
@@ -313,7 +338,9 @@ object AppUpdateChecker {
                             name = "v$tagMatch",
                             notes = "",
                             htmlUrl = GITHUB_RELEASES_PAGE,
-                            publishedAt = ""
+                            publishedAt = "",
+                            apkUrlGitee = String.format(Locale.US, GITEE_DOWNLOAD_TEMPLATE, tagMatch, tagMatch),
+                            apkUrlGithub = String.format(Locale.US, GITHUB_DOWNLOAD_TEMPLATE, tagMatch, tagMatch)
                         )
                     }
                 }
@@ -419,6 +446,117 @@ object AppUpdateChecker {
             .apply()
     }
 
+    // ========== 忽略版本 ==========
+    fun ignoreVersion(context: Context, version: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_IGNORED_VERSION, version)
+            .apply()
+    }
+
+    fun getIgnoredVersion(context: Context): String? =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_IGNORED_VERSION, null)
+
+    fun isVersionIgnored(context: Context, version: String): Boolean =
+        getIgnoredVersion(context) == version
+
+    // ========== 启动时自动检查 ==========
+    private const val AUTO_CHECK_INTERVAL_MS = 6L * 60L * 60L * 1000L // 6 小时
+
+    fun shouldAutoCheck(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val last = prefs.getLong(KEY_LAST_AUTO_CHECK_AT, 0L)
+        return (System.currentTimeMillis() - last) > AUTO_CHECK_INTERVAL_MS
+    }
+
+    fun markAutoChecked(context: Context) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_LAST_AUTO_CHECK_AT, System.currentTimeMillis())
+            .apply()
+    }
+
+    // ========== 应用内下载 APK (DownloadManager) ==========
+    /**
+     * 启动 DownloadManager 下载 APK。
+     * 返回 DownloadManager 的 downloadId，用于后续查询进度/状态。
+     * 如果 apkUrl 为空则返回 null。
+     */
+    fun enqueueDownload(context: Context, release: ReleaseInfo): Long? {
+        val url = release.bestApkUrl().ifBlank { return null }
+        val fileName = "qingjian-${release.version}.apk"
+        val request = android.app.DownloadManager.Request(Uri.parse(url))
+            .setTitle("轻笺笔记 v${release.version}")
+            .setDescription("正在下载更新包...")
+            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(
+                android.os.Environment.DIRECTORY_DOWNLOADS,
+                fileName
+            )
+            .setMimeType("application/vnd.android.package-archive")
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(false)
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+        return try {
+            dm.enqueue(request)
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "DownloadManager enqueue failed")
+            null
+        }
+    }
+
+    /** 查询下载进度，返回 Pair(已下载字节, 总字节)。失败则返回 null。 */
+    fun getDownloadProgress(context: Context, downloadId: Long): Pair<Long, Long>? {
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+        val query = android.app.DownloadManager.Query().setFilterById(downloadId)
+        val cursor = dm.query(query)
+        try {
+            if (!cursor.moveToFirst()) return null
+            val status = cursor.getInt(
+                cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS)
+            )
+            val bytesDownloaded = cursor.getLong(
+                cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
+            )
+            val bytesTotal = cursor.getLong(
+                cursor.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
+            )
+            if (status == android.app.DownloadManager.STATUS_FAILED || bytesTotal <= 0L)
+                return null
+            return bytesDownloaded to bytesTotal
+        } catch (e: Exception) {
+            Timber.tag("UpdateChecker").w(e, "getDownloadProgress failed")
+            return null
+        } finally {
+            cursor.close()
+        }
+    }
+
+    /** 获取下载完成的 APK 文件 Uri，供安装使用。 */
+    fun getDownloadedUri(context: Context, downloadId: Long): Uri? {
+        val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+        return dm.getUriForDownloadedFile(downloadId)
+    }
+
+    /** 用包管理器安装 APK。需要 READ_INSTALL_PACKAGES 权限/应用安装来源权限。 */
+    fun installApk(context: Context, apkUri: Uri) {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(apkUri, "application/vnd.android.package-archive")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+        }
+        runCatching {
+            context.startActivity(intent)
+        }.onFailure { e ->
+            Toast.makeText(
+                context,
+                "无法启动安装: ${e.message}",
+                Toast.LENGTH_LONG
+            ).show()
+            Timber.tag("UpdateChecker").w(e, "installApk failed")
+        }
+    }
+
     @Volatile private var cachedRemote: ReleaseInfo? = null
     @Volatile private var cachedAt: Long = 0L
     private val cacheValidMillis = 6 * 60 * 60 * 1000L
@@ -463,8 +601,13 @@ object AppUpdateChecker {
         val name: String,
         val notes: String,
         val htmlUrl: String,
-        val publishedAt: String
-    )
+        val publishedAt: String,
+        val apkUrlGitee: String,
+        val apkUrlGithub: String
+    ) {
+        fun bestApkUrl(): String =
+            if (apkUrlGitee.isNotBlank()) apkUrlGitee else apkUrlGithub
+    }
 
     data class UpdateCheckResult(
         val currentVersion: String,
