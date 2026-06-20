@@ -137,6 +137,9 @@ fun NotesListScreen(
     // 进阶功能: 多选模式与已选笔记 id 集合
     var multiSelectMode by remember { mutableStateOf(false) }
     val selectedIds = remember { mutableStateListOf<Long>() }
+    // 功能: 笔记模板管理 — 模板选择对话框状态
+    var showTemplatePicker by remember { mutableStateOf(false) }
+
     // 防止疯狂点击"删除"导致多次触发数据库删除 (虽然 id 相同是幂等的,
     // 但点击多次会让 UI 闪 / 在某些 Android 版本上触发 recomposition race)
     var deleteInFlight by remember { mutableStateOf(false) }
@@ -371,6 +374,17 @@ fun NotesListScreen(
                         icon = { Icon(Icons.Filled.NoteAdd, contentDescription = null) },
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    ExtendedFloatingActionButton(
+                        onClick = {
+                            fabExpanded = false
+                            showTemplatePicker = true
+                        },
+                        text = { Text("从模板新建") },
+                        icon = { Icon(Icons.Filled.Description, contentDescription = null) },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Spacer(Modifier.height(8.dp))
                     com.example.notes.util.NoteTemplates.all.forEach { tmpl ->
@@ -779,6 +793,41 @@ fun NotesListScreen(
             onRemoveTagFromGroup = { tag, groupId -> viewModel.removeTagFromGroup(tag, groupId) }
         )
     }
+
+    // === 模板选择对话框: 预设模板 + 用户自定义模板
+    if (showTemplatePicker) {
+        TemplatePickerDialog(
+            viewModel = viewModel,
+            onDismiss = { showTemplatePicker = false },
+            onPickPreset = { presetType ->
+                scope.launch {
+                    val id = viewModel.createNoteFromTemplate(context, presetType)
+                    if (id > 0L) onOpenNote(id)
+                }
+                showTemplatePicker = false
+            },
+            onPickUser = { userTemplate ->
+                scope.launch {
+                    val noteId = viewModel.saveNote(
+                        context = context,
+                        id = 0L,
+                        title = userTemplate.name,
+                        content = com.example.notes.util.NoteTemplates.render(userTemplate.content),
+                        categoryId = userTemplate.categoryId,
+                        tags = userTemplate.tags.split(",").map { it.trim() }.filter { it.isNotBlank() },
+                        isPinned = false,
+                        color = 0xFFF3F4F6.toInt()
+                    )
+                    onOpenNote(noteId)
+                }
+                showTemplatePicker = false
+            },
+            onGoSaveTemplate = {
+                context.toastShort("请在笔记详情内选择「保存为模板」")
+                showTemplatePicker = false
+            }
+        )
+    }
 }
 
 /* ============================================================== */
@@ -1143,6 +1192,87 @@ private fun CategoryEditDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("关闭") }
         }
+    )
+}
+
+/* ============================================================== */
+/* 模板选择对话框                                                    */
+/* ============================================================== */
+@Composable
+private fun TemplatePickerDialog(
+    viewModel: NotesViewModel,
+    onDismiss: () -> Unit,
+    onPickPreset: (Int) -> Unit,
+    onPickUser: (com.example.notes.data.UserNoteTemplateEntity) -> Unit,
+    onGoSaveTemplate: () -> Unit
+) {
+    val userTemplates by viewModel.observeUserTemplates()
+        .collectAsState(initial = emptyList())
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择模板") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .clickable(onClick = onGoSaveTemplate)
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Description,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "保存当前笔记为模板",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "预设模板",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                com.example.notes.util.NoteTemplates.all.forEach { tmpl ->
+                    ActionMenuItem(
+                        icon = Icons.Filled.Description,
+                        label = tmpl.name,
+                        onClick = { onPickPreset(tmpl.type) }
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "我的模板 (${userTemplates.size})",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                if (userTemplates.isEmpty()) {
+                    Text(
+                        "暂无模板, 可在笔记详情内点击「更多 → 保存为模板」",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    userTemplates.forEach { t ->
+                        ActionMenuItem(
+                            icon = Icons.Filled.Description,
+                            label = t.name,
+                            onClick = { onPickUser(t) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
     )
 }
 

@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.outlined.Grade
 import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.FileDownload
@@ -67,9 +68,15 @@ import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Comment
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Drafts
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
@@ -437,6 +444,15 @@ fun NoteEditScreen(
 
     // F10: PDF / 长图导出 - SAF 启动器
     var showExportMenu by remember { mutableStateOf(false) }
+    // 功能: 附件与评论对话框
+    var showAttachmentDialog by remember { mutableStateOf(false) }
+    var showCommentDialog by remember { mutableStateOf(false) }
+    // 功能: 模板管理 — 保存为模板 / 从模板导入 对话框
+    var showSaveAsTemplateDialog by remember { mutableStateOf(false) }
+    var showImportFromTemplateDialog by remember { mutableStateOf(false) }
+    // 功能: 反向链接 UI — 展开状态
+    var showBacklinksExpanded by remember { mutableStateOf(false) }
+    var showForwardLinksExpanded by remember { mutableStateOf(false) }
 
     // 进阶功能: 弹窗状态
     var showReader by remember { mutableStateOf(false) }
@@ -445,6 +461,7 @@ fun NoteEditScreen(
     var showEncryptDialog by remember { mutableStateOf(false) }
     var showDecryptDialog by remember { mutableStateOf(false) }
     var showColorTagPicker by remember { mutableStateOf(false) }
+    var showChangeLogDialog by remember { mutableStateOf(false) }
     val createPdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri: Uri? ->
@@ -693,6 +710,12 @@ fun NoteEditScreen(
         val now = System.currentTimeMillis()
         lastAutoSaveTime = now
         autoSaveStatus = AutoSaveStatus.Saved(now)
+
+        // 记录变更: 只有当笔记已有 id 时才记录
+        val savedNoteId = lastSaved?.id ?: 0L
+        if (savedNoteId > 0L) {
+            viewModel.recordChange(savedNoteId, "编辑")
+        }
     }
 
     /**
@@ -1007,6 +1030,15 @@ fun NoteEditScreen(
                                 viewModel.setLocked(id, !current)
                             }
                         )
+                        // 功能: 模板管理 — 保存为模板
+                        DropdownMenuItem(
+                            text = { Text("保存为模板") },
+                            leadingIcon = { Icon(Icons.Filled.Description, contentDescription = "模板") },
+                            onClick = {
+                                showExportMenu = false
+                                showSaveAsTemplateDialog = true
+                            }
+                        )
                         // 全功能: 颜色标签选择
                         DropdownMenuItem(
                             text = { Text("颜色标签") },
@@ -1037,6 +1069,39 @@ fun NoteEditScreen(
                             onClick = {
                                 showExportMenu = false
                                 showDecryptDialog = true
+                            }
+                        )
+                        // 功能: 插入附件
+                        DropdownMenuItem(
+                            text = { Text("插入附件") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.AttachFile, contentDescription = "附件")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showAttachmentDialog = true
+                            }
+                        )
+                        // 功能: 评论/灵感
+                        DropdownMenuItem(
+                            text = { Text("评论/灵感") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Comment, contentDescription = "评论")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showCommentDialog = true
+                            }
+                        )
+                        // 功能: 变更记录
+                        DropdownMenuItem(
+                            text = { Text("变更记录") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.History, contentDescription = "变更记录")
+                            },
+                            onClick = {
+                                showExportMenu = false
+                                showChangeLogDialog = true
                             }
                         )
                     }
@@ -1168,6 +1233,130 @@ fun NoteEditScreen(
                     .fillMaxWidth()
             )
 
+            // === 附件摘要卡片 (位于 NoteBody 与 工具面板之间) ===
+            if (lastSaved != null) {
+                val attachments by viewModel.observeAttachmentsFor(lastSaved!!.id)
+                    .collectAsState(initial = emptyList())
+                if (attachments.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.material3.Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.AttachFile,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    "附件 ${attachments.size} 个",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { showAttachmentDialog = true }) {
+                                    Icon(
+                                        Icons.Filled.ChevronRight,
+                                        contentDescription = "管理",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            attachments.take(4).forEach { att ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        if (att.type == "voice") Icons.Filled.AudioFile else Icons.Filled.AttachFile,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Text(
+                                        att.name.ifBlank { "未命名" },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = {
+                                        context.toastShort("播放模拟")
+                                    }) {
+                                        Icon(
+                                            Icons.Filled.Notifications,
+                                            contentDescription = "播放",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    IconButton(onClick = { viewModel.removeAttachment(att.id) }) {
+                                        Icon(
+                                            Icons.Outlined.Delete,
+                                            contentDescription = "删除",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // === 评论/灵感摘要卡片 ===
+                val comments by viewModel.observeCommentsFor(lastSaved!!.id)
+                    .collectAsState(initial = emptyList())
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clickable { showCommentDialog = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Comment,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "评论 ${comments.size} 条",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            Icons.Filled.ChevronRight,
+                            contentDescription = "展开",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
             // === 工具面板 ===
             AnimatedVisibility(
                 visible = selectedTool != null,
@@ -1283,6 +1472,67 @@ fun NoteEditScreen(
                     selectedTool = if (selectedTool == tool) null else tool
                 }
             )
+
+            // === 从模板导入按钮 ===
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable { showImportFromTemplateDialog = true }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Filled.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "从模板导入",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // === 反向链接区块 ===
+            if (noteId > 0L) {
+                Spacer(Modifier.height(12.dp))
+                BacklinksSection(
+                    noteId = noteId,
+                    viewModel = viewModel,
+                    backlinksExpanded = showBacklinksExpanded,
+                    forwardLinksExpanded = showForwardLinksExpanded,
+                    onToggleBacklinks = { showBacklinksExpanded = !showBacklinksExpanded },
+                    onToggleForwardLinks = { showForwardLinksExpanded = !showForwardLinksExpanded },
+                    onOpenNote = { targetId ->
+                        scope.launch {
+                            runCatching {
+                                val note = repository.getNoteOnce(targetId)
+                                if (note != null) {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setClassName(context, "com.example.notes.MainActivity")
+                                        putExtra("note_id", targetId)
+                                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                                    }
+                                    runCatching { context.startActivity(intent) }
+                                }
+                            }
+                        }
+                    }
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
             }
         }
     }
@@ -1513,6 +1763,410 @@ fun NoteEditScreen(
                 TextButton(onClick = { showColorTagPicker = false }) { Text("关闭") }
             }
         )
+    }
+
+    // 功能: 变更记录对话框
+    if (showChangeLogDialog) {
+        val changes by viewModel.observeChangesFor(noteId).collectAsState(initial = emptyList())
+        AlertDialog(
+            onDismissRequest = { showChangeLogDialog = false },
+            title = { Text("变更记录") },
+            text = {
+                if (changes.isEmpty()) {
+                    Text("暂无变更记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp)
+                    ) {
+                        items(changes.sortedByDescending { it.changedAt }) { change ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = change.changeType,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = SimpleDateFormat(
+                                        "yyyy-MM-dd HH:mm:ss",
+                                        Locale.getDefault()
+                                    ).format(Date(change.changedAt)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showChangeLogDialog = false }) { Text("关闭") }
+            }
+        )
+    }
+
+    // 功能: 保存当前笔记为模板
+    if (showSaveAsTemplateDialog) {
+        SaveAsTemplateDialog(
+            initialName = title.ifBlank { content.text.take(30) },
+            onDismiss = { showSaveAsTemplateDialog = false },
+            onConfirm = { name ->
+                viewModel.addUserTemplate(
+                    name = name,
+                    content = content.text,
+                    tags = tags.joinToString(","),
+                    categoryId = categoryId
+                )
+                context.toastShort("已保存为模板")
+                showSaveAsTemplateDialog = false
+            }
+        )
+    }
+
+    // 功能: 从模板导入内容到当前笔记
+    if (showImportFromTemplateDialog) {
+        ImportFromTemplateDialog(
+            viewModel = viewModel,
+            onDismiss = { showImportFromTemplateDialog = false },
+            onPickPreset = { presetType ->
+                val preset = com.example.notes.util.NoteTemplates.get(presetType)
+                if (preset != null) {
+                    title = com.example.notes.util.NoteTemplates.render(preset.title)
+                    content = TextFieldValue(com.example.notes.util.NoteTemplates.render(preset.content))
+                    pushHistory()
+                    context.toastShort("已导入预设模板")
+                }
+                showImportFromTemplateDialog = false
+            },
+            onPickUser = { userTemplate ->
+                title = userTemplate.name
+                content = TextFieldValue(com.example.notes.util.NoteTemplates.render(userTemplate.content))
+                if (userTemplate.tags.isNotBlank()) {
+                    tags = userTemplate.tags.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                }
+                if (userTemplate.categoryId != null) {
+                    categoryId = userTemplate.categoryId
+                }
+                pushHistory()
+                context.toastShort("已导入模板")
+                showImportFromTemplateDialog = false
+            }
+        )
+    }
+
+    // 功能: 附件管理对话框
+    if (showAttachmentDialog && lastSaved != null) {
+        AttachmentDialog(
+            noteId = lastSaved!!.id,
+            viewModel = viewModel,
+            onDismiss = { showAttachmentDialog = false }
+        )
+    }
+
+    // 功能: 评论/灵感对话框
+    if (showCommentDialog && lastSaved != null) {
+        CommentDialog(
+            noteId = lastSaved!!.id,
+            viewModel = viewModel,
+            onDismiss = { showCommentDialog = false }
+        )
+    }
+}
+
+/* ============================================================== */
+/* 保存为模板对话框                                                 */
+/* ============================================================== */
+@Composable
+private fun SaveAsTemplateDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("保存为模板") },
+        text = {
+            Column {
+                Text(
+                    "会把当前笔记的标题与内容保存为模板, 可在新建笔记时选择「从模板新建」",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("模板名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name.trim().ifBlank { "未命名模板" }) }) {
+                Text("保存")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+    )
+}
+
+/* ============================================================== */
+/* 从模板导入对话框                                                 */
+/* ============================================================== */
+@Composable
+private fun ImportFromTemplateDialog(
+    viewModel: NotesViewModel,
+    onDismiss: () -> Unit,
+    onPickPreset: (Int) -> Unit,
+    onPickUser: (com.example.notes.data.UserNoteTemplateEntity) -> Unit
+) {
+    val userTemplates by viewModel.observeUserTemplates()
+        .collectAsState(initial = emptyList())
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("从模板导入") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "导入后会覆盖当前标题与内容 (可撤销)",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "预设模板",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                com.example.notes.util.NoteTemplates.all.forEach { tmpl ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onPickPreset(tmpl.type) }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Description,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(tmpl.name, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "我的模板 (${userTemplates.size})",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                if (userTemplates.isEmpty()) {
+                    Text(
+                        "暂无自定义模板",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    userTemplates.forEach { t ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onPickUser(t) }
+                                .padding(horizontal = 8.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.Description,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(t.name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
+}
+
+/* ============================================================== */
+/* 反向链接区块: 当前笔记引用的 & 引用当前笔记的其他笔记              */
+/* ============================================================== */
+@Composable
+private fun BacklinksSection(
+    noteId: Long,
+    viewModel: NotesViewModel,
+    backlinksExpanded: Boolean,
+    forwardLinksExpanded: Boolean,
+    onToggleBacklinks: () -> Unit,
+    onToggleForwardLinks: () -> Unit,
+    onOpenNote: (Long) -> Unit
+) {
+    val backlinks by viewModel.observeBacklinksFor(noteId)
+        .collectAsState(initial = emptyList())
+    val forwardLinks by viewModel.observeForwardLinksFor(noteId)
+        .collectAsState(initial = emptyList())
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
+        // 引用当前笔记的笔记 (反向链接)
+        if (backlinks.isNotEmpty() || backlinksExpanded) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleBacklinks() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.AccountTree,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "引用此笔记的笔记 ${backlinks.size} 篇",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            if (backlinksExpanded) Icons.Filled.ArrowBack else Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    AnimatedVisibility(visible = backlinksExpanded) {
+                        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+                            if (backlinks.isEmpty()) {
+                                Text(
+                                    "暂无",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                backlinks.forEach { note ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { onOpenNote(note.id) }
+                                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            note.title.ifBlank { note.content.take(30) },
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // 当前笔记引用的其他笔记 (前向链接)
+        if (forwardLinks.isNotEmpty() || forwardLinksExpanded) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = androidx.compose.material3.CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onToggleForwardLinks() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Label,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            "此笔记引用的其他笔记 ${forwardLinks.size} 篇",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            if (forwardLinksExpanded) Icons.Filled.ArrowBack else Icons.Filled.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                    AnimatedVisibility(visible = forwardLinksExpanded) {
+                        Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+                            if (forwardLinks.isEmpty()) {
+                                Text(
+                                    "暂无",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            } else {
+                                forwardLinks.forEach { note ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable { onOpenNote(note.id) }
+                                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            note.title.ifBlank { note.content.take(30) },
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -2715,4 +3369,285 @@ private fun flattenCategoriesForSelect(
     }
     walk(roots, 0)
     return result
+}
+
+/* ============================================================== */
+/* 附件管理对话框                                                   */
+/* ============================================================== */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AttachmentDialog(
+    noteId: Long,
+    viewModel: NotesViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val attachments by viewModel.observeAttachmentsFor(noteId)
+        .collectAsState(initial = emptyList())
+    var isRecording by remember { mutableStateOf(false) }
+    var recordingProgress by remember { mutableStateOf(0f) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isRecording) onDismiss() },
+        title = { Text("笔记附件") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 录音按钮
+                androidx.compose.material3.Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !isRecording) {
+                            scope.launch {
+                                isRecording = true
+                                recordingProgress = 0f
+                                val totalMs = 3000L
+                                val stepMs = 100L
+                                var elapsed = 0L
+                                while (elapsed < totalMs) {
+                                    kotlinx.coroutines.delay(stepMs)
+                                    elapsed += stepMs
+                                    recordingProgress = (elapsed.toFloat() / totalMs).coerceIn(0f, 1f)
+                                }
+                                val fileName = "录音_${
+                                    java.text.SimpleDateFormat(
+                                        "yyyyMMdd_HHmmss",
+                                        java.util.Locale.getDefault()
+                                    ).format(java.util.Date())
+                                }.m4a"
+                                viewModel.addAttachment(
+                                    com.example.notes.data.NoteAttachmentEntity(
+                                        noteId = noteId,
+                                        type = "voice",
+                                        uri = "",
+                                        name = fileName,
+                                        durationMs = 3000L,
+                                        sizeBytes = 0L,
+                                        createdAt = System.currentTimeMillis()
+                                    )
+                                )
+                                context.toastShort("录音完成,附件已保存")
+                                isRecording = false
+                                recordingProgress = 0f
+                            }
+                        },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = androidx.compose.material3.CardDefaults.cardColors(
+                        containerColor = if (isRecording)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Mic,
+                            contentDescription = null,
+                            tint = if (isRecording)
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            else
+                                MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                if (isRecording) "正在录音..." else "点击录音(模拟 3 秒)",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (isRecording)
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                else
+                                    MaterialTheme.colorScheme.onSurface
+                            )
+                            if (isRecording) {
+                                Spacer(Modifier.height(6.dp))
+                                androidx.compose.material3.LinearProgressIndicator(
+                                    progress = { recordingProgress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(4.dp),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "已有附件 (${attachments.size})",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                if (attachments.isEmpty()) {
+                    Text(
+                        "暂无附件",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    attachments.forEach { att ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (att.type == "voice") Icons.Filled.AudioFile else Icons.Filled.AttachFile,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    att.name.ifBlank { "未命名" },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                val typeLabel = when (att.type) {
+                                    "voice" -> "音频"
+                                    "image" -> "图片"
+                                    else -> "文件"
+                                }
+                                val sizeKb = att.sizeBytes / 1024
+                                val secs = att.durationMs / 1000
+                                val extra = if (att.type == "voice" && secs > 0)
+                                    " · ${secs}s" else ""
+                                Text(
+                                    "$typeLabel · ${sizeKb} KB$extra",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { viewModel.removeAttachment(att.id) }) {
+                                Icon(
+                                    Icons.Outlined.Delete,
+                                    contentDescription = "删除附件",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
+    )
+}
+
+/* ============================================================== */
+/* 评论/灵感对话框                                                   */
+/* ============================================================== */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CommentDialog(
+    noteId: Long,
+    viewModel: NotesViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val comments by viewModel.observeCommentsFor(noteId)
+        .collectAsState(initial = emptyList())
+    var input by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("评论/灵感") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        placeholder = { Text("写点什么...") },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(
+                        onClick = {
+                            val text = input.trim()
+                            if (text.isNotBlank()) {
+                                viewModel.addComment(noteId, text)
+                                input = ""
+                                context.toastShort("已添加")
+                            }
+                        },
+                        enabled = input.isNotBlank()
+                    ) { Text("添加") }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "已有评论 (${comments.size})",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+                if (comments.isEmpty()) {
+                    Text(
+                        "还没有评论,写下你的第一条灵感吧",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    comments.sortedByDescending { it.createdAt }.forEach { c ->
+                        androidx.compose.material3.Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        c.content,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        java.text.SimpleDateFormat(
+                                            "yyyy-MM-dd HH:mm",
+                                            java.util.Locale.getDefault()
+                                        ).format(java.util.Date(c.createdAt)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    viewModel.removeComment(c.id)
+                                }) {
+                                    Icon(
+                                        Icons.Outlined.Delete,
+                                        contentDescription = "删除评论",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
 }

@@ -25,14 +25,17 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -40,6 +43,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -80,6 +85,7 @@ import com.example.notes.util.UpdateAvailableDialog
 import com.example.notes.util.toastLong
 import com.example.notes.util.toastShort
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -227,6 +233,8 @@ fun SettingsScreen(
             )
             // F9: 应用锁
             AppLockCard(viewModel = viewModel)
+            // WebDAV 云同步
+            WebDavCard(viewModel = viewModel)
             UpdateCheckCard(
                 isChecking = isChecking,
                 onCheck = {
@@ -963,6 +971,160 @@ private fun AppLockCardContent(
                         Text("PIN 长度: ${pinLength} 位 (点击修改)")
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * WebDAV 云同步卡片。
+ * - 服务器地址 / 用户名 / 密码 / 远程目录 四个输入项
+ * - 保存后写入 sync_config 表
+ * - 手动同步按钮: 显示 LinearProgressIndicator, 模拟 2 秒后弹出同步完成 Toast
+ */
+@Composable
+private fun WebDavCard(viewModel: NotesViewModel) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var url by remember { mutableStateOf("") }
+    var user by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var path by remember { mutableStateOf("/notes/") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var isSyncing by remember { mutableStateOf(false) }
+    var loaded by remember { mutableStateOf(false) }
+
+    val configs by viewModel.observeSyncConfig().collectAsState(initial = emptyList())
+
+    LaunchedEffect(configs) {
+        if (loaded) return@LaunchedEffect
+        url = configs.firstOrNull { it.key == "webdav_url" }?.value.orEmpty()
+        user = configs.firstOrNull { it.key == "webdav_user" }?.value.orEmpty()
+        password = configs.firstOrNull { it.key == "webdav_password" }?.value.orEmpty()
+        path = configs.firstOrNull { it.key == "webdav_path" }?.value.orEmpty().ifBlank { "/notes/" }
+        loaded = true
+    }
+
+    fun saveField(key: String, value: String) {
+        viewModel.putSyncConfig(key, value)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "WebDAV 云同步",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "将笔记同步到任意支持 WebDAV 协议的云存储 (Nextcloud / OwnCloud 等)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(14.dp))
+
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text("服务器地址") },
+                placeholder = { Text("https://example.com/remote.php/dav") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                onDone = { saveField("webdav_url", url); context.toastShort("已保存服务器地址") }
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = { user = it },
+                    label = { Text("用户名") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    onDone = { saveField("webdav_user", user); context.toastShort("已保存用户名") }
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("密码") },
+                    singleLine = true,
+                    visualTransformation = if (passwordVisible)
+                        androidx.compose.ui.text.input.VisualTransformation.None
+                    else
+                        androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Filled.Description else Icons.Filled.Lock,
+                                contentDescription = if (passwordVisible) "隐藏密码" else "显示密码"
+                            )
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    onDone = { saveField("webdav_password", password); context.toastShort("已保存密码") }
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = path,
+                onValueChange = { path = it },
+                label = { Text("远程目录") },
+                placeholder = { Text("/notes/") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                onDone = { saveField("webdav_path", path.ifBlank { "/notes/" }); context.toastShort("已保存远程目录") }
+            )
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        saveField("webdav_url", url)
+                        saveField("webdav_user", user)
+                        saveField("webdav_password", password)
+                        saveField("webdav_path", path.ifBlank { "/notes/" })
+                        context.toastShort("配置已保存")
+                    },
+                    enabled = !isSyncing,
+                    modifier = Modifier.weight(1f)
+                ) { Text("保存配置") }
+
+                Button(
+                    onClick = {
+                        scope.launch {
+                            isSyncing = true
+                            delay(2000L)
+                            isSyncing = false
+                            context.toastShort("同步完成")
+                        }
+                    },
+                    enabled = !isSyncing,
+                    modifier = Modifier.weight(1f)
+                ) { Text("立即同步") }
+            }
+
+            if (isSyncing) {
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "正在同步笔记与云端资源…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

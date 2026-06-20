@@ -682,6 +682,70 @@ class NotesViewModel(
         val noteIds = repository.getAllNotesForSync().map { it.id }
         exportNotesAsZip(context, noteIds, targetUri)
     }
+
+    // --- 用户模板 -------------------------------------------------------
+
+    fun observeUserTemplates() = repository.observeUserTemplates()
+
+    fun addUserTemplate(name: String, content: String, tags: String = "", categoryId: Long? = null) {
+        launchSafe("addUserTemplate") { repository.addUserTemplate(name, content, tags, categoryId) }
+    }
+
+    fun removeUserTemplate(id: Long) {
+        launchSafe("removeUserTemplate") { repository.removeUserTemplate(id) }
+    }
+
+    // --- 内链 ---------------------------------------------------------
+
+    fun observeBacklinksFor(noteId: Long) = repository.observeBacklinksFor(noteId)
+
+    fun observeForwardLinksFor(noteId: Long) = repository.observeForwardLinksFor(noteId)
+
+    fun scanAndUpdateBacklinks(noteId: Long, content: String) {
+        launchSafe("scanAndUpdateBacklinks") { repository.scanAndUpdateBacklinks(noteId, content) }
+    }
+
+    // --- 附件 ------------------------------------------------------------
+
+    fun observeAttachmentsFor(noteId: Long) = repository.observeAttachmentsFor(noteId)
+
+    fun addAttachment(attachment: com.example.notes.data.NoteAttachmentEntity) {
+        launchSafe("addAttachment") { repository.addAttachment(attachment) }
+    }
+
+    fun removeAttachment(id: Long) {
+        launchSafe("removeAttachment") { repository.removeAttachment(id) }
+    }
+
+    // --- 评论 --------------------------------------------------------
+
+    fun observeCommentsFor(noteId: Long) = repository.observeCommentsFor(noteId)
+
+    fun addComment(noteId: Long, content: String, createdAt: Long = System.currentTimeMillis()) {
+        launchSafe("addComment") { repository.addComment(noteId, content, createdAt) }
+    }
+
+    fun removeComment(id: Long) {
+        launchSafe("removeComment") { repository.removeComment(id) }
+    }
+
+    // --- 同步配置 ---------------------------------------------------
+
+    fun observeSyncConfig() = repository.observeSyncConfig()
+
+    suspend fun getSyncConfig(key: String) = repository.getSyncConfig(key)
+
+    fun putSyncConfig(key: String, value: String) {
+        launchSafe("putSyncConfig") { repository.putSyncConfig(key, value) }
+    }
+
+    // --- 变更日志 --------------------------------------------------
+
+    fun observeChangesFor(noteId: Long) = repository.observeChangesFor(noteId)
+
+    fun recordChange(noteId: Long, changeType: String, changedAt: Long = System.currentTimeMillis()) {
+        launchSafe("recordChange") { repository.recordNoteChange(noteId, changeType, changedAt) }
+    }
 }
 
 /**

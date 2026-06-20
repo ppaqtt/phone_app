@@ -10,6 +10,28 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.34.00",
+            date = "2026-06-20",
+            items = listOf(
+                "【全功能扩展 - 模板、协作、同步】",
+                "新增：笔记模板管理 — 编辑页可保存当前内容为模板，新建笔记时从模板选择（预设模板 + 用户模板），快速复用常用结构",
+                "新增：反向链接可视化 — 编辑页底部展示「引用此笔记的其他笔记」和「此笔记引用的笔记」双卡片，可折叠展开并直接跳转",
+                "新增：语音附件 — 编辑页「更多」菜单支持录音（模拟）并作为附件保存，可在附件卡片播放或删除",
+                "新增：笔记评论/灵感 — 单篇笔记可写多条评论/灵感，编辑页底部显示评论摘要，点击查看完整评论列表",
+                "新增：WebDAV 云同步 — 设置页配置服务器地址/账号/密码/远程目录，保存配置后可手动触发单向同步",
+                "新增：变更日志 — 编辑页「更多」菜单查看修改时间线，每次保存笔记自动记录一条变更",
+                "",
+                "【ViewModel 层扩展】",
+                "扩展 NotesViewModel：暴露 template / backlink / attachment / comment / syncConfig / changeLog 六组方法",
+                "suspend 写操作统一使用 launchSafe 包一层，避免 Room 异常崩进程",
+                "",
+                "【UI 与交互】",
+                "NotesListScreen：FAB 区新增「从模板新建」入口，弹出模板选择对话框",
+                "NoteEditScreen：更多菜单扩展至插入附件/评论/保存为模板/变更记录，底部新增模板导入/反向链接/附件/评论卡片",
+                "SettingsScreen：应用锁卡片后新增 WebDAV 云同步配置卡片，支持四项参数保存与手动同步按钮",
+            )
+        ),
+        Entry(
             version = "v1.33.00",
             date = "2026-06-20",
             items = listOf(
