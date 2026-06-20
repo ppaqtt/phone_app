@@ -85,7 +85,21 @@ class NotesViewModel(
     }
 
     val uiState: StateFlow<NotesUiState> =
-        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder, showOnlyFavorites, repository.observeTagGroups(), showOnlyDrafts, showOnlyLocked, activeColorTag, showOnlyArchived) { args ->
+        combine(
+            listOf<Flow<*>>(
+                notes,
+                repository.observeCategories(),
+                activeCategoryId,
+                query,
+                sortOrder,
+                showOnlyFavorites,
+                repository.observeTagGroups(),
+                showOnlyDrafts,
+                showOnlyLocked,
+                activeColorTag,
+                showOnlyArchived
+            )
+        ) { args ->
             @Suppress("UNCHECKED_CAST")
             val notesList = args[0] as List<NoteWithCategory>
             val categories = args[1] as List<CategoryEntity>
