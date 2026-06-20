@@ -593,7 +593,7 @@ class NotesRepository(
     fun observeAttachmentsFor(noteId: Long): Flow<List<NoteAttachmentEntity>> = noteAttachmentDao.observeByNote(noteId)
     suspend fun addAttachment(attachment: NoteAttachmentEntity) = noteAttachmentDao.insert(attachment)
     suspend fun removeAttachment(id: Long) = noteAttachmentDao.deleteById(id)
-    suspend fun reorderAttachmentsFor(noteId: Long, ids: List<Long>) {
+    suspend fun reorderAttachmentsFor(@Suppress("UNUSED_PARAMETER") noteId: Long, ids: List<Long>) {
         database.withTransaction {
             ids.forEachIndexed { idx, aid -> noteAttachmentDao.updatePosition(aid, idx) }
         }

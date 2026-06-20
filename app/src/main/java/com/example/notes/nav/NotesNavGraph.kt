@@ -114,8 +114,8 @@ fun NotesNavGraph(
                 onCreateFromTemplate = { templateType ->
                     // 进阶功能: 用模板新建笔记
                     scope.launch {
-                        val context = navController.context.applicationContext
-                        val newId = viewModel.createNoteFromTemplate(context, templateType)
+                        val ctx = navController.context.applicationContext
+                        val newId = viewModel.createNoteFromTemplate(ctx, templateType)
                         if (newId > 0L) {
                             navController.navigate(Routes.edit(newId)) { launchSingleTop = true }
                         }

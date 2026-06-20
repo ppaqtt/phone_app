@@ -103,11 +103,13 @@ class NotesViewModel(
         ) { args ->
             @Suppress("UNCHECKED_CAST")
             val notesList = args[0] as List<NoteWithCategory>
+            @Suppress("UNCHECKED_CAST")
             val categories = args[1] as List<CategoryEntity>
             val activeId = args[2] as Long?
             val q = args[3] as String
             val sort = args[4] as NoteSortOrder
             val onlyFav = args[5] as Boolean
+            @Suppress("UNCHECKED_CAST")
             val tagGroups = args[6] as List<TagGroupEntity>
             val onlyDrafts = args[7] as Boolean
             val onlyLocked = args[8] as Boolean
@@ -571,7 +573,7 @@ class NotesViewModel(
         repository.searchByTitlePrefix(keyword, limit)
 
     /** 进阶功能: 解析内链, 返回 (id, title) 列表 */
-    suspend fun resolveNoteLinks(content: String, currentNoteId: Long = 0L): List<Pair<Long?, String>> {
+    suspend fun resolveNoteLinks(content: String, @Suppress("UNUSED_PARAMETER") currentNoteId: Long = 0L): List<Pair<Long?, String>> {
         val titles = com.example.notes.util.NoteLinkHelper.extractUniqueTitles(content)
         return titles.map { title ->
             val id = repository.getIdByTitle(title)

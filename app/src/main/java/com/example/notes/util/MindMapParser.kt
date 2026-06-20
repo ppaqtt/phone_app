@@ -75,7 +75,7 @@ object MindMapParser {
     private fun findParentForLevel(
         root: MindMapNode,
         targetLevel: Int,
-        default: MindMapNode
+        @Suppress("UNUSED_PARAMETER") default: MindMapNode
     ): MindMapNode {
         if (targetLevel <= 0) return root
         // 从 root 找层级 < targetLevel 的最深路径

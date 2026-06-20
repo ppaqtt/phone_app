@@ -254,7 +254,6 @@ fun AppLockScreen(
                             "设置新 PIN ($targetPinLen 位)"
                         else
                             "设置新手势 (至少 ${AppLockStore.MIN_PATTERN_POINTS} 个点)"
-            else -> ""
             }
             Text(
                 text = hint,
