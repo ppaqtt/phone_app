@@ -1281,7 +1281,7 @@ private fun UpdateSettingsCard() {
                     .clickable(enabled = !cleaning) {
                         cleaning = true
                         scope.launch {
-                            AppUpdateChecker.cleanupOldApks(context)
+                            AppUpdateChecker.cleanupOldApks()
                             delay(300)
                             Toast.makeText(context, "已清理旧版本安装包", Toast.LENGTH_SHORT).show()
                             cleaning = false

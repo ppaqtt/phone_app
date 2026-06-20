@@ -573,8 +573,6 @@ object AppUpdateChecker {
      * 返回新的 downloadId，全部失败返回 null。
      */
     fun enqueueDownloadFallback(context: Context, release: ReleaseInfo, failedUrl: String?): Long? {
-        val primary = release.bestApkUrl()
-        val secondary = if (primary == release.apkUrlGitee) release.apkUrlGithub else release.apkUrlGitee
         val urls = listOfNotNull(
             release.apkUrlGitee,
             release.apkUrlGithub,
@@ -595,7 +593,7 @@ object AppUpdateChecker {
      * 清理 DownloadManager 中已下载但未安装的旧版本 APK 记录，释放存储空间。
      * 仅清理本应用下载目录下文件名匹配 "qingjian-*.apk" 且版本号 < 当前版本的文件。
      */
-    fun cleanupOldApks(context: Context) {
+    fun cleanupOldApks() {
         try {
             val dir = android.os.Environment.getExternalStoragePublicDirectory(
                 android.os.Environment.DIRECTORY_DOWNLOADS
@@ -604,7 +602,6 @@ object AppUpdateChecker {
             val files = dir?.listFiles { f ->
                 f?.name?.matches(Regex("qingjian-.*\\.apk")) == true
             } ?: return
-            val currentNum = parseVersion(current)
             for (f in files) {
                 try {
                     val versionInName = f.name.replace("qingjian-", "")

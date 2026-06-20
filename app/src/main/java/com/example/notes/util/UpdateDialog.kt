@@ -335,7 +335,7 @@ private fun DownloadProgressDialog(
                     val uri = AppUpdateChecker.getDownloadedUri(context, currentDownloadId)
                     if (uri != null) {
                         AppUpdateChecker.installApk(context, uri)
-                        AppUpdateChecker.cleanupOldApks(context)
+                        AppUpdateChecker.cleanupOldApks()
                         onInstalled()
                     } else {
                         Toast.makeText(context, "未找到下载文件，请在通知栏操作", Toast.LENGTH_LONG).show()
