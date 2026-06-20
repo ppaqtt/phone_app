@@ -76,7 +76,7 @@
             android:label="@string/widget_description">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.example.notes.widget.ACTION_REFRESH" />
+                <action android:name="com.qingjian.notes.widget.ACTION_REFRESH" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

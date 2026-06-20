@@ -8,9 +8,9 @@
         android:shortcutLongLabel="@string/shortcut_new_note_long"
         android:shortcutDisabledMessage="@string/shortcut_new_note_disabled">
         <intent
-            android:action="com.example.notes.ACTION_NEW_NOTE"
-            android:targetPackage="com.example.notes"
-            android:targetClass="com.example.notes.MainActivity" />
+            android:action="com.qingjian.notes.ACTION_NEW_NOTE"
+            android:targetPackage="com.qingjian.notes"
+            android:targetClass="com.qingjian.notes.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="search"
@@ -19,9 +19,9 @@
         android:shortcutShortLabel="@string/shortcut_search"
         android:shortcutLongLabel="@string/shortcut_search_long">
         <intent
-            android:action="com.example.notes.ACTION_SEARCH"
-            android:targetPackage="com.example.notes"
-            android:targetClass="com.example.notes.MainActivity" />
+            android:action="com.qingjian.notes.ACTION_SEARCH"
+            android:targetPackage="com.qingjian.notes"
+            android:targetClass="com.qingjian.notes.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="stats"
@@ -30,8 +30,8 @@
         android:shortcutShortLabel="@string/shortcut_stats"
         android:shortcutLongLabel="@string/shortcut_stats_long">
         <intent
-            android:action="com.example.notes.ACTION_STATS"
-            android:targetPackage="com.example.notes"
-            android:targetClass="com.example.notes.MainActivity" />
+            android:action="com.qingjian.notes.ACTION_STATS"
+            android:targetPackage="com.qingjian.notes"
+            android:targetClass="com.qingjian.notes.MainActivity" />
     </shortcut>
 </shortcuts>

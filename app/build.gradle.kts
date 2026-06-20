@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.notes"
+    namespace = "com.qingjian.notes"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.notes"
+        applicationId = "com.qingjian.notes"
         minSdk = 24
         targetSdk = 34
         versionCode = 61
