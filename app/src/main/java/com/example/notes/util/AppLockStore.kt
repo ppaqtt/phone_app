@@ -54,6 +54,14 @@ class AppLockStore(context: Context) {
     val isBiometricEnabled: Boolean
         get() = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)
 
+    /** 是否已设置密保问题 */
+    val hasSecurityQuestion: Boolean
+        get() = prefs.contains(KEY_SECURITY_QUESTION) && prefs.contains(KEY_SECURITY_ANSWER_HASH)
+
+    /** 获取已设置的密保问题 */
+    val securityQuestion: String?
+        get() = prefs.getString(KEY_SECURITY_QUESTION, null)
+
     /** 上次成功解锁时间 (System.currentTimeMillis), 0L = 从未解锁 / 锁住 */
     @Volatile
     private var lastUnlockTime: Long = prefs.getLong(KEY_LAST_UNLOCK, 0L)
@@ -148,6 +156,32 @@ class AppLockStore(context: Context) {
     }
 
     /**
+     * 设置/更新密保问题与答案。
+     * @return true 设置成功
+     */
+    fun setSecurityQuestion(question: String, answer: String): Boolean {
+        val q = question.trim()
+        val a = answer.trim()
+        if (q.isEmpty() || a.isEmpty()) return false
+        val hash = nativeHashPin(a.lowercase())
+        prefs.edit {
+            putString(KEY_SECURITY_QUESTION, q)
+            putString(KEY_SECURITY_ANSWER_HASH, hash)
+        }
+        return true
+    }
+
+    /**
+     * 验证密保答案是否正确。
+     */
+    fun checkSecurityAnswer(answer: String): Boolean {
+        val a = answer.trim().lowercase()
+        if (a.isEmpty()) return false
+        val expected = prefs.getString(KEY_SECURITY_ANSWER_HASH, null) ?: return false
+        return nativeHashPin(a) == expected
+    }
+
+    /**
      * 关闭应用锁, 清除所有锁方式。
      */
     fun disable() {
@@ -231,6 +265,8 @@ class AppLockStore(context: Context) {
         private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
         private const val KEY_PATTERN_HASH = "pattern_hash"
         private const val KEY_LOCK_TYPE = "lock_type"
+        private const val KEY_SECURITY_QUESTION = "security_question"
+        private const val KEY_SECURITY_ANSWER_HASH = "security_answer_hash"
 
         const val LOCK_TYPE_PIN = "PIN"
         const val LOCK_TYPE_PATTERN = "PATTERN"

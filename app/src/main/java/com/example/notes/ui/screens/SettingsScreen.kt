@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -583,6 +584,10 @@ private fun AppLockCard(viewModel: NotesViewModel) {
     var showLengthPicker by remember { mutableStateOf(false) }
     // 新设置的 PIN 长度 (4-8), 默认与当前一致或 6
     var newPinLen by remember { mutableStateOf(currentLen.coerceIn(4..8)) }
+    // 全功能: 密保问题设置
+    var showSecurityQuestionDialog by remember { mutableStateOf(false) }
+    var sqQuestion by remember { mutableStateOf("") }
+    var sqAnswer by remember { mutableStateOf("") }
     // F19: 指纹解锁开关状态
     var biometricEnabled by remember { mutableStateOf(store.isBiometricEnabled) }
     val biometricStatus = remember {
@@ -676,6 +681,81 @@ private fun AppLockCard(viewModel: NotesViewModel) {
                     },
                     confirmButton = {
                         TextButton(onClick = { showLengthPicker = false }) { Text("完成") }
+                    }
+                )
+            }
+            // 全功能: 密保问题设置对话框
+            if (showSecurityQuestionDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSecurityQuestionDialog = false },
+                    title = {
+                        Text(
+                            if (store.hasSecurityQuestion) "修改密保问题" else "设置密保问题"
+                        )
+                    },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (store.hasSecurityQuestion) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Filled.Check, contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        "当前问题: ${store.securityQuestion}",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            androidx.compose.material3.OutlinedTextField(
+                                value = sqQuestion,
+                                onValueChange = { sqQuestion = it },
+                                label = { Text("密保问题") },
+                                placeholder = { Text("例如：我的宠物叫什么？") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            androidx.compose.material3.OutlinedTextField(
+                                value = sqAnswer,
+                                onValueChange = { sqAnswer = it },
+                                label = { Text("答案") },
+                                placeholder = { Text("例如：小黑") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                "提示：设置密保后可通过回答问题重置密码",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                if (sqQuestion.isNotBlank() && sqAnswer.isNotBlank()) {
+                                    val ok = store.setSecurityQuestion(sqQuestion, sqAnswer)
+                                    showSecurityQuestionDialog = false
+                                    sqQuestion = ""
+                                    sqAnswer = ""
+                                    context.toastShort(
+                                        if (ok) "密保问题已保存" else "设置失败"
+                                    )
+                                }
+                            }
+                        ) { Text("保存") }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = {
+                                showSecurityQuestionDialog = false
+                                sqQuestion = ""
+                                sqAnswer = ""
+                            }
+                        ) { Text("取消") }
                     }
                 )
             }
@@ -859,7 +939,16 @@ private fun AppLockCardContent(
                         }
                     }
                     TextButton(onClick = onForgotPin, modifier = Modifier.fillMaxWidth()) {
-                        Text("忘记 PIN / 手势?", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("忘记密码?", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { showSecurityQuestionDialog = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            if (store.hasSecurityQuestion) "修改密保问题 ✓" else "设置密保问题",
+                            color = if (store.hasSecurityQuestion)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             } else {

@@ -77,10 +77,20 @@ fun AppLockScreen(
 ) {
     val context = LocalContext.current
 
+    /** 忘记密码流程步骤 */
+    private sealed class ForgotStep {
+        data object Hidden : ForgotStep()
+        data object Asking : ForgotStep()
+        data class VerifyingQuestion(val question: String) : ForgotStep()
+        data object ResettingPin : ForgotStep()
+        data object Success : ForgotStep()
+    }
+
     // === 共享状态 ===
     var errorText by remember { mutableStateOf<String?>(null) }
     var cooldownRemaining by remember { mutableStateOf(0L) }
-    var showForgotPasswordDialog by remember { mutableStateOf(false) }
+    var forgotStep by remember { mutableStateOf<ForgotStep>(ForgotStep.Hidden) }
+    var securityAnswerInput by remember { mutableStateOf("") }
     // 功能5: 当前选择的锁类型 (PIN / PATTERN), 仅在 SetPin 模式下由用户切换
     var activeLockType by remember {
         mutableStateOf(
@@ -307,7 +317,12 @@ fun AppLockScreen(
                 if (mode == Mode.Unlock) {
                     TextButton(
                         onClick = {
-                            showForgotPasswordDialog = true
+                            if (store.hasSecurityQuestion) {
+                                forgotStep = ForgotStep.VerifyingQuestion(store.securityQuestion ?: "")
+                            } else {
+                                // 无密保，直接重置
+                                forgotStep = ForgotStep.ResettingPin
+                            }
                         },
                         modifier = Modifier.padding(bottom = 8.dp)
                     ) {
@@ -369,7 +384,11 @@ fun AppLockScreen(
                     Spacer(Modifier.height(8.dp))
                     TextButton(
                         onClick = {
-                            showForgotPasswordDialog = true
+                            if (store.hasSecurityQuestion) {
+                                forgotStep = ForgotStep.VerifyingQuestion(store.securityQuestion ?: "")
+                            } else {
+                                forgotStep = ForgotStep.ResettingPin
+                            }
                         }
                     ) {
                         Text(
@@ -383,28 +402,100 @@ fun AppLockScreen(
         }
     }
 
-    if (showForgotPasswordDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showForgotPasswordDialog = false },
-            title = { Text("忘记密码") },
-            text = {
-                Text("确定要清除当前密码并重新设置吗？清除后将立即进入应用。")
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = {
-                        store.disable()
-                        showForgotPasswordDialog = false
-                        onSuccess()
+    // === 忘记密码流程 UI ===
+    when (val step = forgotStep) {
+        is ForgotStep.Hidden -> { /* 不显示 */ }
+
+        is ForgotStep.VerifyingQuestion -> {
+            // 密保验证界面
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = {
+                    forgotStep = ForgotStep.Hidden
+                    securityAnswerInput = ""
+                    errorText = null
+                },
+                title = { Text("回答密保问题") },
+                text = {
+                    Column {
+                        Text(
+                            step.question,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        androidx.compose.material3.OutlinedTextField(
+                            value = securityAnswerInput,
+                            onValueChange = {
+                                securityAnswerInput = it
+                                errorText = null
+                            },
+                            label = { Text("答案") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (errorText != null) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                errorText ?: "",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
                     }
-                ) { Text("确定清除") }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(
-                    onClick = { showForgotPasswordDialog = false }
-                ) { Text("取消") }
-            }
-        )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            if (store.checkSecurityAnswer(securityAnswerInput)) {
+                                securityAnswerInput = ""
+                                errorText = null
+                                forgotStep = ForgotStep.ResettingPin
+                            } else {
+                                errorText = "答案错误，请重试"
+                            }
+                        }
+                    ) { Text("确认") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            forgotStep = ForgotStep.Hidden
+                            securityAnswerInput = ""
+                            errorText = null
+                        }
+                    ) { Text("取消") }
+                }
+            )
+        }
+
+        is ForgotStep.ResettingPin -> {
+            // 直接清除密码 + 重新设置（复用 SetPin 逻辑的 UI）
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = {
+                    forgotStep = ForgotStep.Hidden
+                },
+                title = { Text("验证成功") },
+                text = {
+                    Text("密保答案正确，现在可以重新设置密码。点击确定后将清除旧密码并进入应用。")
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            store.disable()
+                            forgotStep = ForgotStep.Hidden
+                            onSuccess()
+                        }
+                    ) { Text("确定进入") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = { forgotStep = ForgotStep.Hidden }
+                    ) { Text("取消") }
+                }
+            )
+        }
+
+        else -> { /* 已在上面处理 */ }
     }
 
     // === PIN 提交逻辑 ===
