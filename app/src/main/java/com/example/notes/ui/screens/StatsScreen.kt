@@ -476,7 +476,7 @@ private fun buildTagFrequencies(rows: List<NoteIdTitleContentTags>): List<Pair<S
         if (r.tags.isBlank()) return@forEach
         r.tags.split(Regex("[,，\\s]+")).filter { it.isNotBlank() }.forEach { tag ->
             val key = tag.trim()
-            if (key.isNotEmpty()) freq[key] = freq.getOrDefault(key, 0) + 1)
+            if (key.isNotEmpty()) freq[key] = freq.getOrDefault(key, 0) + 1
         }
     }
     return freq.entries.sortedByDescending { it.value }.map { it.key to it.value }
