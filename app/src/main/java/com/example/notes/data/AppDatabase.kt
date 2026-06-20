@@ -36,7 +36,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // 中价值/中工作量: v15 → v16 给 categories 加 is_pinned 列 (分类置顶)
     // 中价值/中工作量: v16 → v17 添加 tag_groups 和 tag_group_tags 表 (标签分组)
     // 全功能: v18 → v19: notes 加 is_archived 列 + 索引
-    version = 19,
+    // 修复: v19 → v20: 重建 search_history 表, 修正 3 处 schema 不匹配
+    version = 20,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -420,12 +421,12 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `search_history` (
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `query` TEXT NOT NULL UNIQUE,
-                        `last_searched_at` INTEGER NOT NULL DEFAULT 0,
+                        `query` TEXT NOT NULL,
+                        `last_searched_at` INTEGER NOT NULL,
                         `search_count` INTEGER NOT NULL DEFAULT 1
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_query` ON `search_history` (`query`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_search_history_query` ON `search_history` (`query`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_last_searched_at` ON `search_history` (`last_searched_at`)")
 
                 // sync_config 表
@@ -544,6 +545,29 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `notes` ADD COLUMN `is_archived` INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_archived` ON `notes` (`is_archived`)")
+            }
+        }
+
+        /**
+         * 修复: v19 → v20: 重建 search_history 表以修复 3 处 schema 不匹配:
+         * - query 列移除内联 UNIQUE (由独立索引保证)
+         * - last_searched_at 移除 DEFAULT 0
+         * - index_search_history_query 改为 UNIQUE
+         * 搜索历史为非关键数据, 重建直接丢弃旧记录。
+         */
+        private val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `search_history`")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `search_history` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `query` TEXT NOT NULL,
+                        `last_searched_at` INTEGER NOT NULL,
+                        `search_count` INTEGER NOT NULL DEFAULT 1
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_search_history_query` ON `search_history` (`query`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_search_history_last_searched_at` ON `search_history` (`last_searched_at`)")
             }
         }
 
@@ -743,7 +767,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_15_14, MIGRATION_15_16, MIGRATION_16_15,
                     MIGRATION_16_17, MIGRATION_17_16,
                     MIGRATION_17_18, MIGRATION_18_17,
-                    MIGRATION_18_19, MIGRATION_19_18,
+                    MIGRATION_18_19, MIGRATION_19_18, MIGRATION_19_20,
                     MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
                     MIGRATION_11_10, MIGRATION_10_9
                 )
