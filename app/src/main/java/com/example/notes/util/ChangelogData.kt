@@ -10,6 +10,20 @@ object ChangelogData {
 
     val entries: List<Entry> = listOf(
         Entry(
+            version = "v1.36.00",
+            date = "2026-06-20",
+            items = listOf(
+                "【更新检查优化 - WiFi 限制 + 自动换源 + 一键清理】",
+                "新增：仅 WiFi 下载更新包 — 设置 → 更新设置中新增开关 (默认开启), 移动数据下点\"立即下载\"会二次确认, 避免流量消耗",
+                "新增：下载失败自动换源 — 首选 Gitee, 失败后自动切换 GitHub/备用端点, DownloadProgressDialog 实时显示当前源切换",
+                "新增：启动时自动检查更新开关 — 用户可关闭冷启动自动检查, 仅保留手动检查",
+                "新增：清理旧版本 APK — 设置页一键清理下载目录中已安装的旧版本 APK, 释放存储空间",
+                "优化：UpdateAvailableDialog 整合 WiFi 限制 + 换源逻辑 — 不再因网络环境导致下载卡住或静默失败",
+                "优化：DownloadManager 请求 — setAllowedOverMetered 与 wifiOnly 开关联动, 系统层面阻止移动数据下载",
+                "升级：版本号 v1.35.00 → v1.36.00 (versionCode 60 → 61)"
+            )
+        ),
+        Entry(
             version = "v1.35.00",
             date = "2026-06-20",
             items = listOf(
