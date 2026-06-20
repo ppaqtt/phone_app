@@ -38,7 +38,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // 全功能: v18 → v19: notes 加 is_archived 列 + 索引
     // 修复: v19 → v20: 重建 search_history 表, 修正 3 处 schema 不匹配
     // 修复: v20 → v21: 重建 sync_config 表, 修正 updated_at DEFAULT 0 + index 缺 UNIQUE
-    version = 21,
+    // 修复: v21 → v22: 重建 user_note_templates 表, 修正 tags 列缺少 DEFAULT ''; note_comments.created_at 补 DEFAULT 0
+    version = 22,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -594,6 +595,28 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
+         * 修复: v21 → v22: 重建 user_note_templates 表, 修正 tags 列缺少 DEFAULT ''。
+         * 同时给 note_comments.created_at 补 DEFAULT 0 (与 migration 17→18 保持一致)。
+         * user_note_templates 为非关键数据, 重建直接丢弃旧记录。
+         */
+        private val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP TABLE IF EXISTS `user_note_templates`")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `user_note_templates` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `tags` TEXT NOT NULL DEFAULT '',
+                        `category_id` INTEGER,
+                        `created_at` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_user_note_templates_created_at` ON `user_note_templates` (`created_at`)")
+            }
+        }
+
+        /**
          * 功能: v19 → v18: 降级时删除 is_archived 列 (需要重建表)
          */
         private val MIGRATION_19_18 = object : Migration(19, 18) {
@@ -790,7 +813,7 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_16_17, MIGRATION_17_16,
                     MIGRATION_17_18, MIGRATION_18_17,
                     MIGRATION_18_19, MIGRATION_19_18, MIGRATION_19_20,
-                    MIGRATION_20_21,
+                    MIGRATION_20_21, MIGRATION_21_22,
                     MIGRATION_14_13, MIGRATION_13_12, MIGRATION_12_11,
                     MIGRATION_11_10, MIGRATION_10_9
                 )

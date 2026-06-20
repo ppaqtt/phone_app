@@ -347,7 +347,7 @@ data class NoteCommentEntity(
     @ColumnInfo(name = "content")
     val content: String,
 
-    @ColumnInfo(name = "created_at")
+    @ColumnInfo(name = "created_at", defaultValue = "0")
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -421,7 +421,7 @@ data class UserNoteTemplateEntity(
     val content: String,
 
     /** 逗号分隔的标签, 应用模板时加到笔记 */
-    @ColumnInfo(name = "tags", defaultValue = "")
+    @ColumnInfo(name = "tags", defaultValue = "''")
     val tags: String = "",
 
     /** 关联分类, null 表示不设 */
