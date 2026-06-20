@@ -80,6 +80,7 @@ fun AppLockScreen(
     // === 共享状态 ===
     var errorText by remember { mutableStateOf<String?>(null) }
     var cooldownRemaining by remember { mutableStateOf(0L) }
+    var showForgotPasswordDialog by remember { mutableStateOf(false) }
     // 功能5: 当前选择的锁类型 (PIN / PATTERN), 仅在 SetPin 模式下由用户切换
     var activeLockType by remember {
         mutableStateOf(
@@ -303,6 +304,20 @@ fun AppLockScreen(
                     Spacer(Modifier.height(12.dp))
                 }
                 Spacer(Modifier.height(16.dp))
+                if (mode == Mode.Unlock) {
+                    TextButton(
+                        onClick = {
+                            showForgotPasswordDialog = true
+                        },
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Text(
+                            "忘记密码?",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 Keypad(
                     onDigit = { d ->
                         if (cooldownRemaining > 0) return@Keypad
@@ -344,15 +359,52 @@ fun AppLockScreen(
                     if (patternFirst.isNotEmpty()) {
                         OutlinedButton(
                             onClick = {
-                                // 重新绘制第一次
                                 patternFirst = emptyList()
                                 errorText = null
                             }
                         ) { Text("重新绘制") }
                     }
                 }
+                if (mode == Mode.Unlock) {
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(
+                        onClick = {
+                            showForgotPasswordDialog = true
+                        }
+                    ) {
+                        Text(
+                            "忘记密码?",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
+    }
+
+    if (showForgotPasswordDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showForgotPasswordDialog = false },
+            title = { Text("忘记密码") },
+            text = {
+                Text("确定要清除当前密码并重新设置吗？清除后将立即进入应用。")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = {
+                        store.disable()
+                        showForgotPasswordDialog = false
+                        onSuccess()
+                    }
+                ) { Text("确定清除") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showForgotPasswordDialog = false }
+                ) { Text("取消") }
+            }
+        )
     }
 
     // === PIN 提交逻辑 ===
