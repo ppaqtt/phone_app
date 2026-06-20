@@ -445,7 +445,6 @@ fun NoteEditScreen(
     var showEncryptDialog by remember { mutableStateOf(false) }
     var showDecryptDialog by remember { mutableStateOf(false) }
     var showColorTagPicker by remember { mutableStateOf(false) }
-    var showAiSummary by remember { mutableStateOf(false) }
     val createPdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri: Uri? ->
@@ -1019,17 +1018,6 @@ fun NoteEditScreen(
                                 showColorTagPicker = true
                             }
                         )
-                        // 全功能: AI 摘要入口
-                        DropdownMenuItem(
-                            text = { Text("AI 摘要") },
-                            leadingIcon = {
-                                Icon(Icons.Filled.AutoAwesome, contentDescription = "AI")
-                            },
-                            onClick = {
-                                showExportMenu = false
-                                showAiSummary = true
-                            }
-                        )
                         // 进阶功能: 加密/解密
                         DropdownMenuItem(
                             text = { Text("加密笔记") },
@@ -1523,29 +1511,6 @@ fun NoteEditScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showColorTagPicker = false }) { Text("关闭") }
-            }
-        )
-    }
-    if (showAiSummary) {
-        AlertDialog(
-            onDismissRequest = { showAiSummary = false },
-            title = { Text("AI 摘要") },
-            text = {
-                val summaryText = remember(title, content.text) {
-                    val fullText = (title + "\n" + content.text).trim()
-                    if (fullText.isBlank()) return@remember "当前笔记内容为空, 无法生成摘要。"
-                    val sentences = fullText.split('。', '!', '?', '\n').map { it.trim() }.filter { it.length in 4..120 }
-                    val picked = sentences.take(3)
-                    if (picked.isEmpty()) {
-                        "摘要: ${fullText.take(200)}${if (fullText.length > 200) "…" else ""}"
-                    } else {
-                        "摘要:\n" + picked.joinToString("\n") { "• $it" }
-                    }
-                }
-                Text(summaryText, style = MaterialTheme.typography.bodyMedium)
-            },
-            confirmButton = {
-                TextButton(onClick = { showAiSummary = false }) { Text("关闭") }
             }
         )
     }
