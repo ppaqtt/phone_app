@@ -362,7 +362,7 @@ private fun AboutInfoCard() {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "个人开发 · 非商业用途",
+                    text = "个人开发 · 非商业用途 · 浙ICP备2025194709号-6A",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
