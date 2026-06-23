@@ -153,7 +153,7 @@ interface NoteDao {
     fun observeReminderCount(): Flow<Int>
 
     /** F13: 全部有效笔记的 (id, content, category_id), 用于客户端统计字数 */
-    @Query("SELECT id, content, category_id, created_at FROM notes WHERE deleted_at IS NULL")
+    @Query("SELECT id, substr(content, 1, 5000) AS content, category_id, created_at FROM notes WHERE deleted_at IS NULL")
     suspend fun getContentForStats(): List<NoteStatsRow>
 
     /** F15: 更新提醒重复模式 (NONE / DAILY / WEEKLY / MONTHLY / YEARLY) */
@@ -265,7 +265,7 @@ interface NoteDao {
     fun observeLockedCount(): Flow<Int>
 
     /** 功能: 一次性取所有笔记的 id/tags/content, 用于标签提取/聚类/反向链接扫描。 */
-    @Query("SELECT id, title, content, tags FROM notes WHERE deleted_at IS NULL")
+    @Query("SELECT id, title, substr(content, 1, 5000) AS content, tags FROM notes WHERE deleted_at IS NULL")
     suspend fun getNotesForLinkAndTagScan(): List<NoteIdTitleContentTags>
 
     /** 功能: 按 tags 模糊匹配 (搜索扩展) */

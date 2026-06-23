@@ -195,7 +195,7 @@ class NotesViewModel(
      * 重新拉一次, 频率极低。
      */
     suspend fun getStatsRowsOnce(): List<com.qingjian.notes.data.NoteStatsRow> =
-        repository.getStatsRows()
+        runCatching { repository.getStatsRows() }.getOrDefault(emptyList())
 
     // --- Intents ---------------------------------------------------------
 

@@ -57,7 +57,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun StatsScreen(
     viewModel: NotesViewModel,
@@ -69,13 +69,25 @@ fun StatsScreen(
     var tagRows by remember { mutableStateOf<List<NoteIdTitleContentTags>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        contentRows = viewModel.getStatsRowsOnce()
-        tagRows = viewModel.getAllNotesForTagCloud()
+        try {
+            contentRows = viewModel.getStatsRowsOnce()
+            tagRows = viewModel.getAllNotesForTagCloud()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            contentRows = emptyList()
+            tagRows = emptyList()
+        }
     }
     val totalsCount = totals.totalNotes
     LaunchedEffect(totalsCount) {
-        contentRows = viewModel.getStatsRowsOnce()
-        tagRows = viewModel.getAllNotesForTagCloud()
+        try {
+            contentRows = viewModel.getStatsRowsOnce()
+            tagRows = viewModel.getAllNotesForTagCloud()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            contentRows = emptyList()
+            tagRows = emptyList()
+        }
     }
 
     Scaffold(
