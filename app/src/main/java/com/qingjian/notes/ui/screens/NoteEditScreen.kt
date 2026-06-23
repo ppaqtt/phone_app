@@ -231,6 +231,8 @@ fun NoteEditScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var loaded by remember { mutableStateOf(isNew) }
     var lastSaved by remember { mutableStateOf<NoteEntity?>(null) }
+    // 锁定状态: 锁定后笔记变为只读
+    val isReadOnly by remember { derivedStateOf { lastSaved?.isLocked == true } }
     var selectedTool by remember { mutableStateOf<BottomTool?>(null) }
     var showDoodle by remember { mutableStateOf(false) }
     var showTableDialog by remember { mutableStateOf(false) }
@@ -857,6 +859,15 @@ fun NoteEditScreen(
                     }
                 },
                 actions = {
+                    // 锁定状态指示器
+                    if (isReadOnly) {
+                        Icon(
+                            Icons.Filled.Lock,
+                            contentDescription = "已锁定",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 8.dp).size(20.dp)
+                        )
+                    }
                     IconButton(
                         onClick = { showFindBar = !showFindBar; if (!showFindBar) findQuery = "" },
                         enabled = !busy
@@ -895,9 +906,10 @@ fun NoteEditScreen(
                     ) {
                         Icon(Icons.Filled.Redo, contentDescription = "重做")
                     }
+                    // 锁定状态下禁用保存按钮
                     IconButton(
                         onClick = {
-                            if (busy) return@IconButton
+                            if (busy || isReadOnly) return@IconButton
                             busy = true
                             // P52: 协程完成后才 onBack(), 避免 fire-and-forget 数据未入库
                             saveNoteThen {
@@ -905,7 +917,7 @@ fun NoteEditScreen(
                                 onBack()
                             }
                         },
-                        enabled = !busy
+                        enabled = !busy && !isReadOnly
                     ) {
                         Icon(Icons.Filled.Check, contentDescription = "保存")
                     }
@@ -1224,7 +1236,8 @@ fun NoteEditScreen(
                 }
                 BasicTextField(
                     value = title,
-                    onValueChange = { title = it; pushHistory() },
+                    onValueChange = { if (!isReadOnly) { title = it; pushHistory() } },
+                    readOnly = isReadOnly,
                     textStyle = MaterialTheme.typography.headlineSmall.copy(
                         color = MaterialTheme.colorScheme.onSurface
                     ),
@@ -1246,36 +1259,39 @@ fun NoteEditScreen(
                 content = content.text,  // F6: 传整段文本, MetaInfoRow 内做中英文分词
                 categoryName = state.categories.firstOrNull { it.id == categoryId }?.name
                     ?: "未分类",
-                onCategoryClick = { showCategoryDialog = true }
+                onCategoryClick = { if (!isReadOnly) showCategoryDialog = true }
             )
 
             // === 标签 Chip 行 (点击展开编辑) ===
             TagsRow(
                 tags = tags,
-                onClick = { showTagsDialog = true }
+                onClick = { if (!isReadOnly) showTagsDialog = true }
             )
 
             // F15: 提醒时间 + 重复模式卡片
             ReminderCard(
                 reminderTime = reminderTime,
                 repeatMode = reminderRepeat,
-                onPickTime = { showDateTimePicker() },
+                onPickTime = { if (!isReadOnly) showDateTimePicker() },
                 onClear = {
-                    lastSaved?.id?.let { ReminderManager.cancelReminder(context, it) }
-                    reminderTime = null
-                    reminderRepeat = com.qingjian.notes.util.ReminderRepeat.NONE
+                    if (!isReadOnly) {
+                        lastSaved?.id?.let { ReminderManager.cancelReminder(context, it) }
+                        reminderTime = null
+                        reminderRepeat = com.qingjian.notes.util.ReminderRepeat.NONE
+                    }
                 },
-                onRepeatChange = { reminderRepeat = it }
+                onRepeatChange = { if (!isReadOnly) reminderRepeat = it }
             )
 
             // === 主体: 文字 + 内联图片 + 内联音频 + 表格 ===
             NoteBody(
                 content = content,
-                onContentChange = { updateContent(it) },
+                onContentChange = { if (!isReadOnly) updateContent(it) },
+                readOnly = isReadOnly,
                 imageUris = imageUris,
                 audioUris = audioUris,
-                onRemoveImage = { imageUris.remove(it) },
-                onTableEdit = { oldBlock, newBlock -> replaceTableBlock(oldBlock, newBlock) },
+                onRemoveImage = { if (!isReadOnly) imageUris.remove(it) },
+                onTableEdit = { oldBlock, newBlock -> if (!isReadOnly) replaceTableBlock(oldBlock, newBlock) },
                 modifier = Modifier
                     .weight(1f, fill = true)
                     .fillMaxWidth()
@@ -1551,11 +1567,15 @@ fun NoteEditScreen(
             }
 
             // === 底部工具栏 (7 项, AI 已移除) ===
+            // 锁定状态下禁用工具栏
             BottomToolbar(
                 selected = selectedTool,
                 onSelect = { tool ->
-                    selectedTool = if (selectedTool == tool) null else tool
-                }
+                    if (!isReadOnly) {
+                        selectedTool = if (selectedTool == tool) null else tool
+                    }
+                },
+                enabled = !isReadOnly
             )
 
             // === 从模板导入按钮 ===
@@ -2536,6 +2556,7 @@ private fun ReminderCard(
 private fun NoteBody(
     content: TextFieldValue,
     onContentChange: (TextFieldValue) -> Unit,
+    readOnly: Boolean,
     imageUris: List<String>,
     audioUris: List<String>,
     onRemoveImage: (String) -> Unit,
@@ -2610,6 +2631,7 @@ private fun NoteBody(
             BasicTextField(
                 value = content,
                 onValueChange = onContentChange,
+                readOnly = readOnly,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                     color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 24.sp
@@ -3303,7 +3325,8 @@ private fun SpeechPanel(
 @Composable
 private fun BottomToolbar(
     selected: BottomTool?,
-    onSelect: (BottomTool) -> Unit
+    onSelect: (BottomTool) -> Unit,
+    enabled: Boolean = true
 ) {
     val toolbarItems = listOf(
         BottomTool.COLUMNS to (Icons.Filled.Layers to "分栏"),
@@ -3332,22 +3355,28 @@ private fun BottomToolbar(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { onSelect(tool) }
+                        .clickable(enabled = enabled) { onSelect(tool) }
                         .padding(horizontal = 6.dp, vertical = 4.dp)
                 ) {
                     Icon(
                         icon,
                         contentDescription = label,
-                        tint = if (isSelected) Color(0xFFE6B800)
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = when {
+                            !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            isSelected -> Color(0xFFE6B800)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isSelected) Color(0xFFE6B800)
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        color = when {
+                            !enabled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            isSelected -> Color(0xFFE6B800)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
             }
