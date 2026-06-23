@@ -49,6 +49,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.qingjian.notes.data.DEFAULT_COLOR
+import com.qingjian.notes.data.NoteEntity
 import com.qingjian.notes.data.NoteWithCategory
 import com.qingjian.notes.util.formatRelativeTime
 
@@ -74,226 +75,247 @@ fun NoteCard(
         Color(note.color)
     }
 
-    // 进阶功能: 若有 onLongClick, 用 Box+combinedClickable 包装以支持长按
-    val cardModifier = if (onLongClick != null) {
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
+    // 进阶功能: 若有 onLongClick, 用 combinedClickable 处理点击和长按
+    // 注意: 不能用 Card(onClick={}), 因为 Card 内部的 clickable 会拦截触摸事件,
+    // 导致外层 combinedClickable 收不到点击。改用 Card(modifier) 不传 onClick。
+    if (onLongClick != null) {
+        Card(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                ),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            NoteCardContent(note, noteWithCategory, cardColor, coverImageUri, highlightQuery, onPinClick, onMoreClick)
+        }
     } else {
-        modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
+        Card(
+            onClick = onClick,
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = cardColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            NoteCardContent(note, noteWithCategory, cardColor, coverImageUri, highlightQuery, onPinClick, onMoreClick)
+        }
     }
+}
 
-    Card(
-        onClick = if (onLongClick == null) onClick else { {} },
-        modifier = cardModifier,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column {
-            coverImageUri?.let { uri ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(16f / 9f)
-                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    AsyncImage(
-                        model = uri,
-                        contentDescription = "封面",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+/** 笔记卡片内容 (提取为独立函数, 避免在 if/else 分支中重复) */
+@Composable
+private fun NoteCardContent(
+    note: NoteEntity,
+    noteWithCategory: NoteWithCategory,
+    cardColor: Color,
+    coverImageUri: String?,
+    highlightQuery: String?,
+    onPinClick: (() -> Unit)?,
+    onMoreClick: (() -> Unit)?
+) {
+    Column {
+        coverImageUri?.let { uri ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                AsyncImage(
+                    model = uri,
+                    contentDescription = "封面",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .padding(PaddingValues(horizontal = 16.dp, vertical = 14.dp))
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (highlightQuery.isNullOrBlank()) AnnotatedString(note.title.ifBlank { "无标题" })
+                        else highlightAnnotated(note.title.ifBlank { "无标题" }, highlightQuery),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                // 高价值/低工作量: 星标图标 (星标笔记始终显示在标题旁)
+                if (note.isFavorite) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Grade,
+                        contentDescription = "星标",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
                     )
+                }
+                if (note.isPinned) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Filled.PushPin,
+                        contentDescription = "已置顶",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clickable(enabled = onPinClick != null) { onPinClick?.invoke() }
+                    )
+                }
+                if (note.colorTag != 0) {
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(colorTagColor(note.colorTag))
+                    )
+                }
+                if (note.isLocked) {
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Filled.Lock,
+                        contentDescription = "已锁定",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                if (note.isDraft) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "草稿",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.alpha(0.7f)
+                    )
+                }
+                // 三个点按钮: 列表项的二级入口, 弹操作弹层 (替代原来的右滑手势)
+                if (onMoreClick != null) {
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onMoreClick,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = "更多操作",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
-            Column(
-                modifier = Modifier
-                    .padding(PaddingValues(horizontal = 16.dp, vertical = 14.dp))
+            if (note.content.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (highlightQuery.isNullOrBlank()) AnnotatedString(note.content)
+                        else highlightAnnotated(note.content, highlightQuery),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (highlightQuery.isNullOrBlank()) AnnotatedString(note.title.ifBlank { "无标题" })
-                            else highlightAnnotated(note.title.ifBlank { "无标题" }, highlightQuery),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                noteWithCategory.category?.let { cat ->
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color(cat.color))
                     )
-                    // 高价值/低工作量: 星标图标 (星标笔记始终显示在标题旁)
-                    if (note.isFavorite) {
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Filled.Grade,
-                            contentDescription = "星标",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    if (note.isPinned) {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.Filled.PushPin,
-                            contentDescription = "已置顶",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .size(16.dp)
-                                .clickable(enabled = onPinClick != null) { onPinClick?.invoke() }
-                        )
-                    }
-                    if (note.colorTag != 0) {
-                        Spacer(Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(colorTagColor(note.colorTag))
-                        )
-                    }
-                    if (note.isLocked) {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.Filled.Lock,
-                            contentDescription = "已锁定",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                    if (note.isDraft) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "草稿",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.alpha(0.7f)
-                        )
-                    }
-                    // 三个点按钮: 列表项的二级入口, 弹操作弹层 (替代原来的右滑手势)
-                    if (onMoreClick != null) {
-                        Spacer(Modifier.width(4.dp))
-                        IconButton(
-                            onClick = onMoreClick,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.MoreVert,
-                                contentDescription = "更多操作",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                }
-                if (note.content.isNotBlank()) {
-                    Spacer(Modifier.height(6.dp))
                     Text(
-                        text = if (highlightQuery.isNullOrBlank()) AnnotatedString(note.content)
-                            else highlightAnnotated(note.content, highlightQuery),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
+                        text = cat.name,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    noteWithCategory.category?.let { cat ->
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(Color(cat.color))
-                        )
+                if (note.tags.isNotBlank()) {
+                    // P13/P41: trim + 加空格避免显示粘连
+                    val tagList = note.tags.split(",")
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                    if (tagList.isNotEmpty()) {
                         Text(
-                            text = cat.name,
+                            text = "· " + tagList.joinToString("  ") { "#$it" },
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (note.tags.isNotBlank()) {
-                        // P13/P41: trim + 加空格避免显示粘连
-                        val tagList = note.tags.split(",")
-                            .map { it.trim() }
-                            .filter { it.isNotBlank() }
-                        if (tagList.isNotEmpty()) {
+                }
+                // P33/P34: 音频/图片/表格附件数提示
+                val audioCount = remember(note.content) { audioCountInContent(note.content) }
+                val tableCount = remember(note.content) { tableCountInContent(note.content) }
+                if (audioCount > 0 || tableCount > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (audioCount > 0) {
+                            Icon(
+                                Icons.Filled.GraphicEq,
+                                contentDescription = "音频",
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(2.dp))
                             Text(
-                                text = "· " + tagList.joinToString("  ") { "#$it" },
-                                style = MaterialTheme.typography.labelLarge,
+                                text = audioCount.toString(),
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        if (tableCount > 0) {
+                            Icon(
+                                Icons.Filled.TableChart,
+                                contentDescription = "表格",
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                text = tableCount.toString(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(6.dp))
                         }
                     }
-                    // P33/P34: 音频/图片/表格附件数提示
-                    val audioCount = remember(note.content) { audioCountInContent(note.content) }
-                    val tableCount = remember(note.content) { tableCountInContent(note.content) }
-                    if (audioCount > 0 || tableCount > 0) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (audioCount > 0) {
-                                Icon(
-                                    Icons.Filled.GraphicEq,
-                                    contentDescription = "音频",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.width(2.dp))
-                                Text(
-                                    text = audioCount.toString(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.width(6.dp))
-                            }
-                            if (tableCount > 0) {
-                                Icon(
-                                    Icons.Filled.TableChart,
-                                    contentDescription = "表格",
-                                    modifier = Modifier.size(14.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.width(2.dp))
-                                Text(
-                                    text = tableCount.toString(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.width(6.dp))
-                            }
-                        }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    val estimatedMinutes = if (note.readTimeSeconds > 0) {
-                        (note.readTimeSeconds + 59) / 60
-                    } else {
-                        note.content.length / 400
-                    }
-                    Text(
-                        text = "${note.content.length} 字",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "约 $estimatedMinutes 分钟",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = formatRelativeTime(note.updatedAt),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
+                Spacer(Modifier.weight(1f))
+                val estimatedMinutes = if (note.readTimeSeconds > 0) {
+                    (note.readTimeSeconds + 59) / 60
+                } else {
+                    note.content.length / 400
+                }
+                Text(
+                    text = "${note.content.length} 字",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "约 $estimatedMinutes 分钟",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = formatRelativeTime(note.updatedAt),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
