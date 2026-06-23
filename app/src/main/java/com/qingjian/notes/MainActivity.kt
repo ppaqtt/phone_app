@@ -221,8 +221,8 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_OPEN_SEARCH = "com.qingjian.notes.action.OPEN_SEARCH"
         const val ACTION_OPEN_TRASH = "com.qingjian.notes.action.OPEN_TRASH"
         // F4: 桌面 Shortcuts 新版 action (长按图标弹出的快捷方式)
-        const val ACTION_SEARCH = "com.qingjian.notes.ACTION_SEARCH"
-        const val ACTION_STATS = "com.qingjian.notes.ACTION_STATS"
+        const val ACTION_SEARCH = "com.qingjian.notes.action.SEARCH"
+        const val ACTION_STATS = "com.qingjian.notes.action.STATS"
     }
 }
 
