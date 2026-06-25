@@ -60,7 +60,14 @@ object BackupManager {
      * 把 JSON 字符串反序列化为 DTO。
      * 失败抛 JsonSyntaxException, 由调用方捕获并提示。
      */
-    fun fromJson(json: String): BackupPayload = gson.fromJson(json, BackupPayload::class.java)
+    fun fromJson(json: String): BackupPayload {
+        val payload = gson.fromJson(json, BackupPayload::class.java)
+        return payload.copy(
+            categories = payload.categories ?: emptyList(),
+            notes = payload.notes ?: emptyList(),
+            images = payload.images ?: emptyList()
+        )
+    }
 
     /**
      * P97-FIX: 安全反序列化, 失败返回 Result.failure 而非抛异常。
@@ -68,7 +75,12 @@ object BackupManager {
      * 清晰反馈 ("备份文件已损坏 / 格式不符"), 成功分支直接导入。
      */
     fun fromJsonSafe(json: String): Result<BackupPayload> = runCatching {
-        gson.fromJson(json, BackupPayload::class.java)
+        val payload = gson.fromJson(json, BackupPayload::class.java)
+        payload.copy(
+            categories = payload.categories ?: emptyList(),
+            notes = payload.notes ?: emptyList(),
+            images = payload.images ?: emptyList()
+        )
     }
 
     /**
