@@ -536,8 +536,11 @@ class NotesViewModel(
                     } ?: throw IllegalStateException("无法打开源 URI: $sourceUri")
                 }
                 val payload: BackupPayload = BackupManager.fromJson(json)
+                val catSize = payload.categories?.size ?: -1
+                val noteSize = payload.notes?.size ?: -1
+                val imgSize = payload.images?.size ?: -1
                 Timber.tag("Backup")
-                    .w("parsed payload: version=${payload.version} categories=${payload.categories?.size} notes=${payload.notes?.size} images=${payload.images?.size} jsonLen=${json.length}")
+                    .w("parsed payload: version=${payload.version} categories=$catSize notes=$noteSize images=$imgSize jsonLen=${json.length}")
                 val (c, n, img) = repository.importBackup(payload, replaceExisting)
                 Triple(c, n, img)
             }
@@ -546,7 +549,7 @@ class NotesViewModel(
             }
             _backupState.value = result.fold(
                 onSuccess = { (c, n, img) ->
-                    BackupState.Success("恢复完成: $c 个分类 / $n 条笔记 / $img 张图片")
+                    BackupState.Success("恢复完成: $c 个分类 / $n 条笔记 / $img 张图片 (解析: cat=${catSize} note=${noteSize} img=${imgSize})")
                 },
                 onFailure = { e ->
                     Timber.tag("Backup").e(e, "import failed")
