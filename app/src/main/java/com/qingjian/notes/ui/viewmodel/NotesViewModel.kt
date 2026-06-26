@@ -13,6 +13,9 @@ import com.qingjian.notes.data.TagGroupEntity
 import com.qingjian.notes.repository.NotesRepository
 import com.qingjian.notes.util.BackupManager
 import com.qingjian.notes.util.BackupPayload
+import com.qingjian.notes.util.CategoryBackup
+import com.qingjian.notes.util.ImageBackup
+import com.qingjian.notes.util.NoteBackup
 import com.qingjian.notes.widget.NotesAppWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
