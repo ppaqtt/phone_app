@@ -17,6 +17,8 @@
 ### 备份恢复修复
 
 - 🐛 **修复**：从备份恢复失败 NullPointerException — Gson 反序列化时 categories/notes/images 字段为 null 不会使用默认值，导致 `List.size()` 空指针崩溃；`BackupManager.fromJson` 和 `fromJsonSafe` 增加 null 兜底处理，兼容旧版及手动编辑的备份文件
+- 🐛 **修复**：旧版本备份文件导入后笔记为 0 条 — `NoteBackup` / `CategoryBackup` / `ImageBackup` 所有字段补充默认值，Gson 反序列化时遇到缺失字段（如 `categoryOldId`、`reminderTime`）不再抛异常，兼容 v1.18.0 等历史版本导出的备份文件
+- 🔧 **优化**：导入流程增加调试日志 — `importBackup` 中输出解析后的 payload 字段数量和 JSON 长度，方便排查导入失败问题
 
 ### 代码质量优化
 
