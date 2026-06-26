@@ -356,9 +356,13 @@ class NotesRepository(
                 categoryDao.clearAll()
             }
 
+            val categories = payload.categories ?: emptyList()
+            val notes = payload.notes ?: emptyList()
+            val images = payload.images ?: emptyList()
+
             // 1) 分类
-            val categoryIdMap = HashMap<Long, Long>(payload.categories.size)
-            payload.categories.forEach { c ->
+            val categoryIdMap = HashMap<Long, Long>(categories.size)
+            categories.forEach { c ->
                 val newId = categoryDao.insertWithId(
                     CategoryEntity(
                         id = c.oldId,
@@ -372,7 +376,7 @@ class NotesRepository(
 
             // F12: 第二轮 — 维护 parent_id。老备份没有 parentOldId 时仍保持顶级。
             // 用单独的循环确保父分类已先插入, 查找 categoryIdMap 不会撞到 -1。
-            payload.categories.forEach { c ->
+            categories.forEach { c ->
                 if (c.parentOldId != null) {
                     val newId = categoryIdMap[c.oldId] ?: return@forEach
                     val newParentId = categoryIdMap[c.parentOldId]
@@ -381,8 +385,8 @@ class NotesRepository(
             }
 
             // 2) 笔记
-            val noteIdMap = HashMap<Long, Long>(payload.notes.size)
-            payload.notes.forEach { n ->
+            val noteIdMap = HashMap<Long, Long>(notes.size)
+            notes.forEach { n ->
                 val newCategoryId = n.categoryOldId?.let { categoryIdMap[it] }
                 val newId = noteDao.insertWithId(
                     NoteEntity(
@@ -404,7 +408,7 @@ class NotesRepository(
             }
 
             // 3) 图片
-            val imageEntities = payload.images.mapNotNull { img ->
+            val imageEntities = images.mapNotNull { img ->
                 val newNoteId = noteIdMap[img.noteOldId] ?: return@mapNotNull null
                 NoteImageEntity(
                     id = img.oldId,

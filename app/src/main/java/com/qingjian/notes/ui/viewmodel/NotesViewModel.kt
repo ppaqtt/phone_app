@@ -494,9 +494,9 @@ class NotesViewModel(
                 }
                 // 成功后回传 (笔记数, 分类数, 图片数, 字节数) 便于 UI 摘要
                 BackupStats(
-                    notes = payload.notes.size,
-                    categories = payload.categories.size,
-                    images = payload.images.size,
+                    notes = payload.notes?.size ?: 0,
+                    categories = payload.categories?.size ?: 0,
+                    images = payload.images?.size ?: 0,
                     bytes = json.toByteArray(Charsets.UTF_8).size
                 )
             }
