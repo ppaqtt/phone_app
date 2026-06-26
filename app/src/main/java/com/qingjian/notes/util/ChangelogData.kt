@@ -17,7 +17,10 @@ object ChangelogData {
                 "修复：锁定笔记后仍可编辑 — 添加 isReadOnly 派生状态，标题和内容输入框设置 readOnly=true，底部工具栏、分类/标签/提醒设置等交互在锁定状态下全部禁用",
                 "新增：锁定图标视觉提示 — 笔记锁定后，编辑页顶部栏显示锁定图标，明确告知当前为只读状态",
                 "优化：保存按钮禁用 — 锁定状态下保存按钮变灰不可点击，避免用户误操作",
-                "备注：锁定按钮位于笔记编辑页右上角「更多」（三个点）菜单中"
+                "备注：锁定按钮位于笔记编辑页右上角「更多」（三个点）菜单中",
+                "",
+                "【备份恢复修复】",
+                "修复：从备份恢复失败 NullPointerException — Gson 反序列化时 categories/notes/images 字段为 null 不会使用默认值，导致 List.size() 空指针崩溃；BackupManager.fromJson 和 fromJsonSafe 增加 null 兜底处理，兼容旧版及手动编辑的备份文件"
             )
         ),
         Entry(
