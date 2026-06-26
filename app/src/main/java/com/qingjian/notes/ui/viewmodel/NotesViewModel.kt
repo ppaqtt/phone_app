@@ -536,6 +536,8 @@ class NotesViewModel(
                     } ?: throw IllegalStateException("无法打开源 URI: $sourceUri")
                 }
                 val payload: BackupPayload = BackupManager.fromJson(json)
+                Timber.tag("Backup")
+                    .i("parsed payload: version=${payload.version} categories=${payload.categories?.size} notes=${payload.notes?.size} images=${payload.images?.size} jsonLen=${json.length}")
                 val (c, n, img) = repository.importBackup(payload, replaceExisting)
                 Triple(c, n, img)
             }
