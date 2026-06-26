@@ -542,14 +542,16 @@ class NotesViewModel(
                 Timber.tag("Backup")
                     .w("parsed payload: version=${payload.version} categories=$catSize notes=$noteSize images=$imgSize jsonLen=${json.length}")
                 val (c, n, img) = repository.importBackup(payload, replaceExisting)
-                Triple(c, n, img)
+                listOf(catSize, noteSize, imgSize, c, n, img)
             }
             result.onFailure { e ->
                 Timber.tag("Backup").e(e, "import failed with exception")
             }
             _backupState.value = result.fold(
-                onSuccess = { (c, n, img) ->
-                    BackupState.Success("恢复完成: $c 个分类 / $n 条笔记 / $img 张图片 (解析: cat=${catSize} note=${noteSize} img=${imgSize})")
+                onSuccess = { stats ->
+                    val catSize = stats[0]; val noteSize = stats[1]; val imgSize = stats[2]
+                    val c = stats[3]; val n = stats[4]; val img = stats[5]
+                    BackupState.Success("恢复完成: $c 个分类 / $n 条笔记 / $img 张图片 (解析: cat=$catSize note=$noteSize img=$imgSize)")
                 },
                 onFailure = { e ->
                     Timber.tag("Backup").e(e, "import failed")
