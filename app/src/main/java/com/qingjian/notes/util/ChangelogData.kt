@@ -20,7 +20,10 @@ object ChangelogData {
                 "备注：锁定按钮位于笔记编辑页右上角「更多」（三个点）菜单中",
                 "",
                 "【备份恢复修复】",
-                "修复：从备份恢复失败 NullPointerException — Gson 反序列化时 categories/notes/images 字段为 null 不会使用默认值，导致 List.size() 空指针崩溃；BackupManager.fromJson 和 fromJsonSafe 增加 null 兜底处理，兼容旧版及手动编辑的备份文件"
+                "修复：从备份恢复失败 NullPointerException — Gson 反序列化时 categories/notes/images 字段为 null 不会使用默认值，导致 List.size() 空指针崩溃；BackupManager.fromJson 和 fromJsonSafe 增加 null 兜底处理，兼容旧版及手动编辑的备份文件",
+                "",
+                "【代码质量优化】",
+                "优化：修复 Kotlin 编译器 lint 警告 — BackupPayload DTO 字段改为可空类型（List<T>?），消除 Elvis 运算符无效警告；NoteCardContent 移除未使用的 cardColor 参数"
             )
         ),
         Entry(
