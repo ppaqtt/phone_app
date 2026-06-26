@@ -16,8 +16,8 @@ android {
         applicationId = "com.qingjian.notes"
         minSdk = 24
         targetSdk = 34
-        versionCode = 61
-        versionName = "1.36.00"
+        versionCode = 62
+        versionName = "1.37.00"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
