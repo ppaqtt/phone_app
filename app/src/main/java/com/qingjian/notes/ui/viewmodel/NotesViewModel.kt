@@ -536,14 +536,24 @@ class NotesViewModel(
                     } ?: throw IllegalStateException("无法打开源 URI: $sourceUri")
                 }
                 val root = com.google.gson.JsonParser.parseString(json).asJsonObject
-                val rawKeys = root.keySet().joinToString(",")
-                val rawNotesLen = if (root.has("notes") && root.get("notes").isJsonArray) root.getAsJsonArray("notes").size() else -1
                 val rawCatLen = if (root.has("categories") && root.get("categories").isJsonArray) root.getAsJsonArray("categories").size() else -1
+                val rawNotesLen = if (root.has("notes") && root.get("notes").isJsonArray) root.getAsJsonArray("notes").size() else -1
                 val rawImgLen = if (root.has("images") && root.get("images").isJsonArray) root.getAsJsonArray("images").size() else -1
-                val payload: BackupPayload = BackupManager.fromJson(json)
-                val catSize = payload.categories?.size ?: -1
-                val noteSize = payload.notes?.size ?: -1
-                val imgSize = payload.images?.size ?: -1
+                // 绕过 Gson: 直接从 JsonElement 构建 DTO，避免 Kotlin data class + type adapter 的静默解析问题
+                val plainGson = com.google.gson.Gson()
+                val version = if (root.has("version")) root.getAsJsonPrimitive("version").asInt else BackupPayload.CURRENT_VERSION
+                val exportedAt = if (root.has("exportedAt")) root.getAsJsonPrimitive("exportedAt").asLong else null
+                val appVersion = if (root.has("appVersion") && !root.get("appVersion").isJsonNull) root.getAsJsonPrimitive("appVersion").asString else null
+                val categories = if (root.has("categories") && root.get("categories").isJsonArray)
+                    root.getAsJsonArray("categories").map { plainGson.fromJson(it, CategoryBackup::class.java) } else emptyList()
+                val notes = if (root.has("notes") && root.get("notes").isJsonArray)
+                    root.getAsJsonArray("notes").map { plainGson.fromJson(it, NoteBackup::class.java) } else emptyList()
+                val images = if (root.has("images") && root.get("images").isJsonArray)
+                    root.getAsJsonArray("images").map { plainGson.fromJson(it, ImageBackup::class.java) } else emptyList()
+                val payload = BackupPayload(version, exportedAt, appVersion, categories, notes, images)
+                val catSize = categories.size
+                val noteSize = notes.size
+                val imgSize = images.size
                 Timber.tag("Backup")
                     .w("parsed payload: version=${payload.version} categories=$catSize notes=$noteSize images=$imgSize jsonLen=${json.length}")
                 val (c, n, img) = repository.importBackup(payload, replaceExisting)
