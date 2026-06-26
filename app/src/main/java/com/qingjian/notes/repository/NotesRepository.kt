@@ -391,17 +391,17 @@ class NotesRepository(
                 val newId = noteDao.insertWithId(
                     NoteEntity(
                         id = n.oldId,
-                        title = n.title,
-                        content = n.content,
+                        title = n.title ?: "",
+                        content = n.content ?: "",
                         categoryId = newCategoryId,
-                        tags = n.tags,
+                        tags = n.tags ?: "",
                         isPinned = n.isPinned,
                         priority = n.priority,
-                        color = n.color,
+                        color = if (n.color == 0) -1 else n.color,
                         reminderTime = n.reminderTime,
-                        reminderRepeat = n.reminderRepeat,
-                        createdAt = n.createdAt,
-                        updatedAt = n.updatedAt
+                        reminderRepeat = if (n.reminderRepeat.isNullOrBlank()) "NONE" else n.reminderRepeat,
+                        createdAt = if (n.createdAt == 0L) System.currentTimeMillis() else n.createdAt,
+                        updatedAt = if (n.updatedAt == 0L) System.currentTimeMillis() else n.updatedAt
                     )
                 )
                 noteIdMap[n.oldId] = newId
