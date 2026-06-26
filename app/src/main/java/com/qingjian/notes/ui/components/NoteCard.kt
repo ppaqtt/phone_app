@@ -91,7 +91,7 @@ fun NoteCard(
             colors = CardDefaults.cardColors(containerColor = cardColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            NoteCardContent(note, noteWithCategory, cardColor, coverImageUri, highlightQuery, onPinClick, onMoreClick)
+            NoteCardContent(note, noteWithCategory, coverImageUri, highlightQuery, onPinClick, onMoreClick)
         }
     } else {
         Card(
@@ -103,7 +103,7 @@ fun NoteCard(
             colors = CardDefaults.cardColors(containerColor = cardColor),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            NoteCardContent(note, noteWithCategory, cardColor, coverImageUri, highlightQuery, onPinClick, onMoreClick)
+            NoteCardContent(note, noteWithCategory, coverImageUri, highlightQuery, onPinClick, onMoreClick)
         }
     }
 }
@@ -113,7 +113,6 @@ fun NoteCard(
 private fun NoteCardContent(
     note: NoteEntity,
     noteWithCategory: NoteWithCategory,
-    cardColor: Color,
     coverImageUri: String?,
     highlightQuery: String?,
     onPinClick: (() -> Unit)?,

@@ -13,9 +13,9 @@ data class BackupPayload(
     val version: Int = CURRENT_VERSION,
     val exportedAt: Long = System.currentTimeMillis(),
     val appVersion: String,
-    val categories: List<CategoryBackup> = emptyList(),
-    val notes: List<NoteBackup> = emptyList(),
-    val images: List<ImageBackup> = emptyList()
+    val categories: List<CategoryBackup>? = null,
+    val notes: List<NoteBackup>? = null,
+    val images: List<ImageBackup>? = null
 ) {
     companion object {
         /** DTO 当前版本号, 每次结构变更 +1, 导入时做兼容判断 */
