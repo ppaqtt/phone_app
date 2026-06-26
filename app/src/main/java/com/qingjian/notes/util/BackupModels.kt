@@ -24,39 +24,39 @@ data class BackupPayload(
 }
 
 data class CategoryBackup(
-    val oldId: Long,
-    val name: String,
-    val color: Int,
+    val oldId: Long = 0L,
+    val name: String = "",
+    val color: Int = 0,
     /**
      * F12: 老备份中可能没有 parentOldId 字段 (字段为 null 时导入为顶级分类)。
      * 默认 null 保证与 v1 老备份文件兼容。
      */
     val parentOldId: Long? = null,
-    val createdAt: Long
+    val createdAt: Long = 0L
 )
 
 data class NoteBackup(
-    val oldId: Long,
-    val title: String,
-    val content: String,
+    val oldId: Long = 0L,
+    val title: String = "",
+    val content: String = "",
     /** 可能为 null —— 旧笔记可能没有分类 */
-    val categoryOldId: Long?,
-    val tags: String,
-    val isPinned: Boolean,
-    val priority: Int,
-    val color: Int,
-    val reminderTime: Long?,
+    val categoryOldId: Long? = null,
+    val tags: String = "",
+    val isPinned: Boolean = false,
+    val priority: Int = 0,
+    val color: Int = -1,
+    val reminderTime: Long? = null,
     /**
      * F15: 提醒重复模式。默认 "NONE" 保证与 v1 老备份文件兼容。
      */
     val reminderRepeat: String = "NONE",
-    val createdAt: Long,
-    val updatedAt: Long
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L
 )
 
 data class ImageBackup(
-    val oldId: Long,
-    val noteOldId: Long,
-    val uri: String,
-    val position: Int
+    val oldId: Long = 0L,
+    val noteOldId: Long = 0L,
+    val uri: String = "",
+    val position: Int = 0
 )

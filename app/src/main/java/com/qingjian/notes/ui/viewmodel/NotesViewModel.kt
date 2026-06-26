@@ -537,9 +537,12 @@ class NotesViewModel(
                 }
                 val payload: BackupPayload = BackupManager.fromJson(json)
                 Timber.tag("Backup")
-                    .i("parsed payload: version=${payload.version} categories=${payload.categories?.size} notes=${payload.notes?.size} images=${payload.images?.size} jsonLen=${json.length}")
+                    .w("parsed payload: version=${payload.version} categories=${payload.categories?.size} notes=${payload.notes?.size} images=${payload.images?.size} jsonLen=${json.length}")
                 val (c, n, img) = repository.importBackup(payload, replaceExisting)
                 Triple(c, n, img)
+            }
+            result.onFailure { e ->
+                Timber.tag("Backup").e(e, "import failed with exception")
             }
             _backupState.value = result.fold(
                 onSuccess = { (c, n, img) ->
