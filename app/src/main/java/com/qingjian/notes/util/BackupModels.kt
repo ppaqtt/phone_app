@@ -11,8 +11,8 @@ package com.qingjian.notes.util
  */
 data class BackupPayload(
     val version: Int = CURRENT_VERSION,
-    val exportedAt: Long = System.currentTimeMillis(),
-    val appVersion: String,
+    val exportedAt: Long? = null,
+    val appVersion: String? = null,
     val categories: List<CategoryBackup>? = null,
     val notes: List<NoteBackup>? = null,
     val images: List<ImageBackup>? = null
