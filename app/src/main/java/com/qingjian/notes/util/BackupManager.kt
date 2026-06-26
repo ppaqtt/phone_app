@@ -61,7 +61,10 @@ object BackupManager {
      * 失败抛 JsonSyntaxException, 由调用方捕获并提示。
      */
     fun fromJson(json: String): BackupPayload {
+        val root = com.google.gson.JsonParser.parseString(json).asJsonObject
+        Timber.tag("Backup").w("raw json keys: ${root.keySet()}")
         val payload = gson.fromJson(json, BackupPayload::class.java)
+        Timber.tag("Backup").w("parsed payload fields: notes=${payload.notes?.size} categories=${payload.categories?.size} images=${payload.images?.size}")
         return payload.copy(
             categories = payload.categories ?: emptyList(),
             notes = payload.notes ?: emptyList(),

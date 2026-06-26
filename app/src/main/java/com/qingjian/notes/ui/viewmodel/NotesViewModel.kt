@@ -535,6 +535,11 @@ class NotesViewModel(
                         input.bufferedReader(Charsets.UTF_8).readText()
                     } ?: throw IllegalStateException("无法打开源 URI: $sourceUri")
                 }
+                val root = com.google.gson.JsonParser.parseString(json).asJsonObject
+                val rawKeys = root.keySet().joinToString(",")
+                val rawNotesLen = if (root.has("notes") && root.get("notes").isJsonArray) root.getAsJsonArray("notes").size() else -1
+                val rawCatLen = if (root.has("categories") && root.get("categories").isJsonArray) root.getAsJsonArray("categories").size() else -1
+                val rawImgLen = if (root.has("images") && root.get("images").isJsonArray) root.getAsJsonArray("images").size() else -1
                 val payload: BackupPayload = BackupManager.fromJson(json)
                 val catSize = payload.categories?.size ?: -1
                 val noteSize = payload.notes?.size ?: -1
@@ -542,16 +547,17 @@ class NotesViewModel(
                 Timber.tag("Backup")
                     .w("parsed payload: version=${payload.version} categories=$catSize notes=$noteSize images=$imgSize jsonLen=${json.length}")
                 val (c, n, img) = repository.importBackup(payload, replaceExisting)
-                listOf(catSize, noteSize, imgSize, c, n, img)
+                listOf(rawCatLen, rawNotesLen, rawImgLen, catSize, noteSize, imgSize, c, n, img)
             }
             result.onFailure { e ->
                 Timber.tag("Backup").e(e, "import failed with exception")
             }
             _backupState.value = result.fold(
                 onSuccess = { stats ->
-                    val catSize = stats[0]; val noteSize = stats[1]; val imgSize = stats[2]
-                    val c = stats[3]; val n = stats[4]; val img = stats[5]
-                    BackupState.Success("恢复完成: $c 个分类 / $n 条笔记 / $img 张图片 (解析: cat=$catSize note=$noteSize img=$imgSize)")
+                    val rawCat = stats[0]; val rawNote = stats[1]; val rawImg = stats[2]
+                    val catSize = stats[3]; val noteSize = stats[4]; val imgSize = stats[5]
+                    val c = stats[6]; val n = stats[7]; val img = stats[8]
+                    BackupState.Success("恢复完成: $c/$n/$img (原始JSON: cat=$rawCat note=$rawNote img=$rawImg, 解析后: cat=$catSize note=$noteSize img=$imgSize)")
                 },
                 onFailure = { e ->
                     Timber.tag("Backup").e(e, "import failed")
