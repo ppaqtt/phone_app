@@ -17,12 +17,17 @@
 ### 备份恢复修复
 
 - 🐛 **修复**：从备份恢复失败 NullPointerException — Gson 反序列化时 categories/notes/images 字段为 null 不会使用默认值，导致 `List.size()` 空指针崩溃；`BackupManager.fromJson` 和 `fromJsonSafe` 增加 null 兜底处理，兼容旧版及手动编辑的备份文件
-- 🐛 **修复**：旧版本备份文件导入后笔记为 0 条 — `NoteBackup` / `CategoryBackup` / `ImageBackup` 所有字段补充默认值，Gson 反序列化时遇到缺失字段（如 `categoryOldId`、`reminderTime`）不再抛异常，兼容 v1.18.0 等历史版本导出的备份文件
-- 🔧 **优化**：导入流程增加调试日志 — `importBackup` 中输出解析后的 payload 字段数量和 JSON 长度，方便排查导入失败问题
+- 🐛 **修复**：旧版本备份文件导入后笔记为 0 条 — Gson 对 Kotlin data class 的泛型 List 字段存在静默解析失败问题（原始 JSON 有数据但解析后为空列表）；改用 `JsonParser` 手动解析每个数组字段，逐项反序列化为 Backup DTO，彻底解决 Gson 反射解析的兼容性问题
+- 🐛 **修复**：`NoteBackup` / `CategoryBackup` / `ImageBackup` 中 String 类型字段改为可空（`String?`）— Gson 通过 Unsafe 创建对象时会绕过 Kotlin 默认值，导致非空 String 字段实际为 null，在构造 `NoteEntity` 时触发 NullPointerException；导入层统一做 null 兜底
+- 🔧 **优化**：导入流程增加调试信息 — 底部提示同时显示原始 JSON 数组长度和解析后数量，快速定位是读取问题还是解析问题
 
 ### 代码质量优化
 
 - 🔧 **优化**：修复 Kotlin 编译器 lint 警告 — `BackupPayload` DTO 字段改为可空类型（`List<T>?`），消除 Elvis 运算符无效警告；`NoteCardContent` 移除未使用的 `cardColor` 参数
+
+### 兼容性优化
+
+- 🔧 **优化**：Native 库 16KB 页面对齐 — CMake 链接选项添加 `-Wl,-z,max-page-size=16384` 和 `--no-rosegment`，满足 Android 15+ 及 Google Play 上架要求
 
 ---
 
