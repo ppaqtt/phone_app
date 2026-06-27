@@ -23,3 +23,6 @@ target_link_libraries(
 
 # 编译选项: -O2 优化 + -fvisibility=hidden 隐藏符号
 target_compile_options(qingjian_native PRIVATE -O2 -fvisibility=hidden)
+
+# 16KB 页面对齐（Android 15+ 要求）
+target_link_options(qingjian_native PRIVATE -Wl,--no-rosegment -Wl,-z,max-page-size=16384)
