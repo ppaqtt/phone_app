@@ -366,9 +366,9 @@ class NotesRepository(
                 val newId = categoryDao.insertWithId(
                     CategoryEntity(
                         id = c.oldId,
-                        name = c.name,
-                        color = c.color,
-                        createdAt = c.createdAt
+                        name = c.name ?: "",
+                        color = if (c.color == 0) 0xFF6750A4.toInt() else c.color,
+                        createdAt = if (c.createdAt == 0L) System.currentTimeMillis() else c.createdAt
                     )
                 )
                 categoryIdMap[c.oldId] = newId
@@ -410,10 +410,11 @@ class NotesRepository(
             // 3) 图片
             val imageEntities = images.mapNotNull { img ->
                 val newNoteId = noteIdMap[img.noteOldId] ?: return@mapNotNull null
+                val u = img.uri ?: return@mapNotNull null
                 NoteImageEntity(
                     id = img.oldId,
                     noteId = newNoteId,
-                    uri = img.uri,
+                    uri = u,
                     position = img.position
                 )
             }
