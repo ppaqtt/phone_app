@@ -424,6 +424,11 @@ class NotesRepository(
 
             Timber.tag("Backup")
                 .i("imported categories=${categoryIdMap.size} notes=${noteIdMap.size} images=${imageEntities.size}")
+            // 验证: 事务内立即读一次确认数据真的落库了
+            val verifyNotes = noteDao.getAllNotesForSync().size
+            val verifyCats = categoryDao.getAllOnce().size
+            val verifyImages = noteImageDao.getAllOnce().size
+            Timber.tag("Backup").i("verify after import: notes=$verifyNotes categories=$verifyCats images=$verifyImages")
             Triple(categoryIdMap.size, noteIdMap.size, imageEntities.size)
         }
     }
