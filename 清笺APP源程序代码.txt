@@ -1,0 +1,2344 @@
+================================================================================
+                    清笺笔记应用 V1.0 - 源程序代码
+================================================================================
+
+--------------------------------------------------------------------------------
+                                第 1 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.data
+
+import android.content.Context
+import androidx.room.AutoMigration
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+
+@Database(
+    entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class],
+    version = 11,
+    autoMigrations = [],
+    exportSchema = true
+)
+abstract class AppDatabase : RoomDatabase() {
+
+    abstract fun noteDao(): NoteDao
+    abstract fun categoryDao(): CategoryDao
+    abstract fun noteImageDao(): NoteImageDao
+    abstract fun todoDao(): TodoDao
+
+    companion object {
+        @Volatile
+        private var instance: AppDatabase? = null
+
+        fun getInstance(context: Context): AppDatabase =
+            instance ?: synchronized(this) {
+                instance ?: build(context).also { instance = it }
+            }
+
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_is_pinned` ON `notes` (`is_pinned`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_updated_at` ON `notes` (`updated_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_deleted_at` ON `notes` (`deleted_at`)")
+            }
+        }
+
+        private val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_tags` ON `notes` (`tags`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_reminder_time` ON `notes` (`reminder_time`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_priority` ON `notes` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_created_at` ON `notes` (`created_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_images_position` ON `note_images` (`position`)")
+            }
+        }
+
+        private val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `todos` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `is_completed` INTEGER NOT NULL DEFAULT 0,
+                        `priority` INTEGER NOT NULL DEFAULT 0,
+                        `reminder_time` INTEGER,
+                        `ringtone_uri` TEXT,
+                        `created_at` INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        `updated_at` INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        `completed_at` INTEGER
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_priority` ON `todos` (`priority`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_reminder_time` ON `todos` (`reminder_time`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_created_at` ON `todos` (`created_at`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_is_completed` ON `todos` (`is_completed`)")
+            }
+        }
+
+        private val MIGRATION_11_10 = object : Migration(11, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_priority`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_reminder_time`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_created_at`")
+                db.execSQL("DROP INDEX IF EXISTS `index_todos_is_completed`")
+                db.execSQL("DROP TABLE IF EXISTS `todos`")
+            }
+        }
+
+        private val MIGRATION_10_9 = object : Migration(10, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF NOT EXISTS `index_notes_tags`")
+                db.execSQL("DROP INDEX IF NOT EXISTS `index_notes_reminder_time`")
+                db.execSQL("DROP INDEX IF NOT EXISTS `index_notes_priority`")
+                db.execSQL("DROP INDEX IF NOT EXISTS `index_notes_created_at`")
+                db.execSQL("DROP INDEX IF NOT EXISTS `index_note_images_position`")
+            }
+        }
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `notes_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `content` TEXT NOT NULL,
+                        `category_id` INTEGER,
+                        `tags` TEXT NOT NULL,
+                        `is_pinned` INTEGER NOT NULL,
+                        `priority` INTEGER NOT NULL,
+                        `color` INTEGER NOT NULL,
+                        `reminder_time` INTEGER,
+                        `created_at` INTEGER NOT NULL,
+                        `updated_at` INTEGER NOT NULL,
+                        FOREIGN KEY(`category_id`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                """.trimIndent())
+                db.execSQL("INSERT INTO notes_new SELECT * FROM notes")
+                db.execSQL("DROP TABLE notes")
+                db.execSQL("ALTER TABLE notes_new RENAME TO notes")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_category_id` ON `notes` (`category_id`)")
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `deleted_at` INTEGER DEFAULT NULL")
+            }
+        }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `reminder_repeat` TEXT NOT NULL DEFAULT 'NONE'")
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `categories` ADD COLUMN `parent_id` INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_categories_parent_id` ON `categories` (`parent_id`)")
+            }
+        }
+
+        private fun build(context: Context): AppDatabase =
+            Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java,
+                "notes.db"
+            )
+                .addMigrations(
+                    MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_10,
+                    MIGRATION_10_9
+                )
+                .addCallback(object : Callback() {
+                    override fun onOpen(db: SupportSQLiteDatabase) {
+                        super.onOpen(db)
+                        db.setForeignKeyConstraintsEnabled(true)
+                    }
+                })
+                .build()
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 2 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.data
+
+import androidx.room.Dao
+import androidx.room.Delete
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface NoteDao {
+
+    @Transaction
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY is_pinned DESC, updated_at DESC")
+    fun observeAll(): Flow<List<NoteWithCategory>>
+
+    @Transaction
+    @Query("SELECT * FROM notes WHERE id = :id AND deleted_at IS NULL")
+    fun observeById(id: Long): Flow<NoteWithCategory?>
+
+    @Transaction
+    @Query("SELECT * FROM notes WHERE id = :id AND deleted_at IS NULL")
+    fun observeWithImages(id: Long): Flow<NoteWithCategoryAndImages?>
+
+    @Transaction
+    @Query("SELECT * FROM notes WHERE category_id = :categoryId AND deleted_at IS NULL ORDER BY is_pinned DESC, updated_at DESC")
+    fun observeByCategory(categoryId: Long): Flow<List<NoteWithCategory>>
+
+    @Transaction
+    @Query(
+        """
+        SELECT * FROM notes
+        WHERE deleted_at IS NULL
+          AND (title LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%')
+        ORDER BY is_pinned DESC, updated_at DESC
+        """
+    )
+    fun search(query: String): Flow<List<NoteWithCategory>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(note: NoteEntity): Long
+
+    @Query("UPDATE notes SET updated_at = :updatedAt WHERE id = :id")
+    suspend fun touch(id: Long, updatedAt: Long = System.currentTimeMillis())
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun update(note: NoteEntity)
+
+    @Delete
+    suspend fun delete(note: NoteEntity)
+
+    @Query("DELETE FROM notes WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("UPDATE notes SET is_pinned = :pinned WHERE id = :id")
+    suspend fun setPinned(id: Long, pinned: Boolean)
+
+    @Query("UPDATE notes SET priority = :priority WHERE id = :id")
+    suspend fun setPriority(id: Long, priority: Int)
+
+    @Query("UPDATE notes SET tags = :tags WHERE id = :id")
+    suspend fun setTags(id: Long, tags: String)
+
+    @Query("UPDATE notes SET category_id = :categoryId WHERE id = :id")
+    suspend fun setCategory(id: Long, categoryId: Long?)
+
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL")
+    suspend fun getAllNotesForSync(): List<NoteEntity>
+
+    @Query("SELECT * FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT :limit")
+    suspend fun getRecentNotes(limit: Int): List<NoteEntity>
+
+    @Query("SELECT * FROM notes WHERE id = :id")
+    suspend fun getNoteOnce(id: Long): NoteEntity?
+
+    @Query("UPDATE notes SET reminder_time = :reminderTime WHERE id = :id")
+    suspend fun updateReminderTime(id: Long, reminderTime: Long)
+
+    @Transaction
+    @Query("SELECT * FROM notes WHERE id = :id")
+    suspend fun getWithImagesOnce(id: Long): NoteWithCategoryAndImages?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWithId(note: NoteEntity): Long
+
+    @Query("DELETE FROM notes")
+    suspend fun clearAll()
+
+    @Transaction
+    @Query("SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+    fun observeTrash(): Flow<List<NoteWithCategory>>
+
+    @Query("UPDATE notes SET deleted_at = :deletedAt WHERE id = :id")
+    suspend fun softDelete(id: Long, deletedAt: Long = System.currentTimeMillis())
+
+    @Query("UPDATE notes SET deleted_at = NULL WHERE id = :id")
+    suspend fun restoreFromTrash(id: Long)
+
+    @Query("DELETE FROM notes WHERE id = :id")
+    suspend fun permanentDelete(id: Long)
+
+    @Query("DELETE FROM notes WHERE deleted_at IS NOT NULL AND deleted_at < :before")
+    suspend fun purgeOldTrash(before: Long): Int
+
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NOT NULL")
+    fun observeTrashCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL")
+    fun observeTotalCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND is_pinned = 1")
+    fun observePinnedCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL AND reminder_time IS NOT NULL")
+    fun observeReminderCount(): Flow<Int>
+
+    @Query("SELECT id, content, category_id, created_at FROM notes WHERE deleted_at IS NULL")
+    suspend fun getContentForStats(): List<NoteStatsRow>
+
+    @Query("UPDATE notes SET reminder_repeat = :repeat WHERE id = :id")
+    suspend fun setReminderRepeat(id: Long, repeat: String)
+}
+
+data class NoteStatsRow(
+    val id: Long,
+    val content: String,
+    @androidx.room.ColumnInfo(name = "category_id")
+    val categoryId: Long?,
+    @androidx.room.ColumnInfo(name = "created_at")
+    val createdAt: Long
+)
+
+@Dao
+interface CategoryDao {
+
+    @Query("SELECT * FROM categories ORDER BY created_at ASC")
+    fun observeAll(): Flow<List<CategoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(category: CategoryEntity): Long
+
+    @Delete
+    suspend fun delete(category: CategoryEntity)
+
+    @Query("SELECT COUNT(*) FROM notes WHERE category_id = :id")
+    suspend fun noteCountForCategory(id: Long): Int
+
+    @Query("SELECT COUNT(*) FROM notes WHERE category_id = :categoryId")
+    fun observeNoteCountForCategory(categoryId: Long): Flow<Int>
+
+    @Query("UPDATE notes SET category_id = NULL WHERE category_id = :id")
+    suspend fun clearCategoryForNotes(id: Long)
+
+    @Query("UPDATE categories SET parent_id = NULL WHERE parent_id = :id")
+    suspend fun clearParentForChildren(id: Long)
+
+    @Query("UPDATE categories SET parent_id = :parentId WHERE id = :id")
+    suspend fun setParent(id: Long, parentId: Long?)
+
+    @Query("SELECT * FROM categories ORDER BY created_at ASC")
+    suspend fun getAllOnce(): List<CategoryEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWithId(category: CategoryEntity): Long
+
+    @Query("DELETE FROM categories")
+    suspend fun clearAll()
+}
+
+@Dao
+interface NoteImageDao {
+
+    @Query("SELECT * FROM note_images WHERE noteId = :noteId ORDER BY position ASC")
+    fun observeByNote(noteId: Long): Flow<List<NoteImageEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(image: NoteImageEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(images: List<NoteImageEntity>)
+
+    @Delete
+    suspend fun delete(image: NoteImageEntity)
+
+    @Query("DELETE FROM note_images WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM note_images WHERE noteId = :noteId")
+    suspend fun deleteByNote(noteId: Long)
+
+    @Query("SELECT * FROM note_images ORDER BY noteId ASC, position ASC")
+    suspend fun getAllOnce(): List<NoteImageEntity>
+
+    @Query("DELETE FROM note_images")
+    suspend fun clearAll()
+
+    @Query("""
+        SELECT COUNT(*) FROM note_images
+        WHERE noteId IN (SELECT id FROM notes WHERE deleted_at IS NULL)
+    """)
+    fun observeImageCount(): Flow<Int>
+}
+
+--------------------------------------------------------------------------------
+                                第 3 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.data
+
+import androidx.room.ColumnInfo
+import androidx.room.Embedded
+import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import androidx.room.Relation
+
+const val DEFAULT_COLOR: Int = 0xFFFFFFFF.toInt()
+
+@Entity(
+    tableName = "notes",
+    foreignKeys = [ForeignKey(
+        entity = CategoryEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["category_id"],
+        onDelete = ForeignKey.SET_NULL
+    )],
+    indices = [
+        Index("category_id"),
+        Index("is_pinned"),
+        Index("updated_at"),
+        Index("deleted_at"),
+        Index("tags"),
+        Index("reminder_time"),
+        Index("priority"),
+        Index("created_at")
+    ]
+)
+data class NoteEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "title")
+    val title: String,
+
+    @ColumnInfo(name = "content")
+    val content: String,
+
+    @ColumnInfo(name = "category_id")
+    val categoryId: Long? = null,
+
+    @ColumnInfo(name = "tags")
+    val tags: String = "",
+
+    @ColumnInfo(name = "is_pinned")
+    val isPinned: Boolean = false,
+
+    @ColumnInfo(name = "priority", defaultValue = "0")
+    val priority: Int = 0,
+
+    @ColumnInfo(name = "color")
+    val color: Int = DEFAULT_COLOR,
+
+    @ColumnInfo(name = "reminder_time")
+    val reminderTime: Long? = null,
+
+    @ColumnInfo(name = "reminder_repeat", defaultValue = "'NONE'")
+    val reminderRepeat: String = "NONE",
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "updated_at")
+    val updatedAt: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "deleted_at", defaultValue = "NULL")
+    val deletedAt: Long? = null
+)
+
+@Entity(
+    tableName = "categories",
+    indices = [Index(value = ["name"], unique = true), Index("parent_id")]
+)
+data class CategoryEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "name")
+    val name: String,
+
+    @ColumnInfo(name = "color")
+    val color: Int = 0xFF6750A4.toInt(),
+
+    @ColumnInfo(name = "parent_id", defaultValue = "NULL")
+    val parentId: Long? = null,
+
+    @ColumnInfo(name = "created_at")
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "note_images",
+    foreignKeys = [ForeignKey(
+        entity = NoteEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["noteId"],
+        onDelete = ForeignKey.CASCADE
+    )],
+    indices = [Index("noteId"), Index("position")]
+)
+data class NoteImageEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "noteId")
+    val noteId: Long,
+
+    @ColumnInfo(name = "uri")
+    val uri: String,
+
+    @ColumnInfo(name = "position")
+    val position: Int = 0
+)
+
+data class NoteWithCategory(
+    @Embedded val note: NoteEntity,
+    @Relation(
+        parentColumn = "category_id",
+        entityColumn = "id"
+    )
+    val category: CategoryEntity?
+)
+
+data class NoteWithCategoryAndImages(
+    @Embedded val note: NoteEntity,
+    @Relation(
+        parentColumn = "category_id",
+        entityColumn = "id"
+    )
+    val category: CategoryEntity?,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "noteId"
+    )
+    val images: List<NoteImageEntity>
+)
+
+--------------------------------------------------------------------------------
+                                第 4 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.repository
+
+import com.example.notes.data.CategoryDao
+import com.example.notes.data.CategoryEntity
+import com.example.notes.data.NoteDao
+import com.example.notes.data.NoteEntity
+import com.example.notes.data.NoteImageDao
+import com.example.notes.data.NoteImageEntity
+import com.example.notes.data.NoteStatsRow
+import com.example.notes.data.NoteWithCategory
+import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.util.BackupPayload
+import androidx.room.RoomDatabase
+import androidx.room.withTransaction
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import timber.log.Timber
+
+data class StatsTotals(
+    val totalNotes: Int,
+    val pinnedNotes: Int,
+    val notesWithReminder: Int,
+    val totalImages: Int
+)
+
+class NotesRepository(
+    private val database: RoomDatabase,
+    private val noteDao: NoteDao,
+    private val categoryDao: CategoryDao,
+    private val noteImageDao: NoteImageDao
+) {
+
+    fun observeNotes(): Flow<List<NoteWithCategory>> = noteDao.observeAll()
+
+    fun observeNote(id: Long): Flow<NoteWithCategory?> = noteDao.observeById(id)
+
+    fun observeNoteWithImages(id: Long): Flow<NoteWithCategoryAndImages?> =
+        noteDao.observeWithImages(id)
+
+    fun observeNotesByCategory(categoryId: Long): Flow<List<NoteWithCategory>> =
+        noteDao.observeByCategory(categoryId)
+
+    fun searchNotes(query: String): Flow<List<NoteWithCategory>> =
+        if (query.isBlank()) noteDao.observeAll() else noteDao.search(query)
+
+    suspend fun saveNote(note: NoteEntity): Long {
+        return if (note.id == 0L) {
+            noteDao.insert(note.copy(updatedAt = System.currentTimeMillis()))
+        } else {
+            noteDao.update(note.copy(updatedAt = System.currentTimeMillis()))
+            note.id
+        }
+    }
+
+    suspend fun deleteNote(note: NoteEntity) = noteDao.delete(note)
+
+    suspend fun deleteNote(id: Long) = noteDao.softDelete(id)
+
+    suspend fun permanentDeleteNote(id: Long) = noteDao.permanentDelete(id)
+    suspend fun togglePin(id: Long, pinned: Boolean) = noteDao.setPinned(id, pinned)
+
+    suspend fun getNoteSnapshot(id: Long): NoteWithCategoryAndImages? =
+        noteDao.getWithImagesOnce(id)
+
+    suspend fun restoreNoteFromSnapshot(snapshot: NoteWithCategoryAndImages) {
+        database.withTransaction {
+            val restored = snapshot.note.copy(deletedAt = null)
+            noteDao.insertWithId(restored)
+            noteImageDao.deleteByNote(snapshot.note.id)
+            val images = snapshot.images.map { it.copy(id = 0) }
+            if (images.isNotEmpty()) noteImageDao.insertAll(images)
+        }
+    }
+
+    suspend fun setPriority(id: Long, priority: Int) = noteDao.setPriority(id, priority)
+    suspend fun setTags(id: Long, tags: String) = noteDao.setTags(id, tags)
+    suspend fun moveToCategory(id: Long, categoryId: Long?) = noteDao.setCategory(id, categoryId)
+
+    suspend fun getAllNotesForSync(): List<NoteEntity> = noteDao.getAllNotesForSync()
+
+    suspend fun getRecentNotes(limit: Int = 5): List<NoteEntity> = noteDao.getRecentNotes(limit)
+
+    suspend fun getNoteOnce(id: Long): NoteEntity? = noteDao.getNoteOnce(id)
+
+    suspend fun updateReminder(id: Long, reminderTime: Long, repeat: String) {
+        noteDao.updateReminderTime(id, reminderTime)
+        noteDao.setReminderRepeat(id, repeat)
+    }
+
+    suspend fun removeTagFromAllNotes(tag: String) {
+        if (tag.isBlank()) return
+        val sanitized = tag.replace(",", "").replace(Regex("[\\x00'\";\\-\\-]"), "")
+        if (sanitized.isBlank()) return
+        val escaped = escapeSqlString(sanitized)
+        val sql = """
+            UPDATE notes
+            SET tags = TRIM(',' FROM REPLACE(',' || tags || ',', ',' || '$escaped' || ',', ','))
+            WHERE tags != '' AND instr(',' || tags || ',', ',' || '$escaped' || ',') > 0
+        """.trimIndent()
+        database.withTransaction {
+            database.openHelper.writableDatabase.execSQL(sql)
+        }
+    }
+
+    private fun escapeSqlString(s: String): String = s.replace("'", "''")
+
+    fun observeCategories(): Flow<List<CategoryEntity>> = categoryDao.observeAll()
+
+    suspend fun addCategory(name: String, color: Int, parentId: Long? = null): Long =
+        categoryDao.insert(CategoryEntity(name = name.trim(), color = color, parentId = parentId))
+
+    suspend fun setCategoryParent(id: Long, parentId: Long?) =
+        categoryDao.setParent(id, parentId)
+
+    suspend fun deleteCategory(category: CategoryEntity) = categoryDao.delete(category)
+
+    fun observeNoteCountForCategory(categoryId: Long): Flow<Int> =
+        categoryDao.observeNoteCountForCategory(categoryId)
+
+    suspend fun deleteCategorySafely(category: CategoryEntity) {
+        database.withTransaction {
+            categoryDao.clearCategoryForNotes(category.id)
+            categoryDao.clearParentForChildren(category.id)
+            categoryDao.delete(category)
+        }
+    }
+
+    suspend fun noteCountForCategory(id: Long): Int = categoryDao.noteCountForCategory(id)
+
+    fun observeStatsTotals() = combine(
+        noteDao.observeTotalCount(),
+        noteDao.observePinnedCount(),
+        noteDao.observeReminderCount(),
+        noteImageDao.observeImageCount()
+    ) { total, pinned, reminder, images ->
+        StatsTotals(total, pinned, reminder, images)
+    }
+
+    suspend fun getStatsRows(): List<NoteStatsRow> = noteDao.getContentForStats()
+
+    fun observeNoteImages(noteId: Long): Flow<List<NoteImageEntity>> =
+        noteImageDao.observeByNote(noteId)
+
+    suspend fun replaceNoteImages(noteId: Long, uris: List<String>) {
+        noteImageDao.deleteByNote(noteId)
+        if (uris.isEmpty()) return
+        val entities = uris.mapIndexed { index, uri ->
+            NoteImageEntity(noteId = noteId, uri = uri, position = index)
+        }
+        noteImageDao.insertAll(entities)
+    }
+
+    suspend fun appendNoteImages(noteId: Long, uris: List<String>, startPosition: Int) {
+        if (uris.isEmpty()) return
+        val entities = uris.mapIndexed { index, uri ->
+            NoteImageEntity(noteId = noteId, uri = uri, position = startPosition + index)
+        }
+        noteImageDao.insertAll(entities)
+    }
+
+    suspend fun deleteNoteImage(image: NoteImageEntity) = noteImageDao.delete(image)
+
+    fun observeTrash() = noteDao.observeTrash()
+
+    fun observeTrashCount(): Flow<Int> = noteDao.observeTrashCount()
+
+    suspend fun restoreFromTrash(id: Long) = noteDao.restoreFromTrash(id)
+
+    suspend fun permanentlyDeleteTrashed(id: Long) = noteDao.permanentDelete(id)
+
+    suspend fun purgeOldTrash(daysOld: Int = 30): Int {
+        val threshold = System.currentTimeMillis() - daysOld * 24L * 60 * 60 * 1000
+        return noteDao.purgeOldTrash(threshold)
+    }
+
+    suspend fun clearAllNotesAndRelated() {
+        database.withTransaction {
+            noteImageDao.clearAll()
+            noteDao.clearAll()
+            categoryDao.clearAll()
+        }
+    }
+
+    suspend fun exportBackup(appVersion: String): BackupPayload {
+        return database.withTransaction {
+            val categories = categoryDao.getAllOnce()
+            val notes = noteDao.getAllNotesForSync()
+            val images = noteImageDao.getAllOnce()
+            com.example.notes.util.BackupManager.buildPayload(
+                appVersion = appVersion,
+                categories = categories,
+                notes = notes,
+                images = images
+            )
+        }
+    }
+
+    suspend fun importBackup(
+        payload: BackupPayload,
+        replaceExisting: Boolean
+    ): Triple<Int, Int, Int> {
+        return database.withTransaction {
+            if (replaceExisting) {
+                noteImageDao.clearAll()
+                noteDao.clearAll()
+                categoryDao.clearAll()
+            }
+
+            val categoryIdMap = HashMap<Long, Long>(payload.categories.size)
+            payload.categories.forEach { c ->
+                val newId = categoryDao.insertWithId(
+                    CategoryEntity(
+                        id = c.oldId,
+                        name = c.name,
+                        color = c.color,
+                        createdAt = c.createdAt
+                    )
+                )
+                categoryIdMap[c.oldId] = newId
+            }
+
+            payload.categories.forEach { c ->
+                if (c.parentOldId != null) {
+                    val newId = categoryIdMap[c.oldId] ?: return@forEach
+                    val newParentId = categoryIdMap[c.parentOldId]
+                    categoryDao.setParent(newId, newParentId)
+                }
+            }
+
+            val noteIdMap = HashMap<Long, Long>(payload.notes.size)
+            payload.notes.forEach { n ->
+                val newCategoryId = n.categoryOldId?.let { categoryIdMap[it] }
+                val newId = noteDao.insertWithId(
+                    NoteEntity(
+                        id = n.oldId,
+                        title = n.title,
+                        content = n.content,
+                        categoryId = newCategoryId,
+                        tags = n.tags,
+                        isPinned = n.isPinned,
+                        priority = n.priority,
+                        color = n.color,
+                        reminderTime = n.reminderTime,
+                        reminderRepeat = n.reminderRepeat,
+                        createdAt = n.createdAt,
+                        updatedAt = n.updatedAt
+                    )
+                )
+                noteIdMap[n.oldId] = newId
+            }
+
+            val imageEntities = payload.images.mapNotNull { img ->
+                val newNoteId = noteIdMap[img.noteOldId] ?: return@mapNotNull null
+                NoteImageEntity(
+                    id = img.oldId,
+                    noteId = newNoteId,
+                    uri = img.uri,
+                    position = img.position
+                )
+            }
+            if (imageEntities.isNotEmpty()) {
+                noteImageDao.insertAll(imageEntities)
+            }
+
+            Timber.tag("Backup")
+                .i("imported categories=${categoryIdMap.size} notes=${noteIdMap.size} images=${imageEntities.size}")
+            Triple(categoryIdMap.size, noteIdMap.size, imageEntities.size)
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 5 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.ui.viewmodel
+
+import android.content.Context
+import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.example.notes.data.CategoryEntity
+import com.example.notes.data.NoteEntity
+import com.example.notes.data.NoteWithCategory
+import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.repository.NotesRepository
+import com.example.notes.util.BackupManager
+import com.example.notes.util.BackupPayload
+import com.example.notes.widget.NotesAppWidget
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+
+enum class NoteSortOrder {
+    UPDATED_DESC, UPDATED_ASC, CREATED_DESC, CREATED_ASC, TITLE_ASC, PRIORITY_DESC
+}
+
+data class NotesUiState(
+    val notes: List<NoteWithCategory> = emptyList(),
+    val categories: List<CategoryEntity> = emptyList(),
+    val activeCategoryId: Long? = null,
+    val query: String = "",
+    val sortOrder: NoteSortOrder = NoteSortOrder.UPDATED_DESC,
+    val isLoading: Boolean = true
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class NotesViewModel(
+    private val repository: NotesRepository
+) : ViewModel() {
+
+    private val activeCategoryId = MutableStateFlow<Long?>(null)
+    private val query = MutableStateFlow("")
+    private val sortOrder = MutableStateFlow(NoteSortOrder.UPDATED_DESC)
+
+    private val notes = activeCategoryId.flatMapLatest { categoryId ->
+        if (categoryId == null) repository.observeNotes() else repository.observeNotesByCategory(categoryId)
+    }
+
+    val uiState: StateFlow<NotesUiState> =
+        combine(notes, repository.observeCategories(), activeCategoryId, query, sortOrder) { notesList, categories, activeId, q, sort ->
+            val pinnedFirst = compareByDescending<NoteWithCategory> { it.note.isPinned }
+            val filtered = if (q.isBlank()) notesList else {
+                val needle = q.trim()
+                notesList.filter { n ->
+                    n.note.title.contains(needle, ignoreCase = true) ||
+                        n.note.content.contains(needle, ignoreCase = true) ||
+                        n.note.tags.contains(needle, ignoreCase = true)
+                }
+            }
+            val sorted = when (sort) {
+                NoteSortOrder.UPDATED_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.updatedAt })
+                NoteSortOrder.UPDATED_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.updatedAt })
+                NoteSortOrder.CREATED_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.createdAt })
+                NoteSortOrder.CREATED_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.createdAt })
+                NoteSortOrder.TITLE_ASC -> filtered.sortedWith(pinnedFirst.thenBy { it.note.title })
+                NoteSortOrder.PRIORITY_DESC -> filtered.sortedWith(pinnedFirst.thenByDescending { it.note.priority })
+            }
+            NotesUiState(
+                notes = sorted,
+                categories = categories,
+                activeCategoryId = activeId,
+                query = q,
+                sortOrder = sort,
+                isLoading = false
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = NotesUiState(isLoading = true)
+        )
+
+    val statsTotals: StateFlow<com.example.notes.repository.StatsTotals> =
+        repository.observeStatsTotals().stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = com.example.notes.repository.StatsTotals(0, 0, 0, 0)
+        )
+
+    val categories: StateFlow<List<CategoryEntity>> = repository.observeCategories()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    suspend fun getStatsRowsOnce(): List<com.example.notes.data.NoteStatsRow> =
+        repository.getStatsRows()
+
+    fun setQuery(value: String) { query.value = value }
+    fun setCategoryFilter(id: Long?) { activeCategoryId.value = id }
+    fun setSortOrder(order: NoteSortOrder) { sortOrder.value = order }
+
+    suspend fun saveNote(
+        context: Context,
+        id: Long,
+        title: String,
+        content: String,
+        categoryId: Long?,
+        tags: List<String>,
+        isPinned: Boolean,
+        color: Int,
+        reminderTime: Long? = null,
+        reminderRepeat: String = "NONE",
+        imageUris: List<String> = emptyList()
+    ): Long {
+        val note = NoteEntity(
+            id = id,
+            title = title.ifBlank { content.lineSequence().firstOrNull().orEmpty().take(40) },
+            content = content,
+            categoryId = categoryId,
+            tags = tags.joinToString(","),
+            isPinned = isPinned,
+            color = color,
+            reminderTime = reminderTime,
+            reminderRepeat = reminderRepeat
+        )
+        val savedId = repository.saveNote(note)
+        repository.replaceNoteImages(savedId, imageUris)
+        NotesAppWidget.requestRefresh(context)
+        return savedId
+    }
+
+    fun deleteNote(id: Long) {
+        launchSafe("deleteNote") { repository.deleteNote(id) }
+    }
+
+    private var pendingUndo: NoteWithCategoryAndImages? = null
+    private var pendingUndoJob: Job? = null
+
+    fun deleteNoteWithUndo(id: Long) {
+        pendingUndoJob?.cancel()
+        launchSafe("deleteNoteWithUndo") {
+            val snapshot = repository.getNoteSnapshot(id)
+            if (snapshot == null) return@launchSafe
+            pendingUndo = snapshot
+            repository.deleteNote(id)
+            pendingUndoJob = viewModelScope.launch {
+                delay(5_000L)
+                if (pendingUndo?.note?.id == id) {
+                    pendingUndo = null
+                }
+            }
+        }
+    }
+
+    suspend fun undoLastDelete(): Boolean {
+        pendingUndoJob?.cancel()
+        val snapshot = pendingUndo ?: return false
+        pendingUndo = null
+        return runCatching {
+            repository.restoreNoteFromSnapshot(snapshot)
+            true
+        }.getOrElse {
+            Timber.tag("NotesViewModel").e(it, "undoLastDelete failed: ${it.message}")
+            false
+        }
+    }
+
+    fun togglePin(id: Long, pinned: Boolean) {
+        launchSafe("togglePin") { repository.togglePin(id, pinned) }
+    }
+
+    fun setPriority(id: Long, priority: Int) {
+        launchSafe("setPriority") { repository.setPriority(id, priority) }
+    }
+
+    fun setTags(id: Long, tags: List<String>) {
+        launchSafe("setTags") { repository.setTags(id, tags.joinToString(",")) }
+    }
+
+    fun moveToCategory(id: Long, categoryId: Long?) {
+        launchSafe("moveToCategory") { repository.moveToCategory(id, categoryId) }
+    }
+
+    fun addCategory(name: String, color: Int, parentId: Long? = null) {
+        launchSafe("addCategory") { repository.addCategory(name, color, parentId) }
+    }
+
+    fun deleteCategory(category: CategoryEntity) {
+        launchSafe("deleteCategory") { repository.deleteCategorySafely(category) }
+    }
+
+    fun setCategoryParent(id: Long, parentId: Long?) {
+        launchSafe("setCategoryParent") { repository.setCategoryParent(id, parentId) }
+    }
+
+    fun noteCountForCategoryFlow(categoryId: Long) =
+        repository.observeNoteCountForCategory(categoryId)
+
+    fun removeTagFromAllNotes(tag: String) {
+        launchSafe("removeTagFromAllNotes") { repository.removeTagFromAllNotes(tag) }
+    }
+
+    fun observeTrash() = repository.observeTrash()
+
+    fun observeTrashCount() = repository.observeTrashCount()
+
+    fun restoreFromTrash(id: Long) {
+        launchSafe("restoreFromTrash") { repository.restoreFromTrash(id) }
+    }
+
+    fun permanentlyDeleteTrashed(id: Long) {
+        launchSafe("permanentlyDeleteTrashed") { repository.permanentlyDeleteTrashed(id) }
+    }
+
+    fun emptyTrash() {
+        launchSafe("emptyTrash") {
+            repository.purgeOldTrash(daysOld = 0)
+        }
+    }
+
+    fun clearAllNotesData() {
+        launchSafe("clearAllNotesData") {
+            repository.clearAllNotesAndRelated()
+        }
+    }
+
+    sealed interface BackupState {
+        object Idle : BackupState
+        object Working : BackupState
+        data class Success(val message: String) : BackupState
+        data class Error(val message: String) : BackupState
+    }
+
+    private val _backupState = MutableStateFlow<BackupState>(BackupState.Idle)
+    val backupState: StateFlow<BackupState> = _backupState.asStateFlow()
+
+    fun exportBackup(context: Context, targetUri: Uri, appVersion: String) {
+        launchSafe("exportBackup") {
+            _backupState.value = BackupState.Working
+            val result = runCatching {
+                val payload = repository.exportBackup(appVersion)
+                val json = BackupManager.toJson(payload)
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(targetUri, "wt")?.use { out ->
+                        out.write(json.toByteArray(Charsets.UTF_8))
+                        out.flush()
+                    } ?: throw IllegalStateException("无法打开目标 URI: $targetUri")
+                }
+                BackupStats(
+                    notes = payload.notes.size,
+                    categories = payload.categories.size,
+                    images = payload.images.size,
+                    bytes = json.toByteArray(Charsets.UTF_8).size
+                )
+            }
+            _backupState.value = result.fold(
+                onSuccess = { stats ->
+                    BackupState.Success(
+                        "备份完成: ${stats.notes} 笔记 / ${stats.categories} 分类 / ${stats.images} 图片 (${stats.bytes / 1024} KB)"
+                    )
+                },
+                onFailure = { e ->
+                    Timber.tag("Backup").e(e, "export failed")
+                    BackupState.Error("导出失败: ${e.message ?: "未知错误"}")
+                }
+            )
+            delay(5_000L)
+            if (_backupState.value is BackupState.Success || _backupState.value is BackupState.Error) {
+                _backupState.value = BackupState.Idle
+            }
+        }
+    }
+
+    private data class BackupStats(val notes: Int, val categories: Int, val images: Int, val bytes: Int)
+
+    fun importBackup(context: Context, sourceUri: Uri, replaceExisting: Boolean) {
+        launchSafe("importBackup") {
+            _backupState.value = BackupState.Working
+            val result = runCatching {
+                val json = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                        input.bufferedReader(Charsets.UTF_8).readText()
+                    } ?: throw IllegalStateException("无法打开源 URI: $sourceUri")
+                }
+                val payload: BackupPayload = BackupManager.fromJson(json)
+                val (c, n, img) = repository.importBackup(payload, replaceExisting)
+                Triple(c, n, img)
+            }
+            _backupState.value = result.fold(
+                onSuccess = { (c, n, img) ->
+                    BackupState.Success("恢复完成: $c 个分类 / $n 条笔记 / $img 张图片")
+                },
+                onFailure = { e ->
+                    Timber.tag("Backup").e(e, "import failed")
+                    BackupState.Error("导入失败: ${e.message ?: "文件格式错误"}")
+                }
+            )
+            delay(5_000L)
+            if (_backupState.value is BackupState.Success || _backupState.value is BackupState.Error) {
+                _backupState.value = BackupState.Idle
+            }
+        }
+    }
+
+    fun consumeBackupState() {
+        if (_backupState.value is BackupState.Success || _backupState.value is BackupState.Error) {
+            _backupState.value = BackupState.Idle
+        }
+    }
+}
+
+private fun androidx.lifecycle.ViewModel.launchSafe(
+    tag: String,
+    block: suspend () -> Unit
+) {
+    viewModelScope.launch {
+        runCatching { block() }
+            .onFailure { e -> Timber.tag("NotesViewModel").e(e, "$tag failed: ${e.message}") }
+    }
+}
+
+class ViewModelFactory(
+    private val repository: NotesRepository
+) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        return when {
+            modelClass.isAssignableFrom(NotesViewModel::class.java) ->
+                NotesViewModel(repository) as T
+            else -> throw IllegalArgumentException("Unknown VM: ${modelClass.name}")
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 6 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.util
+
+import com.example.notes.data.CategoryEntity
+import com.example.notes.data.NoteEntity
+import com.example.notes.data.NoteImageEntity
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonDeserializationContext
+import com.google.gson.JsonDeserializer
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
+import com.google.gson.JsonSerializationContext
+import com.google.gson.JsonSerializer
+import java.lang.reflect.Type
+
+object BackupManager {
+
+    private val gson = GsonBuilder()
+        .setPrettyPrinting()
+        .registerTypeAdapter(Long::class.java, LenientLongAdapter)
+        .registerTypeAdapter(Long::class.javaPrimitiveType, LenientLongAdapter)
+        .create()
+
+    fun toJson(payload: BackupPayload): String = gson.toJson(payload)
+
+    fun fromJson(json: String): BackupPayload = gson.fromJson(json, BackupPayload::class.java)
+
+    fun fromJsonSafe(json: String): Result<BackupPayload> = runCatching {
+        gson.fromJson(json, BackupPayload::class.java)
+    }
+
+    fun buildPayload(
+        appVersion: String,
+        categories: List<CategoryEntity>,
+        notes: List<NoteEntity>,
+        images: List<NoteImageEntity>
+    ): BackupPayload = BackupPayload(
+        version = BackupPayload.CURRENT_VERSION,
+        exportedAt = System.currentTimeMillis(),
+        appVersion = appVersion,
+        categories = categories.map {
+            CategoryBackup(
+                oldId = it.id,
+                name = it.name,
+                color = it.color,
+                parentOldId = it.parentId,
+                createdAt = it.createdAt
+            )
+        },
+        notes = notes.map {
+            NoteBackup(
+                oldId = it.id,
+                title = it.title,
+                content = it.content,
+                categoryOldId = it.categoryId,
+                tags = it.tags,
+                isPinned = it.isPinned,
+                priority = it.priority,
+                color = it.color,
+                reminderTime = it.reminderTime,
+                reminderRepeat = it.reminderRepeat,
+                createdAt = it.createdAt,
+                updatedAt = it.updatedAt
+            )
+        },
+        images = images.map {
+            ImageBackup(
+                oldId = it.id,
+                noteOldId = it.noteId,
+                uri = it.uri,
+                position = it.position
+            )
+        }
+    )
+
+    fun payloadVersion(json: String): Int = try {
+        val obj = gson.fromJson(json, JsonObject::class.java)
+        obj.get("version")?.asInt ?: 0
+    } catch (e: Exception) {
+        0
+    }
+}
+
+private object LenientLongAdapter : JsonSerializer<Long>, JsonDeserializer<Long> {
+    override fun serialize(src: Long?, type: Type, ctx: JsonSerializationContext): JsonElement =
+        JsonPrimitive(src)
+
+    override fun deserialize(json: JsonElement, type: Type, ctx: JsonDeserializationContext): Long {
+        val prim = json.asJsonPrimitive
+        return when {
+            prim.isNumber -> prim.asLong
+            prim.isString -> prim.asString.toLongOrNull()
+                ?: throw IllegalArgumentException("无法解析为 Long: ${prim.asString}")
+            else -> throw IllegalArgumentException("Long 字段类型错误: $json")
+        }
+    }
+}
+
+package com.example.notes.util
+
+data class BackupPayload(
+    val version: Int = CURRENT_VERSION,
+    val exportedAt: Long = System.currentTimeMillis(),
+    val appVersion: String,
+    val categories: List<CategoryBackup> = emptyList(),
+    val notes: List<NoteBackup> = emptyList(),
+    val images: List<ImageBackup> = emptyList()
+) {
+    companion object {
+        const val CURRENT_VERSION = 1
+    }
+}
+
+data class CategoryBackup(
+    val oldId: Long,
+    val name: String,
+    val color: Int,
+    val parentOldId: Long? = null,
+    val createdAt: Long
+)
+
+data class NoteBackup(
+    val oldId: Long,
+    val title: String,
+    val content: String,
+    val categoryOldId: Long?,
+    val tags: String,
+    val isPinned: Boolean,
+    val priority: Int,
+    val color: Int,
+    val reminderTime: Long?,
+    val reminderRepeat: String = "NONE",
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
+data class ImageBackup(
+    val oldId: Long,
+    val noteOldId: Long,
+    val uri: String,
+    val position: Int
+)
+
+--------------------------------------------------------------------------------
+                                第 7 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.util
+
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.core.content.edit
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import timber.log.Timber
+
+class AppLockStore(context: Context) {
+
+    private val prefs: SharedPreferences =
+        context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private val _isEnabled = MutableStateFlow(prefs.getBoolean(KEY_ENABLED, false))
+    val isEnabled: StateFlow<Boolean> = _isEnabled.asStateFlow()
+
+    private val _hasPin = MutableStateFlow(prefs.contains(KEY_PIN_HASH))
+    val hasPin: StateFlow<Boolean> = _hasPin.asStateFlow()
+
+    val pinLength: Int
+        get() = prefs.getInt(KEY_PIN_LENGTH, 6)
+
+    val isBiometricEnabled: Boolean
+        get() = prefs.getBoolean(KEY_BIOMETRIC_ENABLED, false)
+
+    @Volatile
+    private var lastUnlockTime: Long = prefs.getLong(KEY_LAST_UNLOCK, 0L)
+
+    fun setPin(pin: String): Boolean {
+        val clean = pin.trim()
+        if (clean.length !in 4..8) return false
+        if (!clean.all { it.isDigit() }) return false
+        val hash = nativeHashPin(clean)
+        prefs.edit {
+            putString(KEY_PIN_HASH, hash)
+            putBoolean(KEY_ENABLED, true)
+            putInt(KEY_PIN_LENGTH, clean.length)
+        }
+        _hasPin.value = true
+        _isEnabled.value = true
+        return true
+    }
+
+    fun checkPin(pin: String): Boolean {
+        val clean = pin.trim()
+        val expected = prefs.getString(KEY_PIN_HASH, null) ?: return false
+        if (nativeHashPin(clean) == expected) {
+            lastUnlockTime = System.currentTimeMillis()
+            prefs.edit { putLong(KEY_LAST_UNLOCK, lastUnlockTime) }
+            return true
+        }
+        return false
+    }
+
+    fun disable() {
+        prefs.edit {
+            remove(KEY_PIN_HASH)
+            remove(KEY_PIN_LENGTH)
+            remove(KEY_BIOMETRIC_ENABLED)
+            putBoolean(KEY_ENABLED, false)
+            putLong(KEY_LAST_UNLOCK, 0L)
+        }
+        _hasPin.value = false
+        _isEnabled.value = false
+        lastUnlockTime = 0L
+    }
+
+    fun setBiometricEnabled(enabled: Boolean) {
+        prefs.edit { putBoolean(KEY_BIOMETRIC_ENABLED, enabled) }
+    }
+
+    fun shouldShowLock(): Boolean {
+        if (!_isEnabled.value) return false
+        if (prefs.getString(KEY_PIN_HASH, null).isNullOrBlank()) return false
+        val diff = System.currentTimeMillis() - lastUnlockTime
+        return diff >= UNLOCK_GRACE_MS || lastUnlockTime == 0L
+    }
+
+    fun forceRelock() {
+        lastUnlockTime = 0L
+        prefs.edit { putLong(KEY_LAST_UNLOCK, 0L) }
+    }
+
+    fun updateUnlockTime() {
+        lastUnlockTime = System.currentTimeMillis()
+        prefs.edit { putLong(KEY_LAST_UNLOCK, lastUnlockTime) }
+    }
+
+    private fun nativeHashPin(pin: String): String {
+        return try {
+            NativeSecurity.hashPin(pin)
+        } catch (e: UnsatisfiedLinkError) {
+            Timber.tag("AppLock").w(e, "Native library not available, falling back to JVM SHA-256")
+            jvmSha256(pin)
+        }
+    }
+
+    private fun jvmSha256(text: String): String {
+        val salted = SALT + text
+        val bytes = java.security.MessageDigest.getInstance("SHA-256")
+            .digest(salted.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    companion object {
+        private const val PREFS = "app_lock_prefs"
+        private const val KEY_PIN_HASH = "pin_hash"
+        private const val KEY_ENABLED = "lock_enabled"
+        private const val KEY_PIN_LENGTH = "pin_length"
+        private const val KEY_LAST_UNLOCK = "last_unlock_time"
+        private const val KEY_BIOMETRIC_ENABLED = "biometric_enabled"
+        private const val SALT = "QingJian_AppLock_Salt_v1_2024"
+        const val UNLOCK_GRACE_MS: Long = 5 * 60 * 1000
+        const val COOLDOWN_MS: Long = 30 * 1000
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 8 页
+--------------------------------------------------------------------------------
+
+package com.example.notes
+
+import android.app.Application
+import android.content.Context
+import com.example.notes.data.AppDatabase
+import com.example.notes.repository.NotesRepository
+import com.example.notes.repository.TodoRepository
+import com.example.notes.util.AppLockStore
+import com.example.notes.util.AppUpdateChecker
+import com.example.notes.util.BackupManager
+import com.example.notes.util.TrashJanitorWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import timber.log.Timber
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class NotesApplication : Application() {
+
+    val database: AppDatabase by lazy { AppDatabase.getInstance(this) }
+    val repository: NotesRepository by lazy {
+        NotesRepository(
+            database = database,
+            noteDao = database.noteDao(),
+            categoryDao = database.categoryDao(),
+            noteImageDao = database.noteImageDao()
+        )
+    }
+
+    val todoRepository: TodoRepository by lazy {
+        TodoRepository(database.todoDao())
+    }
+
+    val appLockStore: AppLockStore by lazy { AppLockStore(this) }
+
+    val themePreference: com.example.notes.ui.theme.ThemePreference by lazy {
+        com.example.notes.ui.theme.ThemePreference(this)
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
+
+        installCrashHandler()
+
+        val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        runCatching { appScope.launch { maybeBackupBeforeUpgrade() } }
+            .onFailure { Timber.tag("NotesApplication").w(it, "backup launch failed") }
+
+        runCatching {
+            appScope.launch {
+                runCatching { AppUpdateChecker.checkForUpdate(persistContext = applicationContext) }
+                    .onFailure { Timber.tag("NotesApplication").w(it, "update check failed") }
+            }
+        }.onFailure { Timber.tag("NotesApplication").w(it, "update launch failed") }
+
+        runCatching { TrashJanitorWorker.schedule(this) }
+            .onFailure { Timber.tag("NotesApplication").w(it, "worker schedule failed") }
+
+        runCatching { appScope.launch { autoBackupDatabase() } }
+            .onFailure { Timber.tag("NotesApplication").w(it, "auto-backup launch failed") }
+    }
+
+    private suspend fun maybeBackupBeforeUpgrade() {
+        runCatching {
+            val prefs = getSharedPreferences("app_upgrade", Context.MODE_PRIVATE)
+            val lastVersion = prefs.getInt("last_version_code", 0)
+            val currentVersion = BuildConfig.VERSION_CODE
+
+            if (currentVersion > lastVersion && lastVersion != 0) {
+                Timber.tag("NotesApplication").i(
+                    "Upgrade detected: $lastVersion → $currentVersion, creating safety backup..."
+                )
+
+                val backupDir = File(filesDir, "upgrade_backup").apply { mkdirs() }
+                val existingBackups: List<File> =
+                    backupDir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+                existingBackups.drop(1).forEach { it.delete() }
+
+                val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                val backupFile = File(backupDir, "pre_upgrade_$ts.json")
+
+                val payload = repository.exportBackup(currentVersion.toString())
+                backupFile.writeText(BackupManager.toJson(payload))
+                Timber.tag("NotesApplication").i(
+                    "Pre-upgrade safety backup created: ${backupFile.absolutePath}"
+                )
+            }
+
+            prefs.edit().putInt("last_version_code", currentVersion).apply()
+        }.onFailure {
+            Timber.tag("NotesApplication").w(it, "Pre-upgrade backup failed, continuing anyway")
+        }
+    }
+
+    private fun autoBackupDatabase() {
+        runCatching {
+            val dbFile = getDatabasePath("notes.db")
+            if (!dbFile.exists()) return
+
+            val backupDir = File(cacheDir, "auto_backup").apply { mkdirs() }
+            val existingBackups: List<File> =
+                backupDir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+            existingBackups.drop(3).forEach { it.delete() }
+
+            val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val backupFile = File(backupDir, "notes_backup_$ts.db")
+            dbFile.copyTo(backupFile, overwrite = true)
+            Timber.tag("NotesApplication").d("Auto backup created: ${backupFile.name}")
+        }.onFailure {
+            Timber.tag("NotesApplication").w(it, "Auto backup failed")
+        }
+    }
+
+    private fun installCrashHandler() {
+        val prev = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            android.util.Log.e("NotesAppCrash", "=== FATAL on ${thread.name} ===", throwable)
+            runCatching {
+                val dir = File(cacheDir, "crash").apply { mkdirs() }
+                val list: List<File> = dir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+                list.drop(4).forEach { it.delete() }
+                val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                val file = File(dir, "crash_$ts.log")
+                file.bufferedWriter().use { w ->
+                    w.appendLine("=== Crash at $ts ===")
+                    w.appendLine("Thread: ${thread.name}")
+                    w.appendLine("Build: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                    w.appendLine()
+                    w.appendLine(throwable.stackTraceToString())
+                }
+            }
+            prev?.uncaughtException(thread, throwable)
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 9 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.util
+
+import android.content.Context
+import android.os.Build
+import timber.log.Timber
+import java.io.File
+
+object SecurityChecker {
+
+    data class SecurityReport(
+        val isRooted: Boolean = false,
+        val isDebuggerAttached: Boolean = false,
+        val isEmulator: Boolean = false,
+        val isHookFrameworkDetected: Boolean = false,
+        val isSignatureValid: Boolean = true,
+        val warnings: List<String> = emptyList()
+    ) {
+        val hasThreats: Boolean
+            get() = isRooted || isDebuggerAttached || isEmulator ||
+                isHookFrameworkDetected || !isSignatureValid
+    }
+
+    fun check(context: Context): SecurityReport {
+        val warnings = mutableListOf<String>()
+
+        val isRooted = checkRoot(warnings)
+        val isDebuggerAttached = checkDebugger(warnings)
+        val isEmulator = checkEmulator(warnings)
+        val isHookDetected = checkHookFramework(warnings)
+        val isSignatureValid = checkSignature(context, warnings)
+
+        if (warnings.isNotEmpty()) {
+            Timber.tag("Security").w("Security threats detected: %s", warnings.joinToString("; "))
+        }
+
+        return SecurityReport(
+            isRooted = isRooted,
+            isDebuggerAttached = isDebuggerAttached,
+            isEmulator = isEmulator,
+            isHookFrameworkDetected = isHookDetected,
+            isSignatureValid = isSignatureValid,
+            warnings = warnings
+        )
+    }
+
+    private fun checkRoot(warnings: MutableList<String>): Boolean {
+        val rootIndicators = listOf(
+            "/system/app/Superuser.apk",
+            "/sbin/su",
+            "/system/bin/su",
+            "/system/xbin/su",
+            "/data/local/xbin/su",
+            "/data/local/bin/su",
+            "/system/sd/xbin/su",
+            "/system/bin/failsafe/su",
+            "/su/bin/su",
+            "/magisk/.core/bin/magiskdb"
+        )
+
+        for (path in rootIndicators) {
+            if (File(path).exists()) {
+                warnings.add("Root 指标文件存在: $path")
+                return true
+            }
+        }
+
+        try {
+            val process = Runtime.getRuntime().exec(arrayOf("which", "su"))
+            val result = process.inputStream.bufferedReader().readText().trim()
+            if (result.isNotEmpty()) {
+                warnings.add("which su 返回: $result")
+                return true
+            }
+        } catch (_: Exception) { }
+
+        if (Build.TAGS != null && Build.TAGS.contains("test-keys")) {
+            warnings.add("Build.TAGS 包含 test-keys")
+            return true
+        }
+
+        return false
+    }
+
+    private fun checkDebugger(warnings: MutableList<String>): Boolean {
+        if (android.os.Debug.isDebuggerConnected()) {
+            warnings.add("调试器已连接 (Debug.isDebuggerConnected)")
+            return true
+        }
+        if (android.os.Debug.waitingForDebugger()) {
+            warnings.add("正在等待调试器连接")
+            return true
+        }
+        return false
+    }
+
+    private fun checkEmulator(warnings: MutableList<String>): Boolean {
+        val indicators = mutableListOf<String>()
+
+        if (Build.FINGERPRINT.contains("generic")) {
+            indicators.add("Build.FINGERPRINT=generic")
+        }
+        if (Build.HARDWARE.contains("goldfish") ||
+            Build.HARDWARE.contains("ranchu") ||
+            Build.HARDWARE.contains("vbox")
+        ) {
+            indicators.add("Build.HARDWARE=${Build.HARDWARE}")
+        }
+        if (Build.MODEL.contains("Emulator") ||
+            Build.MODEL.contains("Android SDK built for")
+        ) {
+            indicators.add("Build.MODEL=${Build.MODEL}")
+        }
+        if (Build.MANUFACTURER.contains("Genymotion") ||
+            Build.MANUFACTURER.contains("unknown")
+        ) {
+            indicators.add("Build.MANUFACTURER=${Build.MANUFACTURER}")
+        }
+        if (Build.PRODUCT.contains("sdk") ||
+            Build.PRODUCT.contains("vbox") ||
+            Build.PRODUCT.contains("emulator")
+        ) {
+            indicators.add("Build.PRODUCT=${Build.PRODUCT}")
+        }
+
+        val qemuProps = listOf(
+            "ro.hardware", "ro.product.device", "ro.build.display.id"
+        )
+        for (prop in qemuProps) {
+            try {
+                val process = Runtime.getRuntime().exec(arrayOf("getprop", prop))
+                val value = process.inputStream.bufferedReader().readText().trim()
+                if (value.contains("goldfish") || value.contains("ranchu")) {
+                    indicators.add("getprop $prop=$value")
+                }
+            } catch (_: Exception) { }
+        }
+
+        if (indicators.isNotEmpty()) {
+            warnings.add("模拟器指标: ${indicators.joinToString(", ")}")
+            return true
+        }
+        return false
+    }
+
+    private fun checkHookFramework(warnings: MutableList<String>): Boolean {
+        try {
+            val stackTrace = Thread.currentThread().stackTrace
+            for (element in stackTrace) {
+                val className = element.className
+                if (className.contains("de.robv.android.xposed") ||
+                    className.contains("com.saurik.substrate") ||
+                    className.contains("com.android.internal.os.ZygoteInit")
+                ) {
+                    warnings.add("Hook 框架堆栈特征: $className")
+                    return true
+                }
+            }
+        } catch (_: Exception) { }
+
+        val xposedPaths = listOf(
+            "/system/framework/XposedBridge.jar",
+            "/system/lib/libxposed_art.so",
+            "/system/lib64/libxposed_art.so"
+        )
+        for (path in xposedPaths) {
+            if (File(path).exists()) {
+                warnings.add("Xposed 文件存在: $path")
+                return true
+            }
+        }
+
+        try {
+            val process = Runtime.getRuntime().exec(arrayOf("ps", "-A"))
+            val output = process.inputStream.bufferedReader().readText()
+            if (output.contains("frida-server") || output.contains("frida-agent")) {
+                warnings.add("Frida 进程运行中")
+                return true
+            }
+        } catch (_: Exception) { }
+
+        return false
+    }
+
+    private fun checkSignature(context: Context, warnings: MutableList<String>): Boolean {
+        return try {
+            val expected = "78D54DA9C3536987FC80F09F8BDF3474C4E51148"
+            val actual = getSha1Hex(context)
+            if (actual != expected) {
+                warnings.add("APK 签名不匹配! 期望=$expected 实际=$actual")
+                false
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            Timber.tag("Security").w(e, "签名校验异常")
+            true
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 10 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.util
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.core.graphics.scale
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import kotlinx.coroutines.suspendCancellableCoroutine
+import timber.log.Timber
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+
+object OcrHelper {
+
+    private val recognizer by lazy {
+        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    }
+
+    suspend fun recognizeText(context: Context, uri: Uri): String {
+        val bitmap = loadBitmap(context, uri)
+        val scaled = scaleIfNeeded(bitmap)
+        val image = InputImage.fromBitmap(scaled, 0)
+
+        return suspendCancellableCoroutine { continuation ->
+            recognizer.process(image)
+                .addOnSuccessListener { visionText ->
+                    val result = visionText.text
+                    Timber.d("OCR recognized ${result.length} chars")
+                    if (scaled != bitmap) {
+                        runCatching { scaled.recycle() }
+                    }
+                    runCatching { bitmap.recycle() }
+                    continuation.resume(result)
+                }
+                .addOnFailureListener { e ->
+                    Timber.e(e, "OCR failed")
+                    if (scaled != bitmap) {
+                        runCatching { scaled.recycle() }
+                    }
+                    runCatching { bitmap.recycle() }
+                    continuation.resumeWithException(e)
+                }
+            }
+        }
+    }
+
+    private fun loadBitmap(context: Context, uri: Uri, maxDim: Int = 1920): Bitmap {
+        return context.contentResolver.openInputStream(uri)?.use { stream ->
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            BitmapFactory.decodeStream(stream, null, options)
+            
+            val w = options.outWidth
+            val h = options.outHeight
+            var sampleSize = 1
+            if (w > maxDim || h > maxDim) {
+                val wRatio = kotlin.math.ceil(w.toDouble() / maxDim).toInt()
+                val hRatio = kotlin.math.ceil(h.toDouble() / maxDim).toInt()
+                sampleSize = maxOf(wRatio, hRatio)
+            }
+            
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                val decodeOptions = BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = Bitmap.Config.RGB_565
+                }
+                BitmapFactory.decodeStream(input, null, decodeOptions)
+            }
+        } ?: throw IllegalArgumentException("无法加载图片: $uri")
+    }
+
+    private fun scaleIfNeeded(bitmap: Bitmap, maxDim: Int = 1920): Bitmap {
+        val w = bitmap.width
+        val h = bitmap.height
+        if (w <= maxDim && h <= maxDim) return bitmap
+        val ratio = w.toFloat() / h.toFloat()
+        val newW: Int
+        val newH: Int
+        if (w > h) {
+            newW = maxDim
+            newH = (maxDim / ratio).toInt()
+        } else {
+            newH = maxDim
+            newW = (maxDim * ratio).toInt()
+        }
+        val scaled = bitmap.scale(newW, newH)
+        if (scaled != bitmap) {
+            runCatching { bitmap.recycle() }
+        }
+        return scaled
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 11 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.util
+
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.receiveAsFlow
+import timber.log.Timber
+
+class SpeechToTextHelper(private val context: Context) {
+
+    sealed class State {
+        object Idle : State()
+        object Listening : State()
+        data class Partial(val text: String) : State()
+        data class Result(val text: String) : State()
+        data class Error(val code: Int, val message: String) : State()
+    }
+
+    private var recognizer: SpeechRecognizer? = null
+    private val _state = Channel<State>(Channel.CONFLATED)
+    val state: Flow<State> = _state.receiveAsFlow()
+
+    fun isAvailable(): Boolean = SpeechRecognizer.isRecognitionAvailable(context)
+
+    fun startListening(languageTag: String = "zh-CN") {
+        stopListening()
+        val rec = SpeechRecognizer.createSpeechRecognizer(context)
+        recognizer = rec
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        rec.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                _state.trySend(State.Listening)
+            }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onError(error: Int) {
+                val msg = when (error) {
+                    SpeechRecognizer.ERROR_AUDIO -> "音频录制失败"
+                    SpeechRecognizer.ERROR_CLIENT -> "客户端错误"
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "缺少录音权限"
+                    SpeechRecognizer.ERROR_NETWORK -> "网络错误"
+                    SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "网络超时"
+                    SpeechRecognizer.ERROR_NO_MATCH -> "未识别到语音"
+                    SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "识别引擎正忙"
+                    SpeechRecognizer.ERROR_SERVER -> "服务器错误"
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "语音超时"
+                    else -> "未知错误 ($error)"
+                }
+                Timber.e("SpeechToText error: $error -> $msg")
+                _state.trySend(State.Error(error, msg))
+                destroy()
+            }
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = matches?.firstOrNull() ?: ""
+                if (text.isNotBlank()) {
+                    _state.trySend(State.Result(text))
+                } else {
+                    _state.trySend(State.Error(SpeechRecognizer.ERROR_NO_MATCH, "未识别到语音"))
+                }
+                destroy()
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val text = matches?.firstOrNull() ?: ""
+                if (text.isNotBlank()) _state.trySend(State.Partial(text))
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        rec.startListening(intent)
+    }
+
+    fun stopListening() {
+        try { recognizer?.stopListening() } catch (_: Exception) {}
+        destroy()
+    }
+
+    private fun destroy() {
+        try { recognizer?.destroy() } catch (_: Exception) {}
+        recognizer = null
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 12 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.util
+
+import android.content.Context
+import androidx.work.BackoffPolicy
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import com.example.notes.data.TodoEntity
+import com.example.notes.work.TodoWorker
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import timber.log.Timber
+import java.util.concurrent.TimeUnit
+
+object TodoReminderManager {
+
+    enum class ScheduleResult { SCHEDULED, TIME_PASSED, FAILED }
+
+    suspend fun scheduleReminder(context: Context, todo: TodoEntity): ScheduleResult {
+        val reminderTime = todo.reminderTime ?: return ScheduleResult.FAILED
+
+        val currentTime = System.currentTimeMillis()
+        val delay = reminderTime - currentTime
+
+        if (delay <= 0) {
+            return ScheduleResult.TIME_PASSED
+        }
+
+        return try {
+            val inputData = workDataOf(
+                TodoWorker.KEY_TODO_ID to todo.id,
+                TodoWorker.KEY_TODO_TITLE to todo.title,
+                TodoWorker.KEY_TODO_CONTENT to todo.content,
+                TodoWorker.KEY_RINGTONE_URI to (todo.ringtoneUri ?: "")
+            )
+
+            val workName = "todo_reminder_${todo.id}"
+            val workRequest = OneTimeWorkRequestBuilder<TodoWorker>()
+                .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                .setInputData(inputData)
+                .addTag("todo_${todo.id}")
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(workName, ExistingWorkPolicy.REPLACE, workRequest)
+            Timber.tag("TodoReminderManager").d("Scheduled todo reminder id=${todo.id}, delay=${delay}ms")
+            ScheduleResult.SCHEDULED
+        } catch (e: Exception) {
+            Timber.tag("TodoReminderManager").e(e, "scheduleReminder failed")
+            ScheduleResult.FAILED
+        }
+    }
+
+    fun cancelReminder(context: Context, todoId: Long) {
+        WorkManager.getInstance(context)
+            .cancelUniqueWork("todo_reminder_$todoId")
+        Timber.tag("TodoReminderManager").d("Cancelled todo reminder id=$todoId")
+    }
+
+    suspend fun showScheduleResult(context: Context, result: ScheduleResult) {
+        val message = when (result) {
+            ScheduleResult.SCHEDULED -> "提醒已设置"
+            ScheduleResult.TIME_PASSED -> "提醒时间已过"
+            ScheduleResult.FAILED -> "提醒设置失败"
+        }
+        withContext(Dispatchers.Main) {
+            context.toastShort(message)
+        }
+    }
+}
+
+--------------------------------------------------------------------------------
+                                第 13 页
+--------------------------------------------------------------------------------
+
+package com.example.notes.util
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.pdf.PdfDocument
+import android.net.Uri
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.OutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+object NoteExporter {
+
+    private const val PAGE_WIDTH_PT = 595
+    private const val PAGE_HEIGHT_PT = 842
+    private const val MARGIN_PT = 36
+    private const val LINE_HEIGHT_PT = 22f
+    private const val TITLE_SIZE = 20f
+    private const val BODY_SIZE = 14f
+    private const val META_SIZE = 10f
+    private const val MAX_IMAGE_WIDTH_PT = (PAGE_WIDTH_PT - 2 * MARGIN_PT).toFloat()
+    private const val IMAGE_SPACING_PT = 12f
+
+    private val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        textSize = TITLE_SIZE
+        isFakeBoldText = true
+    }
+    private val bodyPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.BLACK
+        textSize = BODY_SIZE
+    }
+    private val metaPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.GRAY
+        textSize = META_SIZE
+    }
+
+    private fun loadBitmap(context: Context, uriString: String): Bitmap? {
+        return try {
+            val uri = Uri.parse(uriString)
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                val options = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                BitmapFactory.decodeStream(inputStream, null, options)
+
+                val maxWidthPx = (MAX_IMAGE_WIDTH_PT * 2).toInt()
+                var sampleSize = 1
+                while (options.outWidth / sampleSize > maxWidthPx) {
+                    sampleSize *= 2
+                }
+
+                context.contentResolver.openInputStream(uri)?.use { inputStream2 ->
+                    val loadOptions = BitmapFactory.Options().apply {
+                        inSampleSize = sampleSize
+                    }
+                    BitmapFactory.decodeStream(inputStream2, null, loadOptions)
+                }
+            }
+        } catch (e: Exception) {
+            timber.log.Timber.tag("NoteExporter").w(e, "Failed to load bitmap: $uriString")
+            null
+        }
+    }
+
+    suspend fun exportToPdf(
+        context: Context,
+        outputStream: OutputStream,
+        title: String,
+        content: String,
+        meta: String = "",
+        imageUris: List<String> = emptyList()
+    ): Int = withContext(Dispatchers.IO) {
+        val pdf = PdfDocument()
+        val contentAreaWidth = (PAGE_WIDTH_PT - 2 * MARGIN_PT).toInt()
+        val contentAreaHeight = (PAGE_HEIGHT_PT - 2 * MARGIN_PT).toInt()
+
+        val bitmaps = imageUris.mapNotNull { loadBitmap(context, it) }
+
+        val lines = paginate(content, contentAreaWidth, contentAreaHeight, withTitle = title.isNotBlank())
+        var pageNum = 1
+        var y = MARGIN_PT.toFloat()
+        var pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH_PT, PAGE_HEIGHT_PT, pageNum).create()
+        var page = pdf.startPage(pageInfo)
+        var canvas = page.canvas
+
+        if (title.isNotBlank()) {
+            canvas.drawText(title, MARGIN_PT.toFloat(), y + TITLE_SIZE, titlePaint)
+            y += TITLE_SIZE + 16
+        }
+        if (meta.isNotBlank()) {
+            canvas.drawText(meta, MARGIN_PT.toFloat(), y + META_SIZE, metaPaint)
+            y += META_SIZE + 12
+        }
+
+        for (item in buildExportItems(lines, bitmaps)) {
+            when (item) {
+                is ExportItem.Text -> {
+                    val lineHeight = LINE_HEIGHT_PT
+                    if (y + lineHeight > PAGE_HEIGHT_PT - MARGIN_PT) {
+                        pdf.finishPage(page)
+                        pageNum++
+                        pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH_PT, PAGE_HEIGHT_PT, pageNum).create()
+                        page = pdf.startPage(pageInfo)
+                        canvas = page.canvas
+                        y = MARGIN_PT.toFloat()
+                    }
+                    canvas.drawText(item.text, MARGIN_PT.toFloat(), y + BODY_SIZE, bodyPaint)
+                    y += lineHeight
+                }
+                is ExportItem.Image -> {
+                    val bitmap = item.bitmap
+                    val scale = (MAX_IMAGE_WIDTH_PT / bitmap.width).coerceAtMost(1f)
+                    val scaledWidth = (bitmap.width * scale).toInt()
+                    val scaledHeight = (bitmap.height * scale).toInt()
+
+                    val totalHeight = scaledHeight + IMAGE_SPACING_PT
+
+                    if (y + totalHeight > PAGE_HEIGHT_PT - MARGIN_PT) {
+                        pdf.finishPage(page)
+                        pageNum++
+                        pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH_PT, PAGE_HEIGHT_PT, pageNum).create()
+                        page = pdf.startPage(pageInfo)
+                        canvas = page.canvas
+                        y = MARGIN_PT.toFloat()
+                    }
+
+                    val destRect = Rect(
+                        MARGIN_PT.toInt(),
+                        y.toInt(),
+                        (MARGIN_PT + scaledWidth).toInt(),
+                        (y + scaledHeight).toInt()
+                    )
+                    val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+                    canvas.drawBitmap(bitmap, srcRect, destRect, null)
+                    y += totalHeight
+                }
+            }
+        }
+
+        pdf.finishPage(page)
+        pdf.writeTo(outputStream)
+        pdf.close()
+
+        bitmaps.forEach { it.recycle() }
+
+        pageNum
+    }
+
+    suspend fun exportToLongImage(
+        context: Context,
+        outputStream: OutputStream,
+        title: String,
+        content: String,
+        meta: String = "",
+        imageUris: List<String> = emptyList()
+    ): Pair<Int, Int> = withContext(Dispatchers.IO) {
+        val density = 2.0f
+        val widthPx = ((PAGE_WIDTH_PT * density).toInt())
+        val marginPx = (MARGIN_PT * density).toInt()
+        val bodySizePx = BODY_SIZE * density
+        val titleSizePx = TITLE_SIZE * density
+        val metaSizePx = META_SIZE * density
+
+        val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            textSize = bodySizePx
+        }
+        val titlePaintImg = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.BLACK
+            textSize = titleSizePx
+            isFakeBoldText = true
+        }
+        val metaPaintImg = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.GRAY
+            textSize = metaSizePx
+        }
+
+        val contentWidth = widthPx - 2 * marginPx
+
+        val bitmaps = imageUris.mapNotNull { loadBitmap(context, it) }
+
+        val layout = StaticLayout.Builder
+            .obtain(content, 0, content.length, paint, contentWidth)
+            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+            .setLineSpacing(0f, 1.0f)
+            .setIncludePad(false)
+            .build()
+
+        var imageTotalHeight = 0
+        val maxImageWidthPx = (MAX_IMAGE_WIDTH_PT * density).toInt()
+        val imageSpacingPx = (IMAGE_SPACING_PT * density).toInt()
+        bitmaps.forEach { bitmap ->
+            val scale = (maxImageWidthPx.toFloat() / bitmap.width).coerceAtMost(1f)
+            val scaledHeight = (bitmap.height * scale).toInt()
+            imageTotalHeight += scaledHeight + imageSpacingPx
+        }
+
+        var extraHeight = 0
+        if (title.isNotBlank()) extraHeight += (titleSizePx + 16 * density).toInt()
+        if (meta.isNotBlank()) extraHeight += (metaSizePx + 12 * density).toInt()
+        val totalHeight = layout.height + 2 * marginPx + extraHeight + imageTotalHeight
+
+        val bitmap = Bitmap.createBitmap(widthPx, totalHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+
+        var y = marginPx.toFloat()
+
+        if (title.isNotBlank()) {
+            canvas.drawText(title, marginPx.toFloat(), y + titleSizePx, titlePaintImg)
+            y += titleSizePx + 16 * density
+        }
+        if (meta.isNotBlank()) {
+            canvas.drawText(meta, marginPx.toFloat(), y + metaSizePx, metaPaintImg)
+            y += metaSizePx + 12 * density
+        }
+
+        bitmaps.forEach { bitmapImg ->
+            val scale = (maxImageWidthPx.toFloat() / bitmapImg.width).coerceAtMost(1f)
+            val scaledWidth = (bitmapImg.width * scale).toInt()
+            val scaledHeight = (bitmapImg.height * scale).toInt()
+
+            val destRect = Rect(
+                marginPx,
+                y.toInt(),
+                marginPx + scaledWidth,
+                (y + scaledHeight).toInt()
+            )
+            val srcRect = Rect(0, 0, bitmapImg.width, bitmapImg.height)
+            canvas.drawBitmap(bitmapImg, srcRect, destRect, null)
+            y += scaledHeight + imageSpacingPx
+        }
+
+        canvas.save()
+        canvas.translate(marginPx.toFloat(), y)
+        layout.draw(canvas)
+        canvas.restore()
+
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        bitmap.recycle()
+
+        bitmaps.forEach { it.recycle() }
+
+        widthPx to totalHeight
+    }
+
+    private sealed class ExportItem {
+        data class Text(val text: String) : ExportItem()
+        data class Image(val bitmap: Bitmap) : ExportItem()
+    }
+
+    private fun buildExportItems(lines: List<String>, bitmaps: List<Bitmap>): List<ExportItem> {
+        val items = mutableListOf<ExportItem>()
+        bitmaps.forEach { bitmap ->
+            items.add(ExportItem.Image(bitmap))
+        }
+        lines.forEach { line ->
+            items.add(ExportItem.Text(line))
+        }
+        return items
+    }
+
+    private fun paginate(
+        content: String,
+        @Suppress("UNUSED_PARAMETER") contentWidthPx: Int,
+        contentAreaHeightPt: Int,
+        withTitle: Boolean
+    ): List<String> {
+        val raw = content.lines().flatMap { line ->
+            if (line.length < 40) listOf(line) else line.chunked(40)
+        }
+        val titleRows = if (withTitle) 2 else 0
+        val usableHeightPt = contentAreaHeightPt - titleRows * LINE_HEIGHT_PT.toInt()
+        val linesPerPage = (usableHeightPt / LINE_HEIGHT_PT).toInt().coerceAtLeast(1)
+        return if (raw.size <= linesPerPage) {
+            raw
+        } else {
+            raw.take(linesPerPage)
+        }
+    }
+
+    fun defaultFileName(prefix: String, suffix: String): String {
+        val ts = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        val safePrefix = prefix.trim().ifEmpty { "note" }
+            .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+            .take(20)
+        return "${safePrefix}_$ts.$suffix"
+    }
+}
