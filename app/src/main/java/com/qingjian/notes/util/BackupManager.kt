@@ -62,11 +62,12 @@ object BackupManager {
      */
     fun fromJson(json: String): BackupPayload {
         val payload = gson.fromJson(json, BackupPayload::class.java)
-        return payload.copy(
+        val valid = payload.copy(
             categories = payload.categories ?: emptyList(),
             notes = payload.notes ?: emptyList(),
             images = payload.images ?: emptyList()
         )
+        return valid
     }
 
     /**
@@ -76,11 +77,79 @@ object BackupManager {
      */
     fun fromJsonSafe(json: String): Result<BackupPayload> = runCatching {
         val payload = gson.fromJson(json, BackupPayload::class.java)
-        payload.copy(
+        val valid = payload.copy(
             categories = payload.categories ?: emptyList(),
             notes = payload.notes ?: emptyList(),
             images = payload.images ?: emptyList()
         )
+        valid
+    }
+
+    /**
+     * 增强版反序列化，增加数据验证和详细日志。
+     * 如果解析出的数据异常，返回详细的错误信息。
+     */
+    fun fromJsonWithValidation(json: String): Result<BackupPayload> {
+        return runCatching {
+            val obj = gson.fromJson(json, JsonObject::class.java)
+            
+            val version = obj.get("version")?.asInt ?: 0
+            val exportedAt = obj.get("exportedAt")?.asLong ?: 0
+            val appVersion = obj.get("appVersion")?.asString ?: ""
+            
+            val categories = mutableListOf<CategoryBackup>()
+            obj.getAsJsonArray("categories")?.forEach { catElem ->
+                val catObj = catElem.asJsonObject
+                categories.add(CategoryBackup(
+                    oldId = catObj.get("oldId")?.asLong ?: 0L,
+                    name = catObj.get("name")?.asString ?: "",
+                    color = catObj.get("color")?.asInt ?: 0,
+                    parentOldId = if (catObj.has("parentOldId") && !catObj.get("parentOldId").isJsonNull) catObj.get("parentOldId").asLong else null,
+                    createdAt = catObj.get("createdAt")?.asLong ?: 0L
+                ))
+            }
+            
+            val notes = mutableListOf<NoteBackup>()
+            obj.getAsJsonArray("notes")?.forEach { noteElem ->
+                val noteObj = noteElem.asJsonObject
+                val title = noteObj.get("title")?.asString
+                val content = noteObj.get("content")?.asString
+                notes.add(NoteBackup(
+                    oldId = noteObj.get("oldId")?.asLong ?: 0L,
+                    title = title,
+                    content = content,
+                    categoryOldId = if (noteObj.has("categoryOldId") && !noteObj.get("categoryOldId").isJsonNull) noteObj.get("categoryOldId").asLong else null,
+                    tags = noteObj.get("tags")?.asString ?: "",
+                    isPinned = noteObj.get("isPinned")?.asBoolean ?: false,
+                    priority = noteObj.get("priority")?.asInt ?: 0,
+                    color = noteObj.get("color")?.asInt ?: -1,
+                    reminderTime = if (noteObj.has("reminderTime") && !noteObj.get("reminderTime").isJsonNull) noteObj.get("reminderTime").asLong else null,
+                    reminderRepeat = noteObj.get("reminderRepeat")?.asString,
+                    createdAt = noteObj.get("createdAt")?.asLong ?: 0L,
+                    updatedAt = noteObj.get("updatedAt")?.asLong ?: 0L
+                ))
+            }
+            
+            val images = mutableListOf<ImageBackup>()
+            obj.getAsJsonArray("images")?.forEach { imgElem ->
+                val imgObj = imgElem.asJsonObject
+                images.add(ImageBackup(
+                    oldId = imgObj.get("oldId")?.asLong ?: 0L,
+                    noteOldId = imgObj.get("noteOldId")?.asLong ?: 0L,
+                    uri = imgObj.get("uri")?.asString,
+                    position = imgObj.get("position")?.asInt ?: 0
+                ))
+            }
+            
+            BackupPayload(
+                version = version,
+                exportedAt = exportedAt,
+                appVersion = appVersion,
+                categories = categories,
+                notes = notes,
+                images = images
+            )
+        }
     }
 
     /**

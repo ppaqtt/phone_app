@@ -542,23 +542,73 @@ class NotesViewModel(
                 val rawCatLen = if (root.has("categories") && root.get("categories").isJsonArray) root.getAsJsonArray("categories").size() else -1
                 val rawNotesLen = if (root.has("notes") && root.get("notes").isJsonArray) root.getAsJsonArray("notes").size() else -1
                 val rawImgLen = if (root.has("images") && root.get("images").isJsonArray) root.getAsJsonArray("images").size() else -1
-                // 绕过 Gson: 直接从 JsonElement 构建 DTO，避免 Kotlin data class + type adapter 的静默解析问题
-                val plainGson = com.google.gson.Gson()
+                
                 val version = if (root.has("version")) root.getAsJsonPrimitive("version").asInt else BackupPayload.CURRENT_VERSION
                 val exportedAt = if (root.has("exportedAt")) root.getAsJsonPrimitive("exportedAt").asLong else null
                 val appVersion = if (root.has("appVersion") && !root.get("appVersion").isJsonNull) root.getAsJsonPrimitive("appVersion").asString else null
-                val categories = if (root.has("categories") && root.get("categories").isJsonArray)
-                    root.getAsJsonArray("categories").map { plainGson.fromJson(it, CategoryBackup::class.java) } else emptyList()
-                val notes = if (root.has("notes") && root.get("notes").isJsonArray)
-                    root.getAsJsonArray("notes").map { plainGson.fromJson(it, NoteBackup::class.java) } else emptyList()
-                val images = if (root.has("images") && root.get("images").isJsonArray)
-                    root.getAsJsonArray("images").map { plainGson.fromJson(it, ImageBackup::class.java) } else emptyList()
+                
+                val categories = mutableListOf<CategoryBackup>()
+                if (root.has("categories") && root.get("categories").isJsonArray) {
+                    root.getAsJsonArray("categories").forEach { catElem ->
+                        val catObj = catElem.asJsonObject
+                        categories.add(CategoryBackup(
+                            oldId = if (catObj.has("oldId")) catObj.getAsJsonPrimitive("oldId").asLong else 0L,
+                            name = if (catObj.has("name") && !catObj.get("name").isJsonNull) catObj.getAsJsonPrimitive("name").asString else "",
+                            color = if (catObj.has("color")) catObj.getAsJsonPrimitive("color").asInt else 0,
+                            parentOldId = if (catObj.has("parentOldId") && !catObj.get("parentOldId").isJsonNull) catObj.getAsJsonPrimitive("parentOldId").asLong else null,
+                            createdAt = if (catObj.has("createdAt")) catObj.getAsJsonPrimitive("createdAt").asLong else 0L
+                        ))
+                    }
+                }
+                
+                val notes = mutableListOf<NoteBackup>()
+                if (root.has("notes") && root.get("notes").isJsonArray) {
+                    root.getAsJsonArray("notes").forEach { noteElem ->
+                        val noteObj = noteElem.asJsonObject
+                        val title = if (noteObj.has("title") && !noteObj.get("title").isJsonNull) noteObj.getAsJsonPrimitive("title").asString else ""
+                        val content = if (noteObj.has("content") && !noteObj.get("content").isJsonNull) noteObj.getAsJsonPrimitive("content").asString else ""
+                        notes.add(NoteBackup(
+                            oldId = if (noteObj.has("oldId")) noteObj.getAsJsonPrimitive("oldId").asLong else 0L,
+                            title = title,
+                            content = content,
+                            categoryOldId = if (noteObj.has("categoryOldId") && !noteObj.get("categoryOldId").isJsonNull) noteObj.getAsJsonPrimitive("categoryOldId").asLong else null,
+                            tags = if (noteObj.has("tags") && !noteObj.get("tags").isJsonNull) noteObj.getAsJsonPrimitive("tags").asString else "",
+                            isPinned = if (noteObj.has("isPinned")) noteObj.getAsJsonPrimitive("isPinned").asBoolean else false,
+                            priority = if (noteObj.has("priority")) noteObj.getAsJsonPrimitive("priority").asInt else 0,
+                            color = if (noteObj.has("color")) noteObj.getAsJsonPrimitive("color").asInt else -1,
+                            reminderTime = if (noteObj.has("reminderTime") && !noteObj.get("reminderTime").isJsonNull) noteObj.getAsJsonPrimitive("reminderTime").asLong else null,
+                            reminderRepeat = if (noteObj.has("reminderRepeat") && !noteObj.get("reminderRepeat").isJsonNull) noteObj.getAsJsonPrimitive("reminderRepeat").asString else null,
+                            createdAt = if (noteObj.has("createdAt")) noteObj.getAsJsonPrimitive("createdAt").asLong else 0L,
+                            updatedAt = if (noteObj.has("updatedAt")) noteObj.getAsJsonPrimitive("updatedAt").asLong else 0L
+                        ))
+                    }
+                }
+                
+                val images = mutableListOf<ImageBackup>()
+                if (root.has("images") && root.get("images").isJsonArray) {
+                    root.getAsJsonArray("images").forEach { imgElem ->
+                        val imgObj = imgElem.asJsonObject
+                        images.add(ImageBackup(
+                            oldId = if (imgObj.has("oldId")) imgObj.getAsJsonPrimitive("oldId").asLong else 0L,
+                            noteOldId = if (imgObj.has("noteOldId")) imgObj.getAsJsonPrimitive("noteOldId").asLong else 0L,
+                            uri = if (imgObj.has("uri") && !imgObj.get("uri").isJsonNull) imgObj.getAsJsonPrimitive("uri").asString else "",
+                            position = if (imgObj.has("position")) imgObj.getAsJsonPrimitive("position").asInt else 0
+                        ))
+                    }
+                }
+                
                 val payload = BackupPayload(version, exportedAt, appVersion, categories, notes, images)
                 val catSize = categories.size
                 val noteSize = notes.size
                 val imgSize = images.size
+                
+                val emptyTitleNotes = notes.count { it.title.isNullOrEmpty() }
+                val emptyContentNotes = notes.count { it.content.isNullOrEmpty() }
                 Timber.tag("Backup")
                     .w("parsed payload: version=${payload.version} categories=$catSize notes=$noteSize images=$imgSize jsonLen=${json.length}")
+                Timber.tag("Backup")
+                    .w("notes with empty title: $emptyTitleNotes, empty content: $emptyContentNotes")
+                
                 val (c, n, img) = repository.importBackup(payload, replaceExisting)
                 listOf(rawCatLen, rawNotesLen, rawImgLen, catSize, noteSize, imgSize, c, n, img)
             }
