@@ -97,6 +97,11 @@ android {
                 "/META-INF/NOTICE*"
             )
         }
+        jniLibs {
+            excludes += setOf(
+                "**/liblog.so"
+            )
+        }
     }
 
     ksp {
