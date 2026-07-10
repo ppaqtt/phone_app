@@ -86,61 +86,124 @@ const goBack = () => {
 </script>
 
 <style lang="scss" scoped>
+.container {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #E8EAF6 0%, #F5F5F5 30%, #FFFFFF 100%);
+}
+
 .page-header {
   display: flex;
   align-items: center;
-  padding: $spacing-md;
+  padding: $spacing-md $spacing-lg;
   padding-top: calc(env(safe-area-inset-top) + #{$spacing-md});
-  background: $card-bg;
+  background: linear-gradient(135deg, #5C6BC0 0%, #7E57C2 50%, #9C27B0 100%);
+  box-shadow: 0 8rpx 32rpx rgba(92, 107, 192, 0.3);
+  position: relative;
+  z-index: 10;
 }
 
 .back-btn {
   font-size: $font-size-xxl;
-  color: $text-secondary;
+  color: rgba(255, 255, 255, 0.9);
   padding: 0 $spacing-sm;
   margin-right: $spacing-sm;
   line-height: 1;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20rpx;
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:active {
+    transform: scale(0.92);
+    background: rgba(255, 255, 255, 0.3);
+  }
 }
 
 .header-title {
-  font-size: $font-size-lg;
-  font-weight: 600;
-  color: $text-primary;
+  font-size: $font-size-xl;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: 2rpx;
 }
 
 .tags-list {
-  height: calc(100vh - 200rpx);
-  padding: 0 $spacing-md;
+  height: calc(100vh - 180rpx);
+  padding: $spacing-lg;
 }
 
 .tag-item {
   display: flex;
   align-items: center;
-  padding: $spacing-lg;
-  background: $card-bg;
-  border-radius: $radius-lg;
+  padding: $spacing-xl $spacing-lg;
+  background: #FFFFFF;
+  border-radius: 24rpx;
   margin-bottom: $spacing-md;
+  box-shadow: 
+    0 4rpx 20rpx rgba(0, 0, 0, 0.06),
+    0 2rpx 8rpx rgba(0, 0, 0, 0.04),
+    0 1rpx 4rpx rgba(0, 0, 0, 0.02);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 8rpx;
+    background: linear-gradient(180deg, #9C27B0 0%, #5C6BC0 100%);
+  }
+
+  &:active {
+    transform: translateY(-2rpx);
+    box-shadow: 
+      0 8rpx 32rpx rgba(0, 0, 0, 0.1),
+      0 4rpx 16rpx rgba(0, 0, 0, 0.06);
+  }
 }
 
 .tag-name {
   flex: 1;
   font-size: $font-size-base;
+  font-weight: 600;
   color: $text-primary;
+  margin-left: $spacing-md;
+  letter-spacing: 1rpx;
 }
 
 .tag-count {
   font-size: $font-size-sm;
-  color: $text-secondary;
+  color: $text-hint;
   margin-right: $spacing-md;
+  background: rgba(156, 39, 176, 0.08);
+  padding: 6rpx 20rpx;
+  border-radius: 20rpx;
+  font-weight: 500;
 }
 
 .tag-delete {
   font-size: $font-size-xl;
-  color: $text-hint;
+  color: rgba(239, 83, 80, 0.6);
   line-height: 1;
-  
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(239, 83, 80, 0.08);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
   &:active {
-    color: $error-color;
+    color: #EF5350;
+    background: rgba(239, 83, 80, 0.15);
+    transform: scale(0.9);
   }
 }
 
@@ -149,29 +212,35 @@ const goBack = () => {
   align-items: center;
   justify-content: center;
   gap: $spacing-sm;
-  padding: $spacing-lg;
-  background: $bg-color;
-  border: 2rpx dashed $border-color;
-  border-radius: $radius-lg;
+  padding: $spacing-xl;
+  background: rgba(255, 255, 255, 0.8);
+  border: 3rpx dashed rgba(156, 39, 176, 0.3);
+  border-radius: 24rpx;
   margin-bottom: $spacing-md;
-  
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+
   &:active {
-    background: rgba($primary-color, 0.04);
-    border-color: $primary-color;
+    background: rgba(156, 39, 176, 0.06);
+    border-color: #9C27B0;
+    transform: scale(0.98);
   }
 }
 
 .add-icon {
-  font-size: $font-size-xl;
-  color: $text-secondary;
+  font-size: 44rpx;
+  color: #9C27B0;
+  font-weight: 300;
 }
 
 .add-text {
   font-size: $font-size-base;
-  color: $text-secondary;
+  color: #9C27B0;
+  font-weight: 500;
+  letter-spacing: 1rpx;
 }
 
 .list-footer {
-  height: 80rpx;
+  height: 120rpx;
 }
 </style>

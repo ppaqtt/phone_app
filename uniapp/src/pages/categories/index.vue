@@ -1,8 +1,11 @@
 <template>
   <view class="container">
     <view class="page-header">
-      <view class="header-title">分类管理</view>
-      <view class="header-subtitle">{{ categories.length }} 个分类</view>
+      <text class="back-btn" @click="goBack">‹</text>
+      <view class="header-content">
+        <view class="header-title">分类管理</view>
+        <view class="header-subtitle">{{ categories.length }} 个分类</view>
+      </view>
     </view>
 
     <scroll-view class="category-list" scroll-y>
@@ -101,68 +104,165 @@ const deleteCategory = (cat: Category) => {
     }
   })
 }
+
+const goBack = () => {
+  uni.switchTab({ url: '/pages/notes/index' })
+}
 </script>
 
 <style lang="scss" scoped>
+.container {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #E8EAF6 0%, #F5F5F5 30%, #FFFFFF 100%);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: $spacing-md $spacing-lg;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-md});
+  background: linear-gradient(135deg, #5C6BC0 0%, #7E57C2 50%, #9C27B0 100%);
+  box-shadow: 0 8rpx 32rpx rgba(92, 107, 192, 0.3);
+  position: relative;
+  z-index: 10;
+}
+
+.back-btn {
+  font-size: $font-size-xxl;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0 $spacing-sm;
+  margin-right: $spacing-sm;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20rpx;
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:active {
+    transform: scale(0.92);
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
+
+.header-content {
+  flex: 1;
+}
+
+.header-title {
+  font-size: $font-size-xl;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: 2rpx;
+}
+
+.header-subtitle {
+  font-size: $font-size-sm;
+  color: rgba(255, 255, 255, 0.75);
+  margin-top: 4rpx;
+}
+
 .category-list {
-  height: calc(100vh - 200rpx);
-  padding: 0 $spacing-md;
+  height: calc(100vh - 180rpx);
+  padding: $spacing-lg;
 }
 
 .category-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: $spacing-lg;
-  background: $card-bg;
-  border-radius: $radius-lg;
+  padding: $spacing-xl $spacing-lg;
+  background: #FFFFFF;
+  border-radius: 24rpx;
   margin-bottom: $spacing-md;
+  box-shadow: 
+    0 4rpx 20rpx rgba(0, 0, 0, 0.06),
+    0 2rpx 8rpx rgba(0, 0, 0, 0.04),
+    0 1rpx 4rpx rgba(0, 0, 0, 0.02);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 8rpx;
+    background: linear-gradient(180deg, #5C6BC0 0%, #9C27B0 100%);
+  }
+
+  &:active {
+    transform: translateY(-2rpx);
+    box-shadow: 
+      0 8rpx 32rpx rgba(0, 0, 0, 0.1),
+      0 4rpx 16rpx rgba(0, 0, 0, 0.06);
+  }
 }
 
 .category-left {
   display: flex;
   align-items: center;
-  gap: $spacing-md;
+  gap: $spacing-lg;
+  flex: 1;
 }
 
 .category-color {
-  width: 48rpx;
-  height: 48rpx;
+  width: 64rpx;
+  height: 64rpx;
   border-radius: 50%;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
 }
 
 .category-info {
   display: flex;
   flex-direction: column;
+  gap: 6rpx;
 }
 
 .category-name {
   font-size: $font-size-lg;
   font-weight: 600;
   color: $text-primary;
+  letter-spacing: 1rpx;
 }
 
 .category-count {
   font-size: $font-size-sm;
-  color: $text-secondary;
+  color: $text-hint;
+  background: rgba(92, 107, 192, 0.08);
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+  display: inline-block;
+  width: fit-content;
 }
 
 .category-right {
   display: flex;
-  gap: $spacing-md;
+  gap: $spacing-sm;
 }
 
 .action-btn {
-  padding: $spacing-xs $spacing-md;
+  padding: $spacing-sm $spacing-md;
   font-size: $font-size-sm;
-  color: $primary-color;
-  
+  color: #5C6BC0;
+  border-radius: 20rpx;
+  background: rgba(92, 107, 192, 0.08);
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
   &.danger {
-    color: $error-color;
+    color: #EF5350;
+    background: rgba(239, 83, 80, 0.08);
   }
-  
+
   &:active {
-    opacity: 0.6;
+    transform: scale(0.95);
   }
 }
 
@@ -171,29 +271,35 @@ const deleteCategory = (cat: Category) => {
   align-items: center;
   justify-content: center;
   gap: $spacing-sm;
-  padding: $spacing-lg;
-  background: $bg-color;
-  border: 2rpx dashed $border-color;
-  border-radius: $radius-lg;
+  padding: $spacing-xl;
+  background: rgba(255, 255, 255, 0.8);
+  border: 3rpx dashed rgba(92, 107, 192, 0.3);
+  border-radius: 24rpx;
   margin-bottom: $spacing-md;
-  
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+
   &:active {
-    background: rgba($primary-color, 0.04);
-    border-color: $primary-color;
+    background: rgba(92, 107, 192, 0.06);
+    border-color: #5C6BC0;
+    transform: scale(0.98);
   }
 }
 
 .add-icon {
-  font-size: $font-size-xl;
-  color: $text-secondary;
+  font-size: 44rpx;
+  color: #5C6BC0;
+  font-weight: 300;
 }
 
 .add-text {
   font-size: $font-size-base;
-  color: $text-secondary;
+  color: #5C6BC0;
+  font-weight: 500;
+  letter-spacing: 1rpx;
 }
 
 .list-footer {
-  height: 80rpx;
+  height: 120rpx;
 }
 </style>
