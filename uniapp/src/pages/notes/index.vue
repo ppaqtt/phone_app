@@ -231,29 +231,34 @@ const goToSearch = () => {
 </script>
 
 <style lang="scss" scoped>
+/* 容器背景 - 浅灰渐变到白色 */
 .container {
-  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #E8EAF6 0%, #F5F5F5 50%, #FFFFFF 100%);
+  min-height: 100vh;
 }
 
+/* 页面头部 - 使用渐变背景 */
 .page-header {
   position: relative;
   padding: $spacing-lg $spacing-md;
   padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
-  background: #ffffff;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  background: linear-gradient(135deg, #5C6BC0 0%, #7986CB 100%);
+  box-shadow: 0 4rpx 20rpx rgba(92, 107, 192, 0.3);
   
   .header-title {
-    font-size: 52rpx;
+    font-size: 56rpx;
     font-weight: 700;
-    color: $text-primary;
-    letter-spacing: 2rpx;
+    color: #FFFFFF;
+    letter-spacing: 4rpx;
+    text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.15);
   }
   
   .header-subtitle {
-    font-size: $font-size-sm;
-    color: $text-hint;
+    font-size: $font-size-base;
+    color: rgba(255, 255, 255, 0.85);
     margin-top: $spacing-xs;
-    letter-spacing: 1rpx;
+    letter-spacing: 2rpx;
+    font-weight: 500;
   }
 }
 
@@ -263,62 +268,80 @@ const goToSearch = () => {
   top: calc(env(safe-area-inset-top) + #{$spacing-lg});
 }
 
+/* 操作按钮 - 圆角图标，带阴影 */
 .action-btn {
-  width: 72rpx;
-  height: 72rpx;
+  width: 80rpx;
+  height: 80rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba($primary-color, 0.08) 0%, rgba($primary-color, 0.12) 100%);
-  border-radius: 50%;
-  box-shadow: 0 4rpx 12rpx rgba($primary-color, 0.15);
-  transition: all 0.3s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+  border-radius: 24rpx;
+  box-shadow: 
+    0 8rpx 24rpx rgba(92, 107, 192, 0.2),
+    0 4rpx 12rpx rgba(0, 0, 0, 0.08),
+    inset 0 2rpx 0 rgba(255, 255, 255, 0.5);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:active {
-    transform: scale(0.9);
-    box-shadow: 0 2rpx 8rpx rgba($primary-color, 0.1);
+    transform: scale(0.85) rotate(5deg);
+    box-shadow: 
+      0 4rpx 16rpx rgba(92, 107, 192, 0.15),
+      0 2rpx 8rpx rgba(0, 0, 0, 0.05);
   }
   
   .icon {
-    font-size: 32rpx;
+    font-size: 36rpx;
   }
 }
 
+/* 分类标签栏 */
 .category-tabs {
   display: flex;
   gap: $spacing-sm;
-  padding: $spacing-md $spacing-md;
-  padding-top: $spacing-lg;
+  padding: $spacing-lg $spacing-md;
+  padding-top: $spacing-xl;
   overflow-x: auto;
   white-space: nowrap;
+  background: transparent;
   
   &::-webkit-scrollbar {
     display: none;
   }
 }
 
+/* 分类标签项 - 圆角胶囊样式 */
 .tab-item {
   display: inline-flex;
   align-items: center;
   gap: $spacing-xs;
-  padding: $spacing-sm $spacing-md;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 100rpx;
+  padding: $spacing-sm $spacing-lg;
+  background: linear-gradient(135deg, #FFFFFF 0%, rgba(255, 255, 255, 0.9) 100%);
+  border-radius: 32rpx;
   font-size: $font-size-base;
   color: $text-secondary;
-  border: 2rpx solid transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  border: 2rpx solid rgba(92, 107, 192, 0.1);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4rpx 16rpx rgba(0, 0, 0, 0.08),
+    0 2rpx 8rpx rgba(92, 107, 192, 0.06);
   
   &.active {
-    background: linear-gradient(135deg, rgba($primary-color, 0.95) 0%, rgba($primary-color, 0.85) 100%);
+    background: linear-gradient(135deg, #5C6BC0 0%, #9C27B0 100%);
     color: #FFFFFF;
     border-color: transparent;
-    box-shadow: 0 6rpx 16rpx rgba($primary-color, 0.25);
-    transform: translateY(-2rpx);
+    box-shadow: 
+      0 8rpx 24rpx rgba(92, 107, 192, 0.35),
+      0 4rpx 12rpx rgba(156, 39, 176, 0.2);
+    transform: translateY(-4rpx) scale(1.02);
     
     .tab-count {
-      background: rgba(255, 255, 255, 0.3);
+      background: rgba(255, 255, 255, 0.25);
+      color: #FFFFFF;
+    }
+    
+    .tab-dot {
+      box-shadow: 0 0 8rpx rgba(255, 255, 255, 0.8);
     }
   }
   
@@ -326,146 +349,188 @@ const goToSearch = () => {
     width: 16rpx;
     height: 16rpx;
     border-radius: 50%;
-    box-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.2);
   }
   
   .tab-count {
     font-size: $font-size-xs;
-    background: rgba(0, 0, 0, 0.08);
-    padding: 4rpx 14rpx;
-    border-radius: 100rpx;
-    font-weight: 500;
+    background: rgba(92, 107, 192, 0.12);
+    padding: 4rpx 12rpx;
+    border-radius: 20rpx;
+    font-weight: 600;
+    color: #5C6BC0;
   }
 }
 
+/* 笔记列表滚动区域 */
 .notes-list {
   height: calc(100vh - 320rpx);
   padding: 0 $spacing-md;
 }
 
+/* 空状态 - 漂亮的插图和提示文字 */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 160rpx $spacing-lg;
+  padding: 180rpx $spacing-lg;
   
   .empty-icon {
-    font-size: 160rpx;
-    margin-bottom: $spacing-lg;
-    animation: floatAnimation 3s ease-in-out infinite;
+    font-size: 180rpx;
+    margin-bottom: $spacing-xl;
+    opacity: 0.7;
+    animation: floatAnimation 3s ease-in-out infinite, rotateAnimation 8s linear infinite;
+    filter: drop-shadow(0 8rpx 24rpx rgba(92, 107, 192, 0.2));
   }
   
   .empty-text {
-    font-size: $font-size-xl;
+    font-size: 40rpx;
     color: $text-primary;
-    margin-bottom: $spacing-sm;
+    margin-bottom: $spacing-md;
     font-weight: 600;
+    letter-spacing: 2rpx;
   }
   
   .empty-hint {
-    font-size: $font-size-sm;
-    color: $text-hint;
+    font-size: $font-size-base;
+    color: #9C27B0;
+    opacity: 0.8;
+    font-weight: 500;
+    padding: $spacing-sm $spacing-lg;
+    background: linear-gradient(135deg, rgba(156, 39, 176, 0.08) 0%, rgba(92, 107, 192, 0.08) 100%);
+    border-radius: 32rpx;
+    box-shadow: 0 2rpx 12rpx rgba(156, 39, 176, 0.15);
   }
 }
 
+/* 空状态浮动动画 */
 @keyframes floatAnimation {
-  0%, 100% { transform: translateY(0rpx); }
-  50% { transform: translateY(-20rpx); }
+  0%, 100% { transform: translateY(0rpx) rotate(0deg); }
+  50% { transform: translateY(-30rpx) rotate(5deg); }
 }
 
+/* 空状态旋转动画 */
+@keyframes rotateAnimation {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-3deg); }
+  75% { transform: rotate(3deg); }
+}
+
+/* 笔记卡片 - 卡片式设计，多层次阴影 */
 .note-card {
   position: relative;
   padding: $spacing-lg;
-  border-radius: $radius-lg;
+  border-radius: 24rpx;
   margin-bottom: $spacing-md;
   background: #FFFFFF;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.06);
-  border: 1rpx solid rgba(0, 0, 0, 0.04);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 12rpx 32rpx rgba(0, 0, 0, 0.12),
+    0 6rpx 16rpx rgba(92, 107, 192, 0.08),
+    0 3rpx 8rpx rgba(0, 0, 0, 0.06),
+    inset 0 2rpx 0 rgba(255, 255, 255, 1);
+  border: 2rpx solid rgba(92, 107, 192, 0.08);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   
   &:active {
-    transform: scale(0.98);
-    box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+    transform: scale(0.96) translateY(4rpx);
+    box-shadow: 
+      0 6rpx 20rpx rgba(0, 0, 0, 0.15),
+      0 3rpx 12rpx rgba(92, 107, 192, 0.1),
+      0 2rpx 6rpx rgba(0, 0, 0, 0.08);
   }
   
-  // 不同颜色的卡片样式
+  /* 不同颜色卡片的左边框样式 */
   &[style*="#FFF9C4"] {
-    border-left: 6rpx solid #FBC02D;
+    border-left: 8rpx solid #FBC02D;
+    background: linear-gradient(135deg, #FFF9C4 0%, rgba(251, 192, 45, 0.15) 100%);
   }
   
   &[style*="#FFCDD2"] {
-    border-left: 6rpx solid #EF5350;
+    border-left: 8rpx solid #EF5350;
+    background: linear-gradient(135deg, #FFCDD2 0%, rgba(239, 83, 80, 0.15) 100%);
   }
   
   &[style*="#C8E6C9"] {
-    border-left: 6rpx solid #66BB6A;
+    border-left: 8rpx solid #66BB6A;
+    background: linear-gradient(135deg, #C8E6C9 0%, rgba(102, 187, 106, 0.15) 100%);
   }
   
   &[style*="#BBDEFB"] {
-    border-left: 6rpx solid #42A5F5;
+    border-left: 8rpx solid #42A5F5;
+    background: linear-gradient(135deg, #BBDEFB 0%, rgba(66, 165, 245, 0.15) 100%);
   }
   
   &[style*="#E1BEE7"] {
-    border-left: 6rpx solid #AB47BC;
+    border-left: 8rpx solid #AB47BC;
+    background: linear-gradient(135deg, #E1BEE7 0%, rgba(171, 71, 188, 0.15) 100%);
   }
   
   &[style*="#FFE0B2"] {
-    border-left: 6rpx solid #FF9800;
+    border-left: 8rpx solid #FF9800;
+    background: linear-gradient(135deg, #FFE0B2 0%, rgba(255, 152, 0, 0.15) 100%);
   }
   
   &[style*="#D7CCC8"] {
-    border-left: 6rpx solid #8D6E63;
+    border-left: 8rpx solid #8D6E63;
+    background: linear-gradient(135deg, #D7CCC8 0%, rgba(141, 110, 99, 0.15) 100%);
   }
 }
 
+/* 锁定徽章 */
 .lock-badge {
   position: absolute;
   right: $spacing-lg;
   top: $spacing-lg;
-  font-size: 28rpx;
-  background: rgba(0, 0, 0, 0.04);
+  font-size: 32rpx;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.15) 100%);
   border-radius: 50%;
-  width: 48rpx;
-  height: 48rpx;
+  width: 56rpx;
+  height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
 }
 
+/* 笔记分类标签 */
 .note-category {
   display: inline-block;
-  padding: 6rpx 18rpx;
-  border-radius: $radius-sm;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
   font-size: $font-size-xs;
   color: #FFFFFF;
   margin-bottom: $spacing-sm;
-  font-weight: 500;
-  letter-spacing: 1rpx;
-  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+  letter-spacing: 2rpx;
+  box-shadow: 0 4rpx 12rpx rgba(92, 107, 192, 0.25);
 }
 
+/* 笔记标题 */
 .note-title {
-  font-size: $font-size-xl;
-  font-weight: 600;
+  font-size: 40rpx;
+  font-weight: 700;
   color: $text-primary;
   margin-bottom: $spacing-sm;
-  line-height: 1.4;
+  line-height: 1.5;
+  letter-spacing: 1rpx;
   
   &.empty {
-    color: $text-hint;
-    font-weight: normal;
+    color: rgba(92, 107, 192, 0.6);
+    font-weight: 500;
   }
 }
 
+/* 笔记内容预览 */
 .note-preview {
-  font-size: $font-size-base;
+  font-size: $font-size-lg;
   color: $text-secondary;
-  line-height: 1.6;
-  opacity: 0.85;
+  line-height: 1.7;
+  opacity: 0.9;
 }
 
+/* 多行文本截断 */
 .ellipsis-2 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -473,6 +538,7 @@ const goToSearch = () => {
   overflow: hidden;
 }
 
+/* 笔记底部区域 */
 .note-footer {
   display: flex;
   align-items: center;
@@ -480,173 +546,227 @@ const goToSearch = () => {
   margin-top: $spacing-md;
 }
 
+/* 笔记标签列表 */
 .note-tags {
   display: flex;
   gap: $spacing-xs;
 }
 
+/* 笔记标签项 */
 .note-tag {
   font-size: $font-size-xs;
-  background: rgba($primary-color, 0.08);
-  padding: 6rpx 14rpx;
-  border-radius: $radius-sm;
-  color: $primary-color;
-  font-weight: 500;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.1) 100%);
+  padding: 8rpx 16rpx;
+  border-radius: 20rpx;
+  color: #5C6BC0;
+  font-weight: 600;
+  box-shadow: 0 2rpx 8rpx rgba(92, 107, 192, 0.12);
 }
 
+/* 笔记时间 */
 .note-time {
   font-size: $font-size-xs;
   color: $text-hint;
-  font-weight: 400;
+  font-weight: 500;
+  letter-spacing: 1rpx;
 }
 
+/* 列表底部间距 */
 .list-footer {
-  height: 180rpx;
+  height: 200rpx;
 }
 
+/* FAB 浮动按钮 - 漂亮的渐变色和阴影 */
 .fab {
   position: fixed;
-  right: $spacing-lg;
+  right: $spacing-xl;
   bottom: 180rpx;
-  width: 120rpx;
-  height: 120rpx;
-  background: linear-gradient(135deg, $primary-color 0%, $primary-dark 100%);
+  width: 128rpx;
+  height: 128rpx;
+  background: linear-gradient(135deg, #5C6BC0 0%, #9C27B0 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 
-    0 8rpx 24rpx rgba($primary-color, 0.35),
-    0 4rpx 12rpx rgba($primary-color, 0.2);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    0 16rpx 48rpx rgba(92, 107, 192, 0.45),
+    0 8rpx 24rpx rgba(156, 39, 176, 0.3),
+    0 4rpx 12rpx rgba(0, 0, 0, 0.2),
+    inset 0 4rpx 0 rgba(255, 255, 255, 0.3);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 50;
+  animation: fabPulse 2s ease-in-out infinite;
 
   &:active {
-    transform: scale(0.9);
+    transform: scale(0.85) rotate(90deg);
     box-shadow: 
-      0 4rpx 16rpx rgba($primary-color, 0.3),
-      0 2rpx 8rpx rgba($primary-color, 0.15);
+      0 8rpx 32rpx rgba(92, 107, 192, 0.35),
+      0 4rpx 16rpx rgba(156, 39, 176, 0.2),
+      0 2rpx 8rpx rgba(0, 0, 0, 0.1);
   }
 
   .fab-icon {
-    font-size: 56rpx;
+    font-size: 64rpx;
     color: #FFFFFF;
     font-weight: 300;
-    text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
+    text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.3);
   }
 }
 
+/* FAB 脉冲动画 */
+@keyframes fabPulse {
+  0%, 100% {
+    box-shadow: 
+      0 16rpx 48rpx rgba(92, 107, 192, 0.45),
+      0 8rpx 24rpx rgba(156, 39, 176, 0.3),
+      0 4rpx 12rpx rgba(0, 0, 0, 0.2),
+      inset 0 4rpx 0 rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    box-shadow: 
+      0 20rpx 56rpx rgba(92, 107, 192, 0.5),
+      0 10rpx 28rpx rgba(156, 39, 176, 0.35),
+      0 6rpx 16rpx rgba(0, 0, 0, 0.25),
+      inset 0 6rpx 0 rgba(255, 255, 255, 0.4);
+  }
+}
+
+/* 面板遮罩层 */
 .panel-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  animation: overlayFadeIn 0.3s ease;
+  animation: overlayFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* 面板遮罩淡入动画 */
 @keyframes overlayFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
+/* 操作面板 */
 .action-panel {
   width: 100%;
-  background: #FFFFFF;
-  border-radius: $radius-xl $radius-xl 0 0;
-  padding: $spacing-md;
-  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-md});
-  animation: panelSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.98) 100%);
+  border-radius: 40rpx 40rpx 0 0;
+  padding: $spacing-lg;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
+  animation: panelSlideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -8rpx 32rpx rgba(92, 107, 192, 0.15);
 }
 
+/* 面板滑入动画 */
 @keyframes panelSlideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
 
+/* 面板标题 */
 .panel-title {
-  font-size: $font-size-xl;
-  font-weight: 600;
-  color: $text-primary;
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #5C6BC0;
   text-align: center;
-  margin-bottom: $spacing-md;
-  padding: $spacing-sm 0;
+  margin-bottom: $spacing-lg;
+  padding: $spacing-md 0;
+  letter-spacing: 2rpx;
 }
 
+/* 操作面板项 */
 .action-panel-item {
-  padding: $spacing-lg;
+  padding: $spacing-lg $spacing-xl;
   text-align: center;
-  font-size: $font-size-lg;
+  font-size: 36rpx;
   color: $text-primary;
-  border-bottom: 1rpx solid rgba(0, 0, 0, 0.06);
-  transition: background 0.2s ease;
-  font-weight: 500;
+  border-bottom: 2rpx solid rgba(92, 107, 192, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  letter-spacing: 1rpx;
 
   &.danger {
-    color: $error-color;
+    color: #EF5350;
+    font-weight: 700;
   }
 
   &:active {
-    background: rgba(0, 0, 0, 0.04);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.08) 0%, rgba(156, 39, 176, 0.06) 100%);
+    transform: scale(0.98);
   }
 }
 
+/* 取消按钮 */
 .action-panel-cancel {
-  padding: $spacing-lg;
+  padding: $spacing-lg $spacing-xl;
   text-align: center;
-  font-size: $font-size-lg;
+  font-size: 36rpx;
   color: $text-secondary;
   margin-top: $spacing-md;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: $radius-lg;
-  transition: all 0.2s ease;
-  font-weight: 500;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.08) 0%, rgba(156, 39, 176, 0.06) 100%);
+  border-radius: 28rpx;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  letter-spacing: 2rpx;
+  box-shadow: 0 4rpx 12rpx rgba(92, 107, 192, 0.1);
 
   &:active {
-    opacity: 0.7;
-    background: rgba(0, 0, 0, 0.08);
+    opacity: 0.8;
+    transform: scale(0.96);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.12) 0%, rgba(156, 39, 176, 0.1) 100%);
   }
 }
 
+/* 颜色选择面板 */
 .color-panel {
   width: 100%;
-  background: #FFFFFF;
-  border-radius: $radius-xl $radius-xl 0 0;
-  padding: $spacing-lg;
-  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
-  animation: panelSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.98) 100%);
+  border-radius: 40rpx 40rpx 0 0;
+  padding: $spacing-xl;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-xl});
+  animation: panelSlideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -8rpx 32rpx rgba(92, 107, 192, 0.15);
 }
 
+/* 颜色网格布局 */
 .color-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: $spacing-md;
+  gap: $spacing-lg;
 }
 
+/* 颜色选项 - 圆角方块 */
 .color-option {
   aspect-ratio: 1;
-  border-radius: $radius-lg;
-  border: 3rpx solid transparent;
+  border-radius: 24rpx;
+  border: 4rpx solid rgba(92, 107, 192, 0.15);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  box-shadow: 
+    0 8rpx 24rpx rgba(0, 0, 0, 0.12),
+    0 4rpx 12rpx rgba(92, 107, 192, 0.08);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:active {
-    transform: scale(0.95);
+    transform: scale(0.88) rotate(5deg);
+    box-shadow: 
+      0 4rpx 16rpx rgba(0, 0, 0, 0.15),
+      0 2rpx 8rpx rgba(92, 107, 192, 0.1);
   }
 }
 
+/* 颜色选中标记 */
 .color-check {
-  font-size: 48rpx;
+  font-size: 56rpx;
   color: #FFFFFF;
   font-weight: bold;
-  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.3);
+  text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.4);
 }
 </style>

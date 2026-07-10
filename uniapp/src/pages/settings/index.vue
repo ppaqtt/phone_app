@@ -268,77 +268,95 @@ const goBack = () => {
 </script>
 
 <style lang="scss" scoped>
+/* 容器背景 - 浅灰渐变到白色 */
 .container {
-  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #E8EAF6 0%, #F5F5F5 50%, #FFFFFF 100%);
+  min-height: 100vh;
 }
 
+/* 页面头部 - 渐变背景 */
 .page-header {
   display: flex;
   align-items: center;
   padding: $spacing-lg $spacing-md;
   padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
-  background: #FFFFFF;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  background: linear-gradient(135deg, #5C6BC0 0%, #7986CB 50%, #9C27B0 100%);
+  box-shadow: 0 4rpx 20rpx rgba(92, 107, 192, 0.25);
 }
 
+/* 返回按钮 - 圆角背景 */
 .back-btn {
   font-size: 48rpx;
-  color: $text-primary;
+  color: #FFFFFF;
   padding: 0 $spacing-sm;
   margin-right: $spacing-sm;
   line-height: 1;
-  width: 64rpx;
-  height: 64rpx;
+  width: 72rpx;
+  height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba($primary-color, 0.08);
-  border-radius: 50%;
-  transition: all 0.3s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.15) 100%);
+  border-radius: 20rpx;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4rpx 12rpx rgba(255, 255, 255, 0.1),
+    inset 0 2rpx 0 rgba(255, 255, 255, 0.3);
   
   &:active {
-    transform: scale(0.9);
-    background: rgba($primary-color, 0.12);
+    transform: scale(0.85) rotate(-5deg);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.25) 100%);
   }
 }
 
 .header-title {
-  font-size: $font-size-xl;
+  font-size: 44rpx;
   font-weight: 700;
-  color: $text-primary;
-  letter-spacing: 2rpx;
+  color: #FFFFFF;
+  letter-spacing: 3rpx;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
 }
 
+/* 设置列表滚动区域 */
 .settings-list {
   height: calc(100vh - 200rpx);
-  padding: $spacing-lg $spacing-md;
+  padding: $spacing-xl $spacing-md;
 }
 
+/* 设置分组 - 卡片样式 */
 .settings-section {
-  margin-bottom: $spacing-lg;
-  background: #FFFFFF;
-  border-radius: $radius-lg;
+  margin-bottom: $spacing-xl;
+  background: linear-gradient(135deg, #FFFFFF 0%, rgba(255, 255, 255, 0.95) 100%);
+  border-radius: 24rpx;
   overflow: hidden;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.06);
-  border: 1rpx solid rgba(0, 0, 0, 0.04);
+  box-shadow: 
+    0 12rpx 32rpx rgba(0, 0, 0, 0.12),
+    0 6rpx 16rpx rgba(92, 107, 192, 0.08),
+    0 3rpx 8rpx rgba(0, 0, 0, 0.06),
+    inset 0 2rpx 0 rgba(255, 255, 255, 1);
+  border: 2rpx solid rgba(92, 107, 192, 0.08);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* 分组标题 - 主题色背景 */
 .section-title {
-  padding: $spacing-md $spacing-lg $spacing-sm;
-  font-size: $font-size-sm;
-  color: $primary-color;
-  font-weight: 600;
-  letter-spacing: 1rpx;
-  background: rgba($primary-color, 0.04);
+  padding: $spacing-lg $spacing-xl $spacing-md;
+  font-size: 36rpx;
+  color: #FFFFFF;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.12) 100%);
+  box-shadow: 0 4rpx 12rpx rgba(92, 107, 192, 0.1);
 }
 
+/* 设置项 */
 .settings-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: $spacing-lg $spacing-lg;
-  border-bottom: 2rpx solid rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  padding: $spacing-xl $spacing-xl;
+  border-bottom: 2rpx solid rgba(92, 107, 192, 0.08);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:last-child {
     border-bottom: none;
@@ -346,34 +364,46 @@ const goBack = () => {
   
   &.danger {
     .item-text {
-      color: $error-color;
+      color: #EF5350;
     }
     
     .item-icon {
-      filter: grayscale(0) brightness(1);
+      background: linear-gradient(135deg, rgba(239, 83, 80, 0.15) 0%, rgba(239, 83, 80, 0.12) 100%);
     }
   }
   
   &:active {
-    background: rgba(0, 0, 0, 0.04);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.06) 0%, rgba(156, 39, 176, 0.04) 100%);
+    transform: scale(0.98);
   }
 }
 
 .item-left {
   display: flex;
   align-items: center;
-  gap: $spacing-md;
+  gap: $spacing-lg;
 }
 
+/* 设置项图标 - 圆角背景 */
 .item-icon {
-  font-size: 36rpx;
-  filter: grayscale(0.2);
+  font-size: 40rpx;
+  width: 72rpx;
+  height: 72rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.12) 0%, rgba(156, 39, 176, 0.08) 100%);
+  border-radius: 20rpx;
+  box-shadow: 
+    0 4rpx 12rpx rgba(92, 107, 192, 0.1),
+    0 2rpx 6rpx rgba(0, 0, 0, 0.04);
 }
 
 .item-text {
-  font-size: $font-size-lg;
+  font-size: 36rpx;
   color: $text-primary;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 1rpx;
 }
 
 .item-right {
@@ -383,37 +413,43 @@ const goBack = () => {
 }
 
 .item-hint {
-  font-size: $font-size-sm;
+  font-size: 28rpx;
   color: $text-secondary;
-  font-weight: 400;
+  font-weight: 500;
+  letter-spacing: 1rpx;
 }
 
 .item-arrow {
-  font-size: 28rpx;
-  color: $text-hint;
-  font-weight: 600;
+  font-size: 32rpx;
+  color: rgba(92, 107, 192, 0.6);
+  font-weight: 700;
 }
 
+/* 版本信息 */
 .version-info {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: $spacing-xl;
+  padding: $spacing-xl 0;
   
   text {
-    font-size: $font-size-sm;
-    color: $text-hint;
+    font-size: 28rpx;
+    color: rgba(92, 107, 192, 0.6);
+    font-weight: 500;
+    letter-spacing: 1rpx;
   }
   
   .version-sub {
-    font-size: $font-size-xs;
+    font-size: 24rpx;
     margin-top: $spacing-xs;
-    color: $text-hint;
-    opacity: 0.6;
+    color: rgba(156, 39, 176, 0.5);
+    opacity: 0.8;
+    letter-spacing: 2rpx;
   }
 }
 
+/* 列表底部间距 */
 .list-footer {
-  height: 80rpx;
+  height: 100rpx;
 }
 </style>

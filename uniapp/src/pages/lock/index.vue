@@ -72,23 +72,27 @@ const currentPin = ref('')
 const confirmPin = ref('')
 const pinLength = ref(6)
 const errorMsg = ref('')
-const mode = ref<'verify' | 'set' | 'confirm'>('verify')
+const mode = ref<'verify' | 'set' | 'confirm' | 'unlock'>('verify')
+const noteId = ref<string>('')
 
 const numpadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'forgot', '0', 'delete']
 
 const pageTitle = computed(() => {
+  if (mode.value === 'unlock') return '解锁笔记'
   if (mode.value === 'verify') return '应用锁定'
   if (mode.value === 'set') return '设置密码'
   return '确认密码'
 })
 
 const pageSubtitle = computed(() => {
+  if (mode.value === 'unlock') return '请输入 PIN 码解锁此笔记'
   if (mode.value === 'verify') return '请输入 PIN 码解锁应用'
   if (mode.value === 'set') return '请输入 4-6 位数字密码'
   return '请再次输入密码确认'
 })
 
 const hintText = computed(() => {
+  if (mode.value === 'unlock') return '输入正确的PIN码以解锁此笔记'
   if (mode.value === 'verify') return 'PIN 码用于保护您的隐私数据'
   if (mode.value === 'set') return '密码长度为 4-6 位数字'
   return '两次密码必须一致'
@@ -101,6 +105,9 @@ onMounted(() => {
 
   if (options.mode === 'set') {
     mode.value = 'set'
+  } else if (options.mode === 'unlock') {
+    mode.value = 'unlock'
+    noteId.value = options.noteId || ''
   } else if (notesStore.hasPin) {
     mode.value = 'verify'
   } else {
@@ -133,7 +140,21 @@ const handleNumpadClick = (key: string) => {
 }
 
 const handlePinSubmit = () => {
-  if (mode.value === 'verify') {
+  if (mode.value === 'unlock') {
+    // 解锁单个笔记
+    if (notesStore.verifyPin(currentPin.value)) {
+      if (noteId.value) {
+        notesStore.updateNote(noteId.value, { isLocked: false })
+      }
+      uni.showToast({ title: '笔记已解锁', icon: 'success' })
+      setTimeout(() => {
+        uni.navigateBack()
+      }, 500)
+    } else {
+      errorMsg.value = '密码错误，请重试'
+      currentPin.value = ''
+    }
+  } else if (mode.value === 'verify') {
     if (notesStore.verifyPin(currentPin.value)) {
       notesStore.unlockApp()
       uni.showToast({ title: '解锁成功', icon: 'success' })

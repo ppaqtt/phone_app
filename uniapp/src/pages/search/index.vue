@@ -159,245 +159,352 @@ loadHistory()
 </script>
 
 <style lang="scss" scoped>
+/* 容器背景 - 浅灰渐变到白色 */
 .container {
-  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #E8EAF6 0%, #F5F5F5 50%, #FFFFFF 100%);
+  min-height: 100vh;
 }
 
+/* 搜索头部 */
 .search-header {
-  padding: $spacing-lg $spacing-md;
-  padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
-  background: #FFFFFF;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  padding: $spacing-xl $spacing-md;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-xl});
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.85) 100%);
+  backdrop-filter: blur(30px);
+  box-shadow: 0 4rpx 20rpx rgba(92, 107, 192, 0.12);
 }
 
+/* 搜索栏 - 毛玻璃效果 */
 .search-bar {
   display: flex;
   align-items: center;
   gap: $spacing-sm;
-  padding: $spacing-sm $spacing-md;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 100rpx;
-  border: 2rpx solid rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  padding: $spacing-md $spacing-lg;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+  backdrop-filter: blur(40px);
+  border-radius: 32rpx;
+  border: 3rpx solid rgba(92, 107, 192, 0.15);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 8rpx 24rpx rgba(92, 107, 192, 0.12),
+    0 4rpx 12rpx rgba(0, 0, 0, 0.06),
+    inset 0 2rpx 0 rgba(255, 255, 255, 1);
   
   &:focus-within {
-    border-color: $primary-color;
-    background: rgba($primary-color, 0.04);
-    box-shadow: 0 4rpx 12rpx rgba($primary-color, 0.12);
+    border-color: #5C6BC0;
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.08) 0%, rgba(156, 39, 176, 0.06) 100%);
+    box-shadow: 
+      0 12rpx 32rpx rgba(92, 107, 192, 0.18),
+      0 6rpx 16rpx rgba(156, 39, 176, 0.1),
+      inset 0 2rpx 0 rgba(255, 255, 255, 1);
   }
 }
 
+/* 返回按钮 */
 .back-btn {
   font-size: 48rpx;
-  color: $text-primary;
+  color: #5C6BC0;
   padding: 0 $spacing-xs;
   line-height: 1;
-  width: 48rpx;
-  height: 48rpx;
+  width: 56rpx;
+  height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:active {
-    transform: scale(0.9);
+    transform: scale(0.8) rotate(-10deg);
+    color: #9C27B0;
   }
 }
 
 .search-icon {
-  font-size: 32rpx;
-  opacity: 0.5;
+  font-size: 36rpx;
+  opacity: 0.6;
+  color: #5C6BC0;
 }
 
+/* 搜索输入框 */
 .search-input {
   flex: 1;
-  font-size: $font-size-lg;
+  font-size: 36rpx;
   color: $text-primary;
   background: transparent;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 1rpx;
 }
 
+/* 清除按钮 */
 .clear-btn {
-  font-size: 32rpx;
-  color: $text-hint;
+  font-size: 36rpx;
+  color: rgba(92, 107, 192, 0.6);
   padding: $spacing-xs;
-  width: 48rpx;
-  height: 48rpx;
+  width: 56rpx;
+  height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.06);
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.12) 0%, rgba(156, 39, 176, 0.08) 100%);
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2rpx 8rpx rgba(92, 107, 192, 0.1);
   
   &:active {
-    transform: scale(0.9);
-    background: rgba(0, 0, 0, 0.12);
+    transform: scale(0.85);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.2) 0%, rgba(156, 39, 176, 0.15) 100%);
   }
 }
 
+/* 搜索结果列表 */
 .search-results {
-  height: calc(100vh - 220rpx);
-  padding: $spacing-md;
-}
-
-.search-history {
+  height: calc(100vh - 240rpx);
   padding: $spacing-lg $spacing-md;
 }
 
+/* 搜索历史区域 */
+.search-history {
+  padding: $spacing-xl $spacing-md;
+}
+
+/* 分组头部 */
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: $spacing-lg;
+  margin-bottom: $spacing-xl;
 }
 
+/* 分组标题 */
 .section-title {
-  font-size: $font-size-lg;
-  color: $text-primary;
-  font-weight: 600;
+  font-size: 40rpx;
+  color: #5C6BC0;
+  font-weight: 700;
+  letter-spacing: 2rpx;
 }
 
+/* 清空全部按钮 */
 .clear-all {
-  font-size: $font-size-base;
-  color: $primary-color;
-  font-weight: 500;
-  padding: $spacing-sm $spacing-md;
-  background: rgba($primary-color, 0.08);
-  border-radius: $radius-sm;
-  transition: all 0.2s ease;
+  font-size: 32rpx;
+  color: #9C27B0;
+  font-weight: 600;
+  padding: $spacing-sm $spacing-lg;
+  background: linear-gradient(135deg, rgba(156, 39, 176, 0.12) 0%, rgba(92, 107, 192, 0.08) 100%);
+  border-radius: 24rpx;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 1rpx;
+  box-shadow: 0 4rpx 12rpx rgba(156, 39, 176, 0.1);
   
   &:active {
-    transform: scale(0.95);
-    background: rgba($primary-color, 0.12);
+    transform: scale(0.92);
+    background: linear-gradient(135deg, rgba(156, 39, 176, 0.2) 0%, rgba(92, 107, 192, 0.12) 100%);
   }
 }
 
+/* 搜索历史标签列表 */
 .history-tags {
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-sm;
 }
 
+/* 搜索历史标签 - 圆角胶囊样式 */
 .history-tag {
-  padding: $spacing-sm $spacing-md;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: 100rpx;
-  font-size: $font-size-base;
+  padding: $spacing-sm $spacing-lg;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.85) 100%);
+  backdrop-filter: blur(20px);
+  border-radius: 28rpx;
+  font-size: 32rpx;
   color: $text-secondary;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: 500;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  border: 2rpx solid rgba(92, 107, 192, 0.1);
+  box-shadow: 
+    0 4rpx 12rpx rgba(92, 107, 192, 0.08),
+    0 2rpx 6rpx rgba(0, 0, 0, 0.04);
   
   &:active {
-    background: rgba($primary-color, 0.12);
-    color: $primary-color;
-    transform: scale(0.95);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.12) 100%);
+    color: #5C6BC0;
+    transform: scale(0.92);
+    box-shadow: 
+      0 6rpx 16rpx rgba(92, 107, 192, 0.12),
+      0 3rpx 8rpx rgba(0, 0, 0, 0.06);
   }
 }
 
+/* 空状态 */
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 160rpx $spacing-lg;
+  padding: 180rpx $spacing-lg;
   
   .empty-icon {
-    font-size: 160rpx;
-    margin-bottom: $spacing-lg;
-    opacity: 0.4;
+    font-size: 180rpx;
+    margin-bottom: $spacing-xl;
+    opacity: 0.5;
+    color: rgba(92, 107, 192, 0.4);
+    animation: searchEmptyFloat 3s ease-in-out infinite;
   }
   
   .empty-text {
-    font-size: $font-size-xl;
-    color: $text-primary;
-    margin-bottom: $spacing-sm;
-    font-weight: 600;
+    font-size: 40rpx;
+    color: #5C6BC0;
+    margin-bottom: $spacing-md;
+    font-weight: 700;
+    letter-spacing: 2rpx;
   }
   
   .empty-hint {
-    font-size: $font-size-base;
-    color: $text-hint;
+    font-size: 32rpx;
+    color: rgba(156, 39, 176, 0.6);
+    font-weight: 500;
+    letter-spacing: 1rpx;
   }
 }
 
+/* 空状态浮动动画 */
+@keyframes searchEmptyFloat {
+  0%, 100% { transform: translateY(0rpx) rotate(0deg); }
+  50% { transform: translateY(-20rpx) rotate(3deg); }
+}
+
+/* 搜索结果列表 */
 .results-list {
   padding: 0 $spacing-md;
 }
 
+/* 搜索结果卡片 - 阴影和渐变背景 */
 .note-card {
   position: relative;
   padding: $spacing-lg;
-  border-radius: $radius-lg;
+  border-radius: 24rpx;
   margin-bottom: $spacing-md;
-  background: #FFFFFF;
-  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.06);
-  border: 1rpx solid rgba(0, 0, 0, 0.04);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, #FFFFFF 0%, rgba(255, 255, 255, 0.95) 100%);
+  box-shadow: 
+    0 12rpx 32rpx rgba(0, 0, 0, 0.12),
+    0 6rpx 16rpx rgba(92, 107, 192, 0.08),
+    0 3rpx 8rpx rgba(0, 0, 0, 0.06),
+    inset 0 2rpx 0 rgba(255, 255, 255, 1);
+  border: 2rpx solid rgba(92, 107, 192, 0.08);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:active {
-    transform: scale(0.98);
-    box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+    transform: scale(0.96) translateY(4rpx);
+    box-shadow: 
+      0 6rpx 20rpx rgba(0, 0, 0, 0.15),
+      0 3rpx 12rpx rgba(92, 107, 192, 0.1),
+      0 2rpx 6rpx rgba(0, 0, 0, 0.08);
+  }
+  
+  /* 不同颜色卡片的渐变背景 */
+  &[style*="#FFF9C4"] {
+    background: linear-gradient(135deg, #FFF9C4 0%, rgba(251, 192, 45, 0.15) 100%);
+    border-left: 8rpx solid #FBC02D;
+  }
+  
+  &[style*="#FFCDD2"] {
+    background: linear-gradient(135deg, #FFCDD2 0%, rgba(239, 83, 80, 0.15) 100%);
+    border-left: 8rpx solid #EF5350;
+  }
+  
+  &[style*="#C8E6C9"] {
+    background: linear-gradient(135deg, #C8E6C9 0%, rgba(102, 187, 106, 0.15) 100%);
+    border-left: 8rpx solid #66BB6A;
+  }
+  
+  &[style*="#BBDEFB"] {
+    background: linear-gradient(135deg, #BBDEFB 0%, rgba(66, 165, 245, 0.15) 100%);
+    border-left: 8rpx solid #42A5F5;
+  }
+  
+  &[style*="#E1BEE7"] {
+    background: linear-gradient(135deg, #E1BEE7 0%, rgba(171, 71, 188, 0.15) 100%);
+    border-left: 8rpx solid #AB47BC;
+  }
+  
+  &[style*="#FFE0B2"] {
+    background: linear-gradient(135deg, #FFE0B2 0%, rgba(255, 152, 0, 0.15) 100%);
+    border-left: 8rpx solid #FF9800;
+  }
+  
+  &[style*="#D7CCC8"] {
+    background: linear-gradient(135deg, #D7CCC8 0%, rgba(141, 110, 99, 0.15) 100%);
+    border-left: 8rpx solid #8D6E63;
   }
 }
 
+/* 锁定徽章 */
 .lock-badge {
   position: absolute;
   right: $spacing-lg;
   top: $spacing-lg;
-  font-size: 28rpx;
-  background: rgba(0, 0, 0, 0.04);
+  font-size: 32rpx;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.15) 100%);
   border-radius: 50%;
-  width: 48rpx;
-  height: 48rpx;
+  width: 56rpx;
+  height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.1);
 }
 
+/* 笔记分类标签 */
 .note-category {
   display: inline-block;
-  padding: 6rpx 18rpx;
-  border-radius: $radius-sm;
-  font-size: $font-size-xs;
+  padding: 8rpx 20rpx;
+  border-radius: 20rpx;
+  font-size: 28rpx;
   color: #FFFFFF;
   margin-bottom: $spacing-sm;
-  font-weight: 500;
-  letter-spacing: 1rpx;
-  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+  letter-spacing: 2rpx;
+  box-shadow: 0 4rpx 12rpx rgba(92, 107, 192, 0.25);
 }
 
+/* 笔记标题 */
 .note-title {
-  font-size: $font-size-xl;
-  font-weight: 600;
+  font-size: 40rpx;
+  font-weight: 700;
   color: $text-primary;
   margin-bottom: $spacing-sm;
-  line-height: 1.4;
+  line-height: 1.5;
+  letter-spacing: 1rpx;
   
+  /* 搜索高亮效果 */
   mark {
-    background: linear-gradient(135deg, rgba($primary-color, 0.25) 0%, rgba($primary-color, 0.15) 100%);
-    color: $primary-color;
-    border-radius: 4rpx;
-    padding: 2rpx 6rpx;
-    font-weight: 600;
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.35) 0%, rgba(156, 39, 176, 0.25) 100%);
+    color: #5C6BC0;
+    border-radius: 6rpx;
+    padding: 4rpx 8rpx;
+    font-weight: 700;
+    box-shadow: 0 2rpx 8rpx rgba(92, 107, 192, 0.15);
   }
 }
 
+/* 笔记内容预览 */
 .note-preview {
-  font-size: $font-size-base;
+  font-size: 32rpx;
   color: $text-secondary;
-  line-height: 1.6;
-  opacity: 0.85;
+  line-height: 1.7;
+  opacity: 0.9;
   
+  /* 搜索高亮效果 */
   mark {
-    background: linear-gradient(135deg, rgba($primary-color, 0.25) 0%, rgba($primary-color, 0.15) 100%);
-    color: $primary-color;
-    border-radius: 4rpx;
-    padding: 2rpx 6rpx;
-    font-weight: 600;
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.35) 0%, rgba(156, 39, 176, 0.25) 100%);
+    color: #5C6BC0;
+    border-radius: 6rpx;
+    padding: 4rpx 8rpx;
+    font-weight: 700;
+    box-shadow: 0 2rpx 8rpx rgba(92, 107, 192, 0.15);
   }
 }
 
+/* 多行文本截断 */
 .ellipsis-2 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -405,17 +512,21 @@ loadHistory()
   overflow: hidden;
 }
 
+/* 笔记底部区域 */
 .note-footer {
   margin-top: $spacing-md;
 }
 
+/* 笔记时间 */
 .note-time {
-  font-size: $font-size-xs;
-  color: $text-hint;
-  font-weight: 400;
+  font-size: 28rpx;
+  color: rgba(92, 107, 192, 0.5);
+  font-weight: 500;
+  letter-spacing: 1rpx;
 }
 
+/* 列表底部间距 */
 .list-footer {
-  height: 80rpx;
+  height: 100rpx;
 }
 </style>

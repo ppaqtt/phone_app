@@ -246,14 +246,54 @@ const removeTag = (tag: string) => {
 }
 
 const toggleLock = () => {
-  isLocked.value = !isLocked.value
-  if (!isNew.value && noteId.value) {
-    notesStore.updateNote(noteId.value, { isLocked: isLocked.value })
+  // 如果要解锁，需要验证PIN码
+  if (isLocked.value) {
+    if (!notesStore.hasPin) {
+      uni.showModal({
+        title: '解锁笔记',
+        content: '请先设置应用PIN码',
+        confirmText: '去设置',
+        success: (res) => {
+          if (res.confirm) {
+            uni.navigateTo({ url: '/pages/lock/index?mode=set' })
+          }
+        }
+      })
+      return
+    }
+    
+    // 跳转到PIN验证页面解锁
+    uni.navigateTo({
+      url: '/pages/lock/index?mode=unlock&noteId=' + noteId.value,
+      success: () => {
+        // 验证成功后会返回并解锁
+      }
+    })
+  } else {
+    // 锁定笔记
+    if (!notesStore.hasPin) {
+      uni.showModal({
+        title: '锁定笔记',
+        content: '锁定笔记需要先设置应用PIN码',
+        confirmText: '去设置',
+        success: (res) => {
+          if (res.confirm) {
+            uni.navigateTo({ url: '/pages/lock/index?mode=set' })
+          }
+        }
+      })
+      return
+    }
+    
+    isLocked.value = true
+    if (!isNew.value && noteId.value) {
+      notesStore.updateNote(noteId.value, { isLocked: true })
+    }
+    uni.showToast({
+      title: '笔记已锁定',
+      icon: 'success'
+    })
   }
-  uni.showToast({
-    title: isLocked.value ? '笔记已锁定' : '笔记已解锁',
-    icon: 'none'
-  })
 }
 
 const showColorPicker = () => {
@@ -322,10 +362,13 @@ const copyContent = () => {
 </script>
 
 <style lang="scss" scoped>
+/* 容器背景 - 浅灰渐变到白色 */
 .container {
-  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #E8EAF6 0%, #F5F5F5 50%, #FFFFFF 100%);
+  min-height: 100vh;
 }
 
+/* 编辑页面头部 - 渐变背景 */
 .edit-header {
   position: sticky;
   top: 0;
@@ -335,125 +378,180 @@ const copyContent = () => {
   justify-content: space-between;
   padding: $spacing-lg $spacing-md;
   padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
-  border-bottom: 1rpx solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(135deg, #5C6BC0 0%, #7986CB 50%, #9C27B0 100%);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 4rpx 20rpx rgba(92, 107, 192, 0.25);
+  border-bottom: none;
 }
 
 .header-left, .header-right {
   width: 80rpx;
 }
 
+/* 返回按钮和操作按钮 - 圆角图标 */
 .back-btn, .action-btn {
-  width: 64rpx;
-  height: 64rpx;
+  width: 72rpx;
+  height: 72rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: $font-size-xl;
-  color: $text-primary;
-  background: rgba($primary-color, 0.08);
-  border-radius: 50%;
-  transition: all 0.3s ease;
+  font-size: 48rpx;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.15) 100%);
+  border-radius: 20rpx;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4rpx 12rpx rgba(255, 255, 255, 0.1),
+    inset 0 2rpx 0 rgba(255, 255, 255, 0.3);
   
   &:active {
-    transform: scale(0.9);
-    background: rgba($primary-color, 0.12);
+    transform: scale(0.85) rotate(-5deg);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.25) 100%);
+    box-shadow: 0 2rpx 8rpx rgba(255, 255, 255, 0.15);
   }
 }
 
 .header-title {
-  font-size: $font-size-xl;
-  font-weight: 600;
-  color: $text-primary;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #FFFFFF;
+  letter-spacing: 2rpx;
+  text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
 }
 
+/* 编辑内容区域 */
 .edit-content {
   height: calc(100vh - 360rpx);
   padding: $spacing-lg $spacing-md;
 }
 
+/* 标题输入框 - 圆角边框和阴影 */
 .title-input {
   width: 100%;
-  font-size: 52rpx;
+  font-size: 56rpx;
   font-weight: 700;
   color: $text-primary;
-  padding: $spacing-sm 0;
-  margin-bottom: $spacing-md;
-  background: transparent;
-  letter-spacing: 1rpx;
+  padding: $spacing-lg;
+  margin-bottom: $spacing-lg;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+  border-radius: 24rpx;
+  border: 3rpx solid rgba(92, 107, 192, 0.15);
+  letter-spacing: 2rpx;
+  box-shadow: 
+    0 8rpx 24rpx rgba(92, 107, 192, 0.12),
+    0 4rpx 12rpx rgba(0, 0, 0, 0.06),
+    inset 0 2rpx 0 rgba(255, 255, 255, 1);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:focus {
+    border-color: #5C6BC0;
+    box-shadow: 
+      0 12rpx 32rpx rgba(92, 107, 192, 0.18),
+      0 6rpx 16rpx rgba(156, 39, 176, 0.1),
+      inset 0 2rpx 0 rgba(255, 255, 255, 1);
+  }
   
   &:disabled {
     opacity: 0.4;
+    background: rgba(255, 255, 255, 0.6);
   }
 }
 
+/* 内容输入框 - 圆角边框和阴影 */
 .content-input {
   width: 100%;
   font-size: $font-size-lg;
   color: $text-primary;
-  line-height: 2;
-  background: transparent;
+  line-height: 2.2;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
   min-height: 500rpx;
-  padding: $spacing-md 0;
+  padding: $spacing-lg;
+  border-radius: 24rpx;
+  border: 3rpx solid rgba(92, 107, 192, 0.15);
+  box-shadow: 
+    0 8rpx 24rpx rgba(92, 107, 192, 0.12),
+    0 4rpx 12rpx rgba(0, 0, 0, 0.06),
+    inset 0 2rpx 0 rgba(255, 255, 255, 1);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:focus {
+    border-color: #5C6BC0;
+    box-shadow: 
+      0 12rpx 32rpx rgba(92, 107, 192, 0.18),
+      0 6rpx 16rpx rgba(156, 39, 176, 0.1),
+      inset 0 2rpx 0 rgba(255, 255, 255, 1);
+  }
   
   &:disabled {
     opacity: 0.4;
+    background: rgba(255, 255, 255, 0.6);
   }
 }
 
+/* 编辑页面底部区域 */
 .edit-footer {
   margin-top: $spacing-xl;
-  padding-top: $spacing-lg;
-  border-top: 2rpx solid rgba(0, 0, 0, 0.08);
+  padding-top: $spacing-xl;
+  border-top: 3rpx solid rgba(92, 107, 192, 0.12);
 }
 
+/* 底部分组 */
 .footer-section {
-  margin-bottom: $spacing-lg;
+  margin-bottom: $spacing-xl;
   
   &:last-child {
     margin-bottom: 0;
   }
 }
 
+/* 分组标签 */
 .section-label {
-  font-size: $font-size-base;
-  color: $text-secondary;
-  margin-bottom: $spacing-md;
+  font-size: 36rpx;
+  color: #5C6BC0;
+  margin-bottom: $spacing-lg;
   display: block;
-  font-weight: 600;
-  letter-spacing: 1rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
 }
 
+/* 分类选择器 */
 .category-picker {
   display: flex;
   flex-wrap: wrap;
   gap: $spacing-sm;
 }
 
+/* 分类芯片 - 圆角胶囊样式 */
 .category-chip {
-  padding: $spacing-sm $spacing-md;
-  border-radius: 100rpx;
-  font-size: $font-size-base;
-  border: 2rpx solid rgba(0, 0, 0, 0.12);
+  padding: $spacing-sm $spacing-lg;
+  border-radius: 28rpx;
+  font-size: 32rpx;
+  border: 3rpx solid rgba(92, 107, 192, 0.2);
   color: $text-secondary;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: 500;
-  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  box-shadow: 
+    0 4rpx 12rpx rgba(92, 107, 192, 0.1),
+    0 2rpx 6rpx rgba(0, 0, 0, 0.04);
   
   &.active {
-    background: rgba($primary-color, 0.12);
-    border-color: $primary-color;
-    color: $primary-color;
-    box-shadow: 0 4rpx 12rpx rgba($primary-color, 0.15);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.12) 100%);
+    border-color: #5C6BC0;
+    color: #5C6BC0;
+    box-shadow: 
+      0 8rpx 24rpx rgba(92, 107, 192, 0.2),
+      0 4rpx 12rpx rgba(156, 39, 176, 0.12),
+      inset 0 2rpx 0 rgba(255, 255, 255, 0.5);
+    transform: translateY(-4rpx);
   }
   
   &:active {
-    transform: scale(0.95);
+    transform: scale(0.92) translateY(0);
   }
 }
 
+/* 标签编辑器 */
 .tags-editor {
   display: flex;
   flex-wrap: wrap;
@@ -461,47 +559,67 @@ const copyContent = () => {
   align-items: center;
 }
 
+/* 标签项 */
 .tag-item {
   display: flex;
   align-items: center;
   gap: $spacing-xs;
-  padding: $spacing-sm $spacing-md;
-  background: linear-gradient(135deg, rgba($primary-color, 0.12) 0%, rgba($primary-color, 0.08) 100%);
-  border-radius: $radius-sm;
-  font-size: $font-size-base;
-  color: $primary-color;
-  font-weight: 500;
-  transition: all 0.2s ease;
+  padding: $spacing-sm $spacing-lg;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.12) 100%);
+  border-radius: 24rpx;
+  font-size: 32rpx;
+  color: #5C6BC0;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4rpx 12rpx rgba(92, 107, 192, 0.12),
+    0 2rpx 6rpx rgba(0, 0, 0, 0.04);
   
   .tag-remove {
-    font-size: 28rpx;
-    color: rgba($primary-color, 0.6);
+    font-size: 32rpx;
+    color: rgba(92, 107, 192, 0.5);
     line-height: 1;
-    font-weight: 600;
+    font-weight: 700;
+    transition: all 0.2s ease;
     
     &:active {
-      opacity: 0.6;
+      opacity: 0.5;
+      transform: scale(0.8);
     }
   }
-}
-
-.tag-input {
-  flex: 1;
-  min-width: 160rpx;
-  font-size: $font-size-base;
-  color: $text-primary;
-  padding: $spacing-sm $spacing-md;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: $radius-sm;
-  border: 2rpx solid rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
   
-  &:focus {
-    border-color: $primary-color;
-    background: rgba($primary-color, 0.04);
+  &:active {
+    transform: scale(0.95);
   }
 }
 
+/* 标签输入框 */
+.tag-input {
+  flex: 1;
+  min-width: 180rpx;
+  font-size: 32rpx;
+  color: $text-primary;
+  padding: $spacing-sm $spacing-lg;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.85) 100%);
+  border-radius: 24rpx;
+  border: 3rpx solid rgba(92, 107, 192, 0.12);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4rpx 12rpx rgba(92, 107, 192, 0.08),
+    0 2rpx 6rpx rgba(0, 0, 0, 0.04);
+  font-weight: 500;
+  
+  &:focus {
+    border-color: #5C6BC0;
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.05) 0%, rgba(156, 39, 176, 0.03) 100%);
+    box-shadow: 
+      0 8rpx 20rpx rgba(92, 107, 192, 0.12),
+      0 4rpx 10rpx rgba(0, 0, 0, 0.06);
+  }
+}
+
+/* 底部操作按钮区域 */
 .bottom-actions {
   position: fixed;
   bottom: 0;
@@ -509,149 +627,200 @@ const copyContent = () => {
   right: 0;
   display: flex;
   justify-content: space-around;
-  padding: $spacing-md $spacing-lg;
-  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-md});
-  background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.06);
+  padding: $spacing-lg $spacing-xl;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  box-shadow: 
+    0 -8rpx 32rpx rgba(92, 107, 192, 0.15),
+    0 -4rpx 16rpx rgba(0, 0, 0, 0.08);
 }
 
+/* 底部操作按钮项 - 漂亮的图标和动画效果 */
 .action-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: $spacing-xs;
-  padding: $spacing-sm $spacing-md;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: $radius-lg;
-  transition: all 0.3s ease;
+  padding: $spacing-md $spacing-lg;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.08) 0%, rgba(156, 39, 176, 0.06) 100%);
+  border-radius: 24rpx;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4rpx 12rpx rgba(92, 107, 192, 0.1),
+    0 2rpx 6rpx rgba(0, 0, 0, 0.04);
+  animation: actionItemBounce 0.6s ease-out;
 
   text {
-    font-size: $font-size-sm;
+    font-size: 28rpx;
     color: $text-secondary;
-    font-weight: 500;
+    font-weight: 600;
+    letter-spacing: 1rpx;
   }
 
   text:first-child {
-    font-size: 32rpx;
+    font-size: 40rpx;
   }
 
   &:active {
-    transform: scale(0.9);
-    background: rgba(0, 0, 0, 0.08);
+    transform: scale(0.85) translateY(4rpx);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.15) 0%, rgba(156, 39, 176, 0.12) 100%);
+    box-shadow: 
+      0 2rpx 8rpx rgba(92, 107, 192, 0.08),
+      0 1rpx 4rpx rgba(0, 0, 0, 0.03);
   }
 }
 
+/* 操作按钮弹跳动画 */
+@keyframes actionItemBounce {
+  0% {
+    opacity: 0;
+    transform: translateY(20rpx);
+  }
+  60% {
+    transform: translateY(-10rpx);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 面板遮罩层 */
 .panel-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  animation: overlayFadeIn 0.3s ease;
+  animation: overlayFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* 面板遮罩淡入动画 */
 @keyframes overlayFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
+/* 颜色选择面板 */
 .color-panel {
   width: 100%;
-  background: #FFFFFF;
-  border-radius: $radius-xl $radius-xl 0 0;
-  padding: $spacing-lg;
-  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
-  animation: panelSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.98) 100%);
+  border-radius: 40rpx 40rpx 0 0;
+  padding: $spacing-xl;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-xl});
+  animation: panelSlideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -8rpx 32rpx rgba(92, 107, 192, 0.15);
 }
 
+/* 面板滑入动画 */
 @keyframes panelSlideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
 
+/* 面板标题 */
 .panel-title {
-  font-size: $font-size-xl;
-  font-weight: 600;
-  color: $text-primary;
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #5C6BC0;
   text-align: center;
-  margin-bottom: $spacing-lg;
+  margin-bottom: $spacing-xl;
+  letter-spacing: 2rpx;
 }
 
+/* 颜色网格布局 */
 .color-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: $spacing-md;
+  gap: $spacing-lg;
 }
 
+/* 颜色选项 - 圆角方块 */
 .color-option {
   aspect-ratio: 1;
-  border-radius: $radius-lg;
-  border: 4rpx solid transparent;
+  border-radius: 24rpx;
+  border: 4rpx solid rgba(92, 107, 192, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
+  box-shadow: 
+    0 8rpx 24rpx rgba(0, 0, 0, 0.12),
+    0 4rpx 12rpx rgba(92, 107, 192, 0.08);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   
   &:active {
-    transform: scale(0.9);
+    transform: scale(0.88) rotate(5deg);
+    box-shadow: 
+      0 4rpx 16rpx rgba(0, 0, 0, 0.15),
+      0 2rpx 8rpx rgba(92, 107, 192, 0.1);
   }
 }
 
+/* 颜色选中标记 */
 .color-check {
   font-size: 56rpx;
   color: #FFFFFF;
   font-weight: bold;
-  text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.3);
+  text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.4);
 }
 
+/* 操作面板 */
 .action-panel {
   width: 100%;
-  background: #FFFFFF;
-  border-radius: $radius-xl $radius-xl 0 0;
-  padding: $spacing-md;
-  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-md});
-  animation: panelSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(255, 255, 255, 0.98) 100%);
+  border-radius: 40rpx 40rpx 0 0;
+  padding: $spacing-lg;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
+  animation: panelSlideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 -8rpx 32rpx rgba(92, 107, 192, 0.15);
 }
 
+/* 操作面板项 */
 .action-panel-item {
-  padding: $spacing-lg;
+  padding: $spacing-lg $spacing-xl;
   text-align: center;
-  font-size: $font-size-lg;
+  font-size: 36rpx;
   color: $text-primary;
-  border-bottom: 2rpx solid rgba(0, 0, 0, 0.06);
-  transition: background 0.2s ease;
-  font-weight: 500;
+  border-bottom: 2rpx solid rgba(92, 107, 192, 0.08);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  letter-spacing: 1rpx;
 
   &.danger {
-    color: $error-color;
+    color: #EF5350;
+    font-weight: 700;
   }
 
   &:active {
-    background: rgba(0, 0, 0, 0.04);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.08) 0%, rgba(156, 39, 176, 0.06) 100%);
+    transform: scale(0.98);
   }
 }
 
+/* 取消按钮 */
 .action-panel-cancel {
-  padding: $spacing-lg;
+  padding: $spacing-lg $spacing-xl;
   text-align: center;
-  font-size: $font-size-lg;
+  font-size: 36rpx;
   color: $text-secondary;
   margin-top: $spacing-md;
-  background: rgba(0, 0, 0, 0.04);
-  border-radius: $radius-lg;
-  transition: all 0.2s ease;
-  font-weight: 500;
+  background: linear-gradient(135deg, rgba(92, 107, 192, 0.08) 0%, rgba(156, 39, 176, 0.06) 100%);
+  border-radius: 28rpx;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 600;
+  letter-spacing: 2rpx;
+  box-shadow: 0 4rpx 12rpx rgba(92, 107, 192, 0.1);
 
   &:active {
-    opacity: 0.7;
-    background: rgba(0, 0, 0, 0.08);
+    opacity: 0.8;
+    transform: scale(0.96);
+    background: linear-gradient(135deg, rgba(92, 107, 192, 0.12) 0%, rgba(156, 39, 176, 0.1) 100%);
   }
 }
 </style>
