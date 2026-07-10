@@ -5,7 +5,33 @@ import fs from 'fs'
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 
+const isDev = !app.isPackaged
+
+const getRendererPath = (): string => {
+  if (isDev) {
+    return path.join(__dirname, '../../src/renderer/h5')
+  }
+  return path.join(process.resourcesPath, 'renderer/h5')
+}
+
+const getIconPath = (): string => {
+  if (isDev) {
+    return path.join(__dirname, '../../build/icon.png')
+  }
+  return path.join(process.resourcesPath, 'icon.png')
+}
+
+const getPreloadPath = (): string => {
+  if (isDev) {
+    return path.join(__dirname, '../preload/preload.js')
+  }
+  return path.join(process.resourcesPath, 'preload/preload.js')
+}
+
 const createWindow = () => {
+  const preloadPath = getPreloadPath()
+  const iconPath = getIconPath()
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -13,17 +39,22 @@ const createWindow = () => {
     minHeight: 600,
     title: '清笺',
     webPreferences: {
-      preload: path.join(__dirname, '../preload/preload.js'),
+      preload: preloadPath,
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false
     },
-    icon: path.join(__dirname, '../../build/icon.png')
+    icon: iconPath
   })
 
-  const h5Path = path.join(__dirname, '../../src/renderer/h5/index.html')
+  const rendererDir = getRendererPath()
+  const indexPath = path.join(rendererDir, 'index.html')
   
-  mainWindow.loadFile(h5Path)
+  if (fs.existsSync(indexPath)) {
+    mainWindow.loadFile(indexPath)
+  } else {
+    mainWindow.loadURL(`data:text/html,<html><body><h1>加载失败</h1><p>找不到页面文件：${indexPath}</p><p>app.isPackaged: ${app.isPackaged}</p><p>resourcesPath: ${process.resourcesPath}</p></body></html>`)
+  }
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -35,7 +66,7 @@ const createWindow = () => {
 }
 
 const createTray = () => {
-  const iconPath = path.join(__dirname, '../../build/icon.png')
+  const iconPath = getIconPath()
   
   if (!fs.existsSync(iconPath)) {
     return

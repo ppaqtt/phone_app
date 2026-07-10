@@ -24,9 +24,21 @@
       "output": "release"
     },
     "files": [
-      "dist/main/**/*",
-      "dist/preload/**/*",
-      "src/renderer/**/*"
+      "dist/main/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "src/renderer",
+        "to": "renderer"
+      },
+      {
+        "from": "dist/preload",
+        "to": "preload"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
     ],
     "win": {
       "target": [
