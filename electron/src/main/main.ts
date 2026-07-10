@@ -30,8 +30,8 @@ const createWindow = () => {
     mainWindow = null
   })
 
-  mainWindow.webContents.on('new-window', (event, url) => {
-    event.preventDefault()
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    return { action: 'deny' }
   })
 }
 
