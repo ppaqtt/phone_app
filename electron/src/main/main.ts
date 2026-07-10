@@ -22,9 +22,8 @@ const createWindow = () => {
   })
 
   const h5Path = path.join(__dirname, '../../src/renderer/h5/index.html')
-  const h5Url = `file://${h5Path}`
   
-  mainWindow.loadURL(h5Url)
+  mainWindow.loadFile(h5Path)
 
   mainWindow.on('closed', () => {
     mainWindow = null
