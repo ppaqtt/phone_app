@@ -1,0 +1,73 @@
+{
+  "name": "qingjian-desktop",
+  "version": "1.0.0",
+  "description": "清笺 - 桌面版笔记应用",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build:h5": "cd ../uniapp && npm run build:h5",
+    "copy:h5": "rm -rf src/renderer/h5 && cp -r ../uniapp/dist/build/h5 src/renderer/h5",
+    "build:main": "tsc --project tsconfig.main.json",
+    "build:preload": "tsc --project tsconfig.preload.json",
+    "build:electron": "npm run build:main && npm run build:preload",
+    "build": "npm run build:h5 && npm run copy:h5 && npm run build:electron",
+    "start": "npm run build:electron && electron .",
+    "package:win": "npm run build && electron-builder --win --x64",
+    "package:linux": "npm run build && electron-builder --linux --x64",
+    "package:all": "npm run build && electron-builder --win --linux --x64"
+  },
+  "build": {
+    "appId": "com.qingjian.notes",
+    "productName": "清笺",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/main/**/*",
+      "dist/preload/**/*",
+      "src/renderer/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "qingjian-${version}-windows.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "清笺"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "qingjian_${version}_amd64.deb",
+      "category": "Office",
+      "description": "完全本地化的笔记应用",
+      "maintainer": "Qingjian Notes <qingjian@example.com>"
+    }
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.4.5",
+    "@types/node": "^20.12.7"
+  }
+}
