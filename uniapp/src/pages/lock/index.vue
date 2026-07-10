@@ -40,16 +40,25 @@
         </view>
 
         <!-- 数字键盘 -->
-        <view class="numpad">
-          <view
-            v-for="num in numpadKeys"
-            :key="num"
-            :class="['numpad-key', { special: num === 'delete' || num === 'forgot' }]"
-            @click="handleNumpadClick(num)"
-          >
-            <text v-if="num === 'delete'" class="key-text">⌫</text>
-            <text v-else-if="num === 'forgot'" class="key-text forgot">忘记密码</text>
-            <text v-else class="key-text">{{ num }}</text>
+        <view class="numpad-wrapper">
+          <view class="numpad">
+            <view
+              v-for="num in numpadKeys"
+              :key="num"
+              :class="['numpad-key', { special: num === 'delete' || num === 'forgot' || num === 'skip' || num === 'confirm' }]"
+              @click="handleNumpadClick(num)"
+            >
+              <text v-if="num === 'delete'" class="key-text">⌫</text>
+              <text v-else-if="num === 'forgot'" class="key-text forgot">忘记密码</text>
+              <text v-else-if="num === 'skip'" class="key-text skip-text">跳过</text>
+              <text v-else class="key-text">{{ num }}</text>
+            </view>
+          </view>
+          
+          <view v-if="showConfirmBtn" class="confirm-btn-wrapper">
+            <view class="confirm-btn" @click="handlePinSubmit">
+              <text class="confirm-btn-text">确定</text>
+            </view>
           </view>
         </view>
       </view>
@@ -76,7 +85,28 @@ const mode = ref<'verify' | 'set' | 'confirm' | 'unlock'>('verify')
 const noteId = ref<string>('')
 const redirect = ref<string>('')
 
-const numpadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'forgot', '0', 'delete']
+const numpadKeys = computed(() => {
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
+  
+  if (mode.value === 'set' && firstSet.value) {
+    keys.push('skip')
+  } else {
+    keys.push('forgot')
+  }
+  
+  keys.push('0')
+  keys.push('delete')
+  
+  return keys
+})
+
+const firstSet = computed(() => {
+  return !notesStore.hasPin && mode.value === 'set'
+})
+
+const showConfirmBtn = computed(() => {
+  return (mode.value === 'set' || mode.value === 'confirm') && currentPin.value.length >= 4 && currentPin.value.length < pinLength.value
+})
 
 const pageTitle = computed(() => {
   if (mode.value === 'unlock') return '解锁笔记'
@@ -123,6 +153,16 @@ const handleNumpadClick = (key: string) => {
     return
   }
 
+  if (key === 'skip') {
+    handleSkip()
+    return
+  }
+
+  if (key === 'confirm') {
+    handlePinSubmit()
+    return
+  }
+
   if (key === 'delete') {
     currentPin.value = currentPin.value.slice(0, -1)
     errorMsg.value = ''
@@ -139,6 +179,20 @@ const handleNumpadClick = (key: string) => {
       }, 300)
     }
   }
+}
+
+const handleSkip = () => {
+  uni.showModal({
+    title: '跳过设置',
+    content: '不设置密码将无法使用笔记锁定功能，确定要跳过吗？',
+    confirmText: '确定跳过',
+    cancelText: '继续设置',
+    success: (res) => {
+      if (res.confirm) {
+        uni.switchTab({ url: '/pages/notes/index' })
+      }
+    }
+  })
 }
 
 const handlePinSubmit = () => {
@@ -394,6 +448,10 @@ const handleForgotPin = () => {
   40%, 80% { transform: translateX(10rpx); }
 }
 
+.numpad-wrapper {
+  position: relative;
+}
+
 .numpad {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -434,8 +492,45 @@ const handleForgotPin = () => {
         font-size: 24rpx;
         color: rgba(255, 255, 255, 0.6);
       }
+      
+      &.skip-text {
+        font-size: 24rpx;
+        color: rgba(255, 255, 255, 0.7);
+      }
     }
   }
+}
+
+.confirm-btn-wrapper {
+  margin-top: 24rpx;
+  display: flex;
+  justify-content: center;
+}
+
+.confirm-btn {
+  width: 320rpx;
+  height: 88rpx;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    0 8rpx 24rpx rgba(102, 126, 234, 0.4);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:active {
+    transform: scale(0.96);
+    box-shadow: 
+      0 4rpx 12rpx rgba(102, 126, 234, 0.3);
+  }
+}
+
+.confirm-btn-text {
+  font-size: 32rpx;
+  color: #FFFFFF;
+  font-weight: 600;
+  letter-spacing: 4rpx;
 }
 
 .lock-hint {
