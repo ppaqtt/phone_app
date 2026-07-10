@@ -55,6 +55,20 @@
         "navigationBarTitleText": "关于",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/privacy/index",
+      "style": {
+        "navigationBarTitleText": "隐私政策",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/terms/index",
+      "style": {
+        "navigationBarTitleText": "用户须知",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {

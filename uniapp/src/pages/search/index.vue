@@ -2,10 +2,11 @@
   <view class="container">
     <view class="search-header">
       <view class="search-bar">
+        <text class="back-btn" @click="goBack">‹</text>
         <text class="search-icon">🔍</text>
-        <input 
-          class="search-input" 
-          v-model="keyword" 
+        <input
+          class="search-input"
+          v-model="keyword"
           placeholder="搜索笔记"
           @confirm="handleSearch"
           :focus="true"
@@ -141,6 +142,10 @@ const editNote = (note: Note) => {
   uni.navigateTo({ url: `/pages/notes/edit?id=${note.id}` })
 }
 
+const goBack = () => {
+  uni.switchTab({ url: '/pages/notes/index' })
+}
+
 const loadHistory = () => {
   const history = uni.getStorageSync('qingjian_search_history')
   if (history) {
@@ -167,6 +172,13 @@ loadHistory()
   padding: $spacing-sm $spacing-md;
   background: $bg-color;
   border-radius: 100rpx;
+}
+
+.back-btn {
+  font-size: $font-size-xxl;
+  color: $text-secondary;
+  padding: 0 $spacing-xs;
+  line-height: 1;
 }
 
 .search-icon {

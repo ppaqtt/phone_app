@@ -51,7 +51,7 @@
           <view class="contact-item" @click="openEmail">
             <text class="contact-icon">📧</text>
             <text class="contact-text">联系我们</text>
-            <text class="contact-value">qingjian@example.com</text>
+            <text class="contact-value">pdpdxpz@qq.com</text>
           </view>
         </view>
       </view>
@@ -83,13 +83,13 @@
 
 <script setup lang="ts">
 const openEmail = () => {
-  uni.showToast({ title: 'qingjian@example.com', icon: 'none' })
+  uni.showToast({ title: 'pdpdxpz@qq.com', icon: 'none' })
 }
 
 const showFeedback = () => {
   uni.showModal({
     title: '反馈建议',
-    content: '感谢您的反馈！如有任何问题或建议，请发送邮件至 qingjian@example.com',
+    content: '感谢您的反馈！如有任何问题或建议，请发送邮件至 pdpdxpz@qq.com',
     showCancel: false
   })
 }

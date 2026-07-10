@@ -23,6 +23,7 @@
         placeholder="标题" 
         :maxlength="100"
         :auto-focus="isNew"
+        :disabled="isReadOnly"
       />
       
       <textarea 
@@ -31,6 +32,7 @@
         placeholder="开始记录..."
         :auto-height="true"
         :maxlength="5000"
+        :disabled="isReadOnly"
       />
 
       <view class="edit-footer">
@@ -89,6 +91,38 @@
         <text>保存</text>
       </view>
     </view>
+
+    <view v-if="showColorPanel" class="panel-overlay" @click="showColorPanel = false">
+      <view class="color-panel" @click.stop>
+        <view class="panel-title">选择颜色</view>
+        <view class="color-grid">
+          <view
+            v-for="c in colorOptions"
+            :key="c.value"
+            class="color-option"
+            :style="{ background: c.value, borderColor: noteColor === c.value ? $primary-color : 'transparent' }"
+            @click="selectColor(c.value)"
+          >
+            <text v-if="noteColor === c.value" class="color-check">✓</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="showMorePanel" class="panel-overlay" @click="showMorePanel = false">
+      <view class="action-panel" @click.stop>
+        <view
+          v-for="(action, index) in moreActions"
+          :key="index"
+          class="action-panel-item"
+          :class="{ danger: index === 0 }"
+          @click="onMoreAction(index)"
+        >
+          {{ action }}
+        </view>
+        <view class="action-panel-cancel" @click="showMorePanel = false">取消</view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -107,8 +141,24 @@ const currentCategory = ref<string | null>(null)
 const noteColor = ref('#FFFFFF')
 const isLocked = ref(false)
 const newTag = ref('')
+const showColorPanel = ref(false)
+const showMorePanel = ref(false)
+
+const colorOptions = [
+  { name: '白色', value: '#FFFFFF' },
+  { name: '黄色', value: '#FFF9C4' },
+  { name: '红色', value: '#FFCDD2' },
+  { name: '绿色', value: '#C8E6C9' },
+  { name: '蓝色', value: '#BBDEFB' },
+  { name: '紫色', value: '#E1BEE7' },
+  { name: '橙色', value: '#FFE0B2' },
+  { name: '灰色', value: '#D7CCC8' }
+]
+
+const moreActions = ['删除笔记', '分享', '复制内容']
 
 const isNew = computed(() => !noteId.value)
+const isReadOnly = computed(() => isLocked.value)
 
 const categories = computed(() => notesStore.categories)
 
@@ -136,11 +186,6 @@ const loadNote = () => {
 }
 
 const saveNote = () => {
-  if (isLocked.value) {
-    uni.showToast({ title: '笔记已锁定', icon: 'none' })
-    return
-  }
-
   if (isNew.value) {
     notesStore.addNote({
       title: title.value,
@@ -164,7 +209,7 @@ const saveNote = () => {
   }
 
   setTimeout(() => {
-    uni.navigateBack()
+    uni.switchTab({ url: '/pages/notes/index' })
   }, 500)
 }
 
@@ -175,12 +220,12 @@ const goBack = () => {
       content: '笔记未保存，确定离开吗？',
       success: (res) => {
         if (res.confirm) {
-          uni.navigateBack()
+          uni.switchTab({ url: '/pages/notes/index' })
         }
       }
     })
   } else {
-    uni.navigateBack()
+    uni.switchTab({ url: '/pages/notes/index' })
   }
 }
 
@@ -202,41 +247,41 @@ const removeTag = (tag: string) => {
 
 const toggleLock = () => {
   isLocked.value = !isLocked.value
-  uni.showToast({ 
-    title: isLocked.value ? '笔记已锁定' : '笔记已解锁', 
-    icon: 'none' 
+  if (!isNew.value && noteId.value) {
+    notesStore.updateNote(noteId.value, { isLocked: isLocked.value })
+  }
+  uni.showToast({
+    title: isLocked.value ? '笔记已锁定' : '笔记已解锁',
+    icon: 'none'
   })
 }
 
 const showColorPicker = () => {
-  const colors = ['白色', '黄色', '红色', '绿色', '蓝色', '紫色', '橙色', '灰色']
-  const colorValues = ['#FFFFFF', '#FFF9C4', '#FFCDD2', '#C8E6C9', '#BBDEFB', '#E1BEE7', '#FFE0B2', '#D7CCC8']
-  
-  uni.showActionSheet({
-    itemList: colors,
-    success: (res) => {
-      noteColor.value = colorValues[res.tapIndex]
-    }
-  })
+  showColorPanel.value = true
+}
+
+const selectColor = (color: string) => {
+  noteColor.value = color
+  showColorPanel.value = false
 }
 
 const showMoreMenu = () => {
-  uni.showActionSheet({
-    itemList: ['删除笔记', '分享', '复制内容'],
-    success: (res) => {
-      switch (res.tapIndex) {
-        case 0:
-          deleteNote()
-          break
-        case 1:
-          shareNote()
-          break
-        case 2:
-          copyContent()
-          break
-      }
-    }
-  })
+  showMorePanel.value = true
+}
+
+const onMoreAction = (index: number) => {
+  showMorePanel.value = false
+  switch (index) {
+    case 0:
+      deleteNote()
+      break
+    case 1:
+      shareNote()
+      break
+    case 2:
+      copyContent()
+      break
+  }
 }
 
 const deleteNote = () => {
@@ -248,7 +293,7 @@ const deleteNote = () => {
         notesStore.deleteNote(noteId.value)
         uni.showToast({ title: '已删除', icon: 'success' })
         setTimeout(() => {
-          uni.navigateBack()
+          uni.switchTab({ url: '/pages/notes/index' })
         }, 500)
       }
     }
@@ -421,18 +466,107 @@ const copyContent = () => {
   flex-direction: column;
   align-items: center;
   gap: $spacing-xs;
-  
+
   text {
     font-size: $font-size-sm;
     color: $text-secondary;
   }
-  
+
   text:first-child {
     font-size: $font-size-lg;
   }
-  
+
   &:active {
     opacity: 0.6;
+  }
+}
+
+.panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.color-panel {
+  width: 100%;
+  background: $card-bg;
+  border-radius: $radius-xl $radius-xl 0 0;
+  padding: $spacing-lg;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
+}
+
+.panel-title {
+  font-size: $font-size-lg;
+  font-weight: 600;
+  color: $text-primary;
+  text-align: center;
+  margin-bottom: $spacing-lg;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-md;
+}
+
+.color-option {
+  aspect-ratio: 1;
+  border-radius: $radius-lg;
+  border: 3rpx solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: $shadow-sm;
+}
+
+.color-check {
+  font-size: $font-size-xl;
+  color: $text-primary;
+  font-weight: bold;
+}
+
+.action-panel {
+  width: 100%;
+  background: $card-bg;
+  border-radius: $radius-xl $radius-xl 0 0;
+  padding: $spacing-md;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-md});
+}
+
+.action-panel-item {
+  padding: $spacing-lg;
+  text-align: center;
+  font-size: $font-size-base;
+  color: $text-primary;
+  border-bottom: 1rpx solid $border-color;
+
+  &.danger {
+    color: $error-color;
+  }
+
+  &:active {
+    background: $bg-color;
+  }
+}
+
+.action-panel-cancel {
+  padding: $spacing-lg;
+  text-align: center;
+  font-size: $font-size-base;
+  color: $text-secondary;
+  margin-top: $spacing-md;
+  background: $bg-color;
+  border-radius: $radius-lg;
+
+  &:active {
+    opacity: 0.7;
   }
 }
 </style>

@@ -61,8 +61,56 @@
       <view class="list-footer"></view>
     </scroll-view>
 
-    <view class="fab-button" @click="createNote">
+    <view class="fab" @click="createNote">
       <text class="fab-icon">+</text>
+    </view>
+
+    <view v-if="showMenuPanel" class="panel-overlay" @click="showMenuPanel = false">
+      <view class="action-panel" @click.stop>
+        <view
+          v-for="(action, index) in noteMenuActions"
+          :key="index"
+          class="action-panel-item"
+          :class="{ danger: index === 0 }"
+          @click="onMenuAction(index)"
+        >
+          {{ action }}
+        </view>
+        <view class="action-panel-cancel" @click="showMenuPanel = false">取消</view>
+      </view>
+    </view>
+
+    <view v-if="showCategoryPanel" class="panel-overlay" @click="showCategoryPanel = false">
+      <view class="action-panel" @click.stop>
+        <view class="panel-title">选择分类</view>
+        <view class="action-panel-item" @click="onSelectCategoryForNote(0)">无分类</view>
+        <view
+          v-for="(cat, index) in notesStore.categories"
+          :key="cat.id"
+          class="action-panel-item"
+          @click="onSelectCategoryForNote(index + 1)"
+        >
+          {{ cat.name }}
+        </view>
+        <view class="action-panel-cancel" @click="showCategoryPanel = false">取消</view>
+      </view>
+    </view>
+
+    <view v-if="showNoteColorPanel" class="panel-overlay" @click="showNoteColorPanel = false">
+      <view class="color-panel" @click.stop>
+        <view class="panel-title">标记颜色</view>
+        <view class="color-grid">
+          <view
+            v-for="c in noteColorOptions"
+            :key="c.value"
+            class="color-option"
+            :style="{ background: c.value }"
+            @click="onSelectColorForNote(c.value)"
+          >
+            <text v-if="menuNote?.color === c.value" class="color-check">✓</text>
+          </view>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -76,6 +124,22 @@ import { formatDateShort } from '@/utils/id'
 const notesStore = useNotesStore()
 
 const selectedCategory = ref<string | null>(null)
+const menuNote = ref<Note | null>(null)
+const showMenuPanel = ref(false)
+const showCategoryPanel = ref(false)
+const showNoteColorPanel = ref(false)
+
+const noteMenuActions = ['删除', '移动到分类', '标记颜色']
+const noteColorOptions = [
+  { name: '白色', value: '#FFFFFF' },
+  { name: '黄色', value: '#FFF9C4' },
+  { name: '红色', value: '#FFCDD2' },
+  { name: '绿色', value: '#C8E6C9' },
+  { name: '蓝色', value: '#BBDEFB' },
+  { name: '紫色', value: '#E1BEE7' },
+  { name: '橙色', value: '#FFE0B2' },
+  { name: '灰色', value: '#D7CCC8' }
+]
 
 const activeNotes = computed(() => notesStore.activeNotes)
 
@@ -121,51 +185,48 @@ const editNote = (note: Note) => {
 }
 
 const showNoteMenu = (note: Note) => {
-  uni.showActionSheet({
-    itemList: ['删除', '移动到分类', '标记颜色'],
-    success: (res) => {
-      switch (res.tapIndex) {
-        case 0:
-          notesStore.deleteNote(note.id)
-          uni.showToast({ title: '已移至回收站', icon: 'success' })
-          break
-        case 1:
-          moveToCategory(note)
-          break
-        case 2:
-          changeColor(note)
-          break
-      }
-    }
-  })
+  menuNote.value = note
+  showMenuPanel.value = true
 }
 
-const moveToCategory = (note: Note) => {
-  const categories = notesStore.categories.map(c => c.name)
-  uni.showActionSheet({
-    itemList: ['无分类', ...categories],
-    success: (res) => {
-      const catId = res.tapIndex === 0 ? null : notesStore.categories[res.tapIndex - 1].id
-      notesStore.updateNote(note.id, { categoryId: catId })
-      uni.showToast({ title: '已移动', icon: 'success' })
-    }
-  })
+const onMenuAction = (index: number) => {
+  const note = menuNote.value
+  showMenuPanel.value = false
+  if (!note) return
+  switch (index) {
+    case 0:
+      notesStore.deleteNote(note.id)
+      uni.showToast({ title: '已移至回收站', icon: 'success' })
+      break
+    case 1:
+      menuNote.value = note
+      showCategoryPanel.value = true
+      break
+    case 2:
+      menuNote.value = note
+      showNoteColorPanel.value = true
+      break
+  }
 }
 
-const changeColor = (note: Note) => {
-  const colors = ['白色', '黄色', '红色', '绿色', '蓝色', '紫色', '橙色', '灰色']
-  const colorValues = ['#FFFFFF', '#FFF9C4', '#FFCDD2', '#C8E6C9', '#BBDEFB', '#E1BEE7', '#FFE0B2', '#D7CCC8']
-  
-  uni.showActionSheet({
-    itemList: colors,
-    success: (res) => {
-      notesStore.updateNote(note.id, { color: colorValues[res.tapIndex] })
-    }
-  })
+const onSelectCategoryForNote = (index: number) => {
+  const note = menuNote.value
+  showCategoryPanel.value = false
+  if (!note) return
+  const catId = index === 0 ? null : notesStore.categories[index - 1]?.id || null
+  notesStore.updateNote(note.id, { categoryId: catId })
+  uni.showToast({ title: '已移动', icon: 'success' })
+}
+
+const onSelectColorForNote = (color: string) => {
+  const note = menuNote.value
+  showNoteColorPanel.value = false
+  if (!note) return
+  notesStore.updateNote(note.id, { color })
 }
 
 const goToSearch = () => {
-  uni.navigateTo({ url: '/pages/search/index' })
+  uni.switchTab({ url: '/pages/search/index' })
 }
 </script>
 
@@ -357,16 +418,106 @@ const goToSearch = () => {
   align-items: center;
   justify-content: center;
   box-shadow: $shadow-lg;
-  
+
   &:active {
     background: $primary-dark;
     transform: scale(0.95);
   }
-  
+
   .fab-icon {
     font-size: 60rpx;
     color: #FFFFFF;
     font-weight: 300;
   }
+}
+
+.panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.action-panel {
+  width: 100%;
+  background: $card-bg;
+  border-radius: $radius-xl $radius-xl 0 0;
+  padding: $spacing-md;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-md});
+}
+
+.panel-title {
+  font-size: $font-size-lg;
+  font-weight: 600;
+  color: $text-primary;
+  text-align: center;
+  margin-bottom: $spacing-md;
+  padding: $spacing-sm 0;
+}
+
+.action-panel-item {
+  padding: $spacing-lg;
+  text-align: center;
+  font-size: $font-size-base;
+  color: $text-primary;
+  border-bottom: 1rpx solid $border-color;
+
+  &.danger {
+    color: $error-color;
+  }
+
+  &:active {
+    background: $bg-color;
+  }
+}
+
+.action-panel-cancel {
+  padding: $spacing-lg;
+  text-align: center;
+  font-size: $font-size-base;
+  color: $text-secondary;
+  margin-top: $spacing-md;
+  background: $bg-color;
+  border-radius: $radius-lg;
+
+  &:active {
+    opacity: 0.7;
+  }
+}
+
+.color-panel {
+  width: 100%;
+  background: $card-bg;
+  border-radius: $radius-xl $radius-xl 0 0;
+  padding: $spacing-lg;
+  padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: $spacing-md;
+}
+
+.color-option {
+  aspect-ratio: 1;
+  border-radius: $radius-lg;
+  border: 3rpx solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: $shadow-sm;
+}
+
+.color-check {
+  font-size: $font-size-xl;
+  color: $text-primary;
+  font-weight: bold;
 }
 </style>

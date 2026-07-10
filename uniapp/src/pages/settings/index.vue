@@ -7,7 +7,7 @@
     <scroll-view class="settings-list" scroll-y>
       <view class="settings-section">
         <view class="section-title">数据管理</view>
-        <view class="settings-item" @click="exportBackup">
+        <view class="settings-item" @click="handleExportBackup">
           <view class="item-left">
             <text class="item-icon">📤</text>
             <text class="item-text">导出备份</text>
@@ -17,10 +17,10 @@
             <text class="item-arrow">›</text>
           </view>
         </view>
-        <view class="settings-item" @click="importBackup">
+        <view class="settings-item" @click="handleImportFile">
           <view class="item-left">
             <text class="item-icon">📥</text>
-            <text class="item-text">导入备份</text>
+            <text class="item-text">导入文件</text>
           </view>
           <view class="item-right">
             <text class="item-hint">从备份文件恢复数据</text>
@@ -65,7 +65,7 @@
             <text class="item-arrow">›</text>
           </view>
         </view>
-        <view class="settings-item" @click="showPrivacyPolicy">
+        <view class="settings-item" @click="goToPrivacy">
           <view class="item-left">
             <text class="item-icon">🔒</text>
             <text class="item-text">隐私政策</text>
@@ -74,10 +74,10 @@
             <text class="item-arrow">›</text>
           </view>
         </view>
-        <view class="settings-item" @click="showTermsOfService">
+        <view class="settings-item" @click="goToTerms">
           <view class="item-left">
             <text class="item-icon">📄</text>
-            <text class="item-text">服务条款</text>
+            <text class="item-text">用户须知</text>
           </view>
           <view class="item-right">
             <text class="item-arrow">›</text>
@@ -118,42 +118,57 @@ const notesStore = useNotesStore()
 
 const deletedNotes = computed(() => notesStore.deletedNotes)
 
-const exportBackup = () => {
+const handleExportBackup = async () => {
   const json = exportBackup()
-  uni.showModal({
-    title: '导出备份',
-    content: '备份数据已生成，是否复制到剪贴板？',
-    confirmText: '复制',
-    success: (res) => {
-      if (res.confirm) {
-        uni.setClipboardData({
-          data: json,
-          success: () => {
-            uni.showToast({ title: '已复制', icon: 'success' })
-          }
-        })
-      }
+  const electronAPI = typeof window !== 'undefined' ? (window as any).electronAPI : null
+  if (electronAPI) {
+    const result = await electronAPI.showSaveDialog()
+    if (!result.canceled && result.filePath) {
+      const fs = require('fs')
+      fs.writeFileSync(result.filePath, json, 'utf-8')
+      uni.showToast({ title: '已导出', icon: 'success' })
     }
-  })
+  } else {
+    uni.setClipboardData({
+      data: json,
+      success: () => {
+        uni.showToast({ title: '已复制到剪贴板', icon: 'success' })
+      }
+    })
+  }
 }
 
-const importBackup = () => {
-  uni.showModal({
-    title: '导入备份',
-    content: '请粘贴备份数据：',
-    editable: true,
-    placeholderText: '在此粘贴JSON备份数据',
-    confirmText: '导入',
-    success: (res) => {
-      if (res.confirm && res.content) {
-        const success = doImportBackup(res.content)
-        if (success) {
-          notesStore.loadFromStorage()
-          uni.showToast({ title: '导入成功', icon: 'success' })
-        }
+const handleImportFile = async () => {
+  const electronAPI = typeof window !== 'undefined' ? (window as any).electronAPI : null
+  if (electronAPI) {
+    const result = await electronAPI.showOpenDialog()
+    if (!result.canceled && result.filePaths.length > 0) {
+      const fs = require('fs')
+      const json = fs.readFileSync(result.filePaths[0], 'utf-8')
+      const success = doImportBackup(json)
+      if (success) {
+        notesStore.loadFromStorage()
+        uni.showToast({ title: '导入成功', icon: 'success' })
       }
     }
-  })
+  } else {
+    uni.showModal({
+      title: '导入文件',
+      content: '请粘贴备份数据：',
+      editable: true,
+      placeholderText: '在此粘贴JSON备份数据',
+      confirmText: '导入',
+      success: (res) => {
+        if (res.confirm && res.content) {
+          const success = doImportBackup(res.content)
+          if (success) {
+            notesStore.loadFromStorage()
+            uni.showToast({ title: '导入成功', icon: 'success' })
+          }
+        }
+      }
+    })
+  }
 }
 
 const goToTrash = () => {
@@ -168,20 +183,12 @@ const goToAbout = () => {
   uni.navigateTo({ url: '/pages/about/index' })
 }
 
-const showPrivacyPolicy = () => {
-  uni.showModal({
-    title: '隐私政策',
-    content: '清笺是一款完全本地化的笔记应用。我们不会收集、存储或上传您的任何个人数据。所有笔记内容仅存储在您的设备本地。',
-    showCancel: false
-  })
+const goToPrivacy = () => {
+  uni.navigateTo({ url: '/pages/privacy/index' })
 }
 
-const showTermsOfService = () => {
-  uni.showModal({
-    title: '服务条款',
-    content: '使用清笺即表示您同意我们的服务条款。我们致力于提供安全、可靠的笔记管理服务。',
-    showCancel: false
-  })
+const goToTerms = () => {
+  uni.navigateTo({ url: '/pages/terms/index' })
 }
 
 const clearAllData = () => {
