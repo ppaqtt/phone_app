@@ -128,6 +128,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { useNotesStore } from '@/stores/notes'
 import type { Note } from '@/types'
 
@@ -170,6 +171,15 @@ onMounted(() => {
   if (options.id) {
     noteId.value = options.id
     loadNote()
+  }
+})
+
+onShow(() => {
+  if (noteId.value) {
+    const note = notesStore.notes.find(n => n.id === noteId.value)
+    if (note) {
+      isLocked.value = note.isLocked
+    }
   }
 })
 

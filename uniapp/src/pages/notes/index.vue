@@ -181,7 +181,24 @@ const createNote = () => {
 }
 
 const editNote = (note: Note) => {
-  uni.navigateTo({ url: `/pages/notes/edit?id=${note.id}` })
+  if (note.isLocked) {
+    if (!notesStore.hasPin) {
+      uni.showModal({
+        title: '笔记已锁定',
+        content: '请先设置应用PIN码',
+        confirmText: '去设置',
+        success: (res) => {
+          if (res.confirm) {
+            uni.navigateTo({ url: '/pages/lock/index?mode=set' })
+          }
+        }
+      })
+      return
+    }
+    uni.navigateTo({ url: `/pages/lock/index?mode=unlock&noteId=${note.id}&redirect=edit` })
+  } else {
+    uni.navigateTo({ url: `/pages/notes/edit?id=${note.id}` })
+  }
 }
 
 const showNoteMenu = (note: Note) => {

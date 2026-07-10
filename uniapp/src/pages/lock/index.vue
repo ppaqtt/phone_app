@@ -74,6 +74,7 @@ const pinLength = ref(6)
 const errorMsg = ref('')
 const mode = ref<'verify' | 'set' | 'confirm' | 'unlock'>('verify')
 const noteId = ref<string>('')
+const redirect = ref<string>('')
 
 const numpadKeys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'forgot', '0', 'delete']
 
@@ -108,6 +109,7 @@ onMounted(() => {
   } else if (options.mode === 'unlock') {
     mode.value = 'unlock'
     noteId.value = options.noteId || ''
+    redirect.value = options.redirect || ''
   } else if (notesStore.hasPin) {
     mode.value = 'verify'
   } else {
@@ -148,7 +150,11 @@ const handlePinSubmit = () => {
       }
       uni.showToast({ title: '笔记已解锁', icon: 'success' })
       setTimeout(() => {
-        uni.navigateBack()
+        if (redirect.value === 'edit') {
+          uni.redirectTo({ url: `/pages/notes/edit?id=${noteId.value}` })
+        } else {
+          uni.navigateBack()
+        }
       }, 500)
     } else {
       errorMsg.value = '密码错误，请重试'
