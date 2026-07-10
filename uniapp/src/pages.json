@@ -1,0 +1,99 @@
+{
+  "pages": [
+    {
+      "path": "pages/notes/index",
+      "style": {
+        "navigationBarTitleText": "清笺",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/notes/edit",
+      "style": {
+        "navigationBarTitleText": "编辑笔记",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/categories/index",
+      "style": {
+        "navigationBarTitleText": "分类管理",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/tags/index",
+      "style": {
+        "navigationBarTitleText": "标签管理",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/search/index",
+      "style": {
+        "navigationBarTitleText": "搜索",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/trash/index",
+      "style": {
+        "navigationBarTitleText": "回收站",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "设置",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/about/index",
+      "style": {
+        "navigationBarTitleText": "关于",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "清笺",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f5f5",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#5C6BC0",
+    "borderStyle": "white",
+    "backgroundColor": "#ffffff",
+    "list": [
+      {
+        "pagePath": "pages/notes/index",
+        "text": "笔记",
+        "iconPath": "static/icons/note.png",
+        "selectedIconPath": "static/icons/note-active.png"
+      },
+      {
+        "pagePath": "pages/categories/index",
+        "text": "分类",
+        "iconPath": "static/icons/category.png",
+        "selectedIconPath": "static/icons/category-active.png"
+      },
+      {
+        "pagePath": "pages/search/index",
+        "text": "搜索",
+        "iconPath": "static/icons/search.png",
+        "selectedIconPath": "static/icons/search-active.png"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "设置",
+        "iconPath": "static/icons/settings.png",
+        "selectedIconPath": "static/icons/settings-active.png"
+      }
+    ]
+  }
+}

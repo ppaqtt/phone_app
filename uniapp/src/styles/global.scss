@@ -1,0 +1,56 @@
+page {
+  background-color: $bg-color;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: $text-primary;
+  font-size: $font-size-base;
+  line-height: 1.5;
+}
+
+.container {
+  min-height: 100vh;
+  background: $bg-color;
+}
+
+.page-header {
+  padding: $spacing-lg $spacing-md;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
+  
+  .header-title {
+    font-size: $font-size-xxl;
+    font-weight: 700;
+    color: $text-primary;
+    margin-bottom: $spacing-xs;
+  }
+  
+  .header-subtitle {
+    font-size: $font-size-sm;
+    color: $text-secondary;
+  }
+}
+
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.ellipsis-1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button::after {
+  border: none;
+}
+
+input, textarea {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
