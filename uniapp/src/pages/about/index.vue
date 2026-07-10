@@ -6,7 +6,7 @@
     </view>
 
     <view class="about-header">
-      <view class="app-icon">📝</view>
+      <image class="app-icon" src="/static/logo.png" mode="aspectFit" />
       <view class="app-name">清笺</view>
       <view class="app-slogan">完全本地化的笔记应用</view>
       <view class="app-version">版本 1.0.0</view>
@@ -135,7 +135,8 @@ const goBack = () => {
   background: linear-gradient(135deg, $primary-color 0%, $primary-dark 100%);
   
   .app-icon {
-    font-size: 160rpx;
+    width: 160rpx;
+    height: 160rpx;
     margin-bottom: $spacing-lg;
   }
   

@@ -10,7 +10,7 @@
       <!-- 顶部图标 -->
       <view class="lock-icon-wrapper">
         <view class="lock-icon">
-          <text class="lock-emoji">🔐</text>
+          <image class="lock-logo" src="/static/logo.png" mode="aspectFit" />
         </view>
         <view class="lock-shine"></view>
       </view>
@@ -255,8 +255,9 @@ const handleForgotPin = () => {
       0 20rpx 40rpx rgba(0, 0, 0, 0.2),
       inset 0 2rpx 4rpx rgba(255, 255, 255, 0.3);
 
-    .lock-emoji {
-      font-size: 80rpx;
+    .lock-logo {
+      width: 100rpx;
+      height: 100rpx;
       animation: lockBounce 2s ease-in-out infinite;
     }
   }
