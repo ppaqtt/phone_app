@@ -124,8 +124,7 @@ const handleNumpadClick = (key: string) => {
     currentPin.value += key
     errorMsg.value = ''
 
-    // 检查是否达到最小长度
-    if (currentPin.value.length === 6 || (currentPin.value.length >= 4 && mode.value !== 'verify')) {
+    if (currentPin.value.length === pinLength.value) {
       setTimeout(() => {
         handlePinSubmit()
       }, 300)
