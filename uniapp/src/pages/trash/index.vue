@@ -1,6 +1,7 @@
 <template>
   <view class="container">
     <view class="page-header">
+      <text class="back-btn" @click="goBack">‹</text>
       <view class="header-title">回收站</view>
       <view class="header-subtitle">{{ deletedNotes.length }} 条已删除</view>
     </view>
@@ -109,9 +110,41 @@ const showNoteMenu = (note: Note) => {
     }
   })
 }
+
+const goBack = () => {
+  uni.switchTab({ url: '/pages/settings/index' })
+}
 </script>
 
 <style lang="scss" scoped>
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: $spacing-md;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-md});
+  background: $card-bg;
+}
+
+.back-btn {
+  font-size: $font-size-xxl;
+  color: $text-secondary;
+  padding: 0 $spacing-sm;
+  margin-right: $spacing-sm;
+  line-height: 1;
+}
+
+.header-title {
+  font-size: $font-size-lg;
+  font-weight: 600;
+  color: $text-primary;
+  margin-right: $spacing-sm;
+}
+
+.header-subtitle {
+  font-size: $font-size-sm;
+  color: $text-hint;
+}
+
 .trash-list {
   height: calc(100vh - 200rpx);
   padding: 0 $spacing-md;

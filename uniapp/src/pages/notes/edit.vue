@@ -322,6 +322,10 @@ const copyContent = () => {
 </script>
 
 <style lang="scss" scoped>
+.container {
+  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+}
+
 .edit-header {
   position: sticky;
   top: 0;
@@ -331,8 +335,10 @@ const copyContent = () => {
   justify-content: space-between;
   padding: $spacing-lg $spacing-md;
   padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(10px);
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+  border-bottom: 1rpx solid rgba(0, 0, 0, 0.06);
 }
 
 .header-left, .header-right {
@@ -347,53 +353,77 @@ const copyContent = () => {
   justify-content: center;
   font-size: $font-size-xl;
   color: $text-primary;
+  background: rgba($primary-color, 0.08);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  
+  &:active {
+    transform: scale(0.9);
+    background: rgba($primary-color, 0.12);
+  }
 }
 
 .header-title {
-  font-size: $font-size-lg;
+  font-size: $font-size-xl;
   font-weight: 600;
   color: $text-primary;
 }
 
 .edit-content {
-  height: calc(100vh - 320rpx);
-  padding: $spacing-md;
+  height: calc(100vh - 360rpx);
+  padding: $spacing-lg $spacing-md;
 }
 
 .title-input {
   width: 100%;
-  font-size: $font-size-xl;
-  font-weight: 600;
+  font-size: 52rpx;
+  font-weight: 700;
   color: $text-primary;
   padding: $spacing-sm 0;
-  margin-bottom: $spacing-xs;
+  margin-bottom: $spacing-md;
   background: transparent;
+  letter-spacing: 1rpx;
+  
+  &:disabled {
+    opacity: 0.4;
+  }
 }
 
 .content-input {
   width: 100%;
-  font-size: $font-size-base;
+  font-size: $font-size-lg;
   color: $text-primary;
-  line-height: 1.8;
+  line-height: 2;
   background: transparent;
-  min-height: 400rpx;
+  min-height: 500rpx;
+  padding: $spacing-md 0;
+  
+  &:disabled {
+    opacity: 0.4;
+  }
 }
 
 .edit-footer {
-  margin-top: $spacing-lg;
+  margin-top: $spacing-xl;
   padding-top: $spacing-lg;
-  border-top: 1rpx solid $border-color;
+  border-top: 2rpx solid rgba(0, 0, 0, 0.08);
 }
 
 .footer-section {
   margin-bottom: $spacing-lg;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
 .section-label {
-  font-size: $font-size-sm;
+  font-size: $font-size-base;
   color: $text-secondary;
-  margin-bottom: $spacing-sm;
+  margin-bottom: $spacing-md;
   display: block;
+  font-weight: 600;
+  letter-spacing: 1rpx;
 }
 
 .category-picker {
@@ -403,14 +433,24 @@ const copyContent = () => {
 }
 
 .category-chip {
-  padding: $spacing-xs $spacing-md;
+  padding: $spacing-sm $spacing-md;
   border-radius: 100rpx;
-  font-size: $font-size-sm;
-  border: 1rpx solid $border-color;
+  font-size: $font-size-base;
+  border: 2rpx solid rgba(0, 0, 0, 0.12);
   color: $text-secondary;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 500;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.06);
   
   &.active {
-    background: rgba($primary-color, 0.08);
+    background: rgba($primary-color, 0.12);
+    border-color: $primary-color;
+    color: $primary-color;
+    box-shadow: 0 4rpx 12rpx rgba($primary-color, 0.15);
+  }
+  
+  &:active {
+    transform: scale(0.95);
   }
 }
 
@@ -425,26 +465,41 @@ const copyContent = () => {
   display: flex;
   align-items: center;
   gap: $spacing-xs;
-  padding: $spacing-xs $spacing-sm;
-  background: rgba($primary-color, 0.1);
+  padding: $spacing-sm $spacing-md;
+  background: linear-gradient(135deg, rgba($primary-color, 0.12) 0%, rgba($primary-color, 0.08) 100%);
   border-radius: $radius-sm;
-  font-size: $font-size-sm;
+  font-size: $font-size-base;
+  color: $primary-color;
+  font-weight: 500;
+  transition: all 0.2s ease;
   
   .tag-remove {
-    font-size: $font-size-lg;
-    color: $text-secondary;
+    font-size: 28rpx;
+    color: rgba($primary-color, 0.6);
     line-height: 1;
+    font-weight: 600;
+    
+    &:active {
+      opacity: 0.6;
+    }
   }
 }
 
 .tag-input {
   flex: 1;
-  min-width: 120rpx;
-  font-size: $font-size-sm;
+  min-width: 160rpx;
+  font-size: $font-size-base;
   color: $text-primary;
-  padding: $spacing-xs $spacing-sm;
+  padding: $spacing-sm $spacing-md;
   background: rgba(0, 0, 0, 0.04);
   border-radius: $radius-sm;
+  border: 2rpx solid rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  
+  &:focus {
+    border-color: $primary-color;
+    background: rgba($primary-color, 0.04);
+  }
 }
 
 .bottom-actions {
@@ -454,11 +509,11 @@ const copyContent = () => {
   right: 0;
   display: flex;
   justify-content: space-around;
-  padding: $spacing-md;
+  padding: $spacing-md $spacing-lg;
   padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-md});
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(10px);
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 -4rpx 16rpx rgba(0, 0, 0, 0.06);
 }
 
 .action-item {
@@ -466,18 +521,24 @@ const copyContent = () => {
   flex-direction: column;
   align-items: center;
   gap: $spacing-xs;
+  padding: $spacing-sm $spacing-md;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: $radius-lg;
+  transition: all 0.3s ease;
 
   text {
     font-size: $font-size-sm;
     color: $text-secondary;
+    font-weight: 500;
   }
 
   text:first-child {
-    font-size: $font-size-lg;
+    font-size: 32rpx;
   }
 
   &:active {
-    opacity: 0.6;
+    transform: scale(0.9);
+    background: rgba(0, 0, 0, 0.08);
   }
 }
 
@@ -487,23 +548,35 @@ const copyContent = () => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.5);
   z-index: 200;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  animation: overlayFadeIn 0.3s ease;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .color-panel {
   width: 100%;
-  background: $card-bg;
+  background: #FFFFFF;
   border-radius: $radius-xl $radius-xl 0 0;
   padding: $spacing-lg;
   padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-lg});
+  animation: panelSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes panelSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
 
 .panel-title {
-  font-size: $font-size-lg;
+  font-size: $font-size-xl;
   font-weight: 600;
   color: $text-primary;
   text-align: center;
@@ -519,54 +592,66 @@ const copyContent = () => {
 .color-option {
   aspect-ratio: 1;
   border-radius: $radius-lg;
-  border: 3rpx solid transparent;
+  border: 4rpx solid transparent;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: $shadow-sm;
+  box-shadow: 0 6rpx 16rpx rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  
+  &:active {
+    transform: scale(0.9);
+  }
 }
 
 .color-check {
-  font-size: $font-size-xl;
-  color: $text-primary;
+  font-size: 56rpx;
+  color: #FFFFFF;
   font-weight: bold;
+  text-shadow: 0 4rpx 8rpx rgba(0, 0, 0, 0.3);
 }
 
 .action-panel {
   width: 100%;
-  background: $card-bg;
+  background: #FFFFFF;
   border-radius: $radius-xl $radius-xl 0 0;
   padding: $spacing-md;
   padding-bottom: calc(env(safe-area-inset-bottom) + #{$spacing-md});
+  animation: panelSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .action-panel-item {
   padding: $spacing-lg;
   text-align: center;
-  font-size: $font-size-base;
+  font-size: $font-size-lg;
   color: $text-primary;
-  border-bottom: 1rpx solid $border-color;
+  border-bottom: 2rpx solid rgba(0, 0, 0, 0.06);
+  transition: background 0.2s ease;
+  font-weight: 500;
 
   &.danger {
     color: $error-color;
   }
 
   &:active {
-    background: $bg-color;
+    background: rgba(0, 0, 0, 0.04);
   }
 }
 
 .action-panel-cancel {
   padding: $spacing-lg;
   text-align: center;
-  font-size: $font-size-base;
+  font-size: $font-size-lg;
   color: $text-secondary;
   margin-top: $spacing-md;
-  background: $bg-color;
+  background: rgba(0, 0, 0, 0.04);
   border-radius: $radius-lg;
+  transition: all 0.2s ease;
+  font-weight: 500;
 
   &:active {
     opacity: 0.7;
+    background: rgba(0, 0, 0, 0.08);
   }
 }
 </style>

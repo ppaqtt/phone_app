@@ -1,5 +1,10 @@
 <template>
   <view class="container">
+    <view class="page-header">
+      <text class="back-btn" @click="goBack">‹</text>
+      <view class="header-title">关于清笺</view>
+    </view>
+
     <view class="about-header">
       <view class="app-icon">📝</view>
       <view class="app-name">清笺</view>
@@ -51,7 +56,7 @@
           <view class="contact-item" @click="openEmail">
             <text class="contact-icon">📧</text>
             <text class="contact-text">联系我们</text>
-            <text class="contact-value">pdpdxpz@qq.com</text>
+            <text class="contact-value">ppdxpz@qq.com</text>
           </view>
         </view>
       </view>
@@ -83,24 +88,50 @@
 
 <script setup lang="ts">
 const openEmail = () => {
-  uni.showToast({ title: 'pdpdxpz@qq.com', icon: 'none' })
+  uni.showToast({ title: 'ppdxpz@qq.com', icon: 'none' })
 }
 
 const showFeedback = () => {
   uni.showModal({
     title: '反馈建议',
-    content: '感谢您的反馈！如有任何问题或建议，请发送邮件至 pdpdxpz@qq.com',
+    content: '感谢您的反馈！如有任何问题或建议，请发送邮件至 ppdxpz@qq.com',
     showCancel: false
   })
+}
+
+const goBack = () => {
+  uni.switchTab({ url: '/pages/settings/index' })
 }
 </script>
 
 <style lang="scss" scoped>
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: $spacing-md;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-md});
+  background: $card-bg;
+}
+
+.back-btn {
+  font-size: $font-size-xxl;
+  color: $text-secondary;
+  padding: 0 $spacing-sm;
+  margin-right: $spacing-sm;
+  line-height: 1;
+}
+
+.header-title {
+  font-size: $font-size-lg;
+  font-weight: 600;
+  color: $text-primary;
+}
+
 .about-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: $spacing-xl * 2 $spacing-lg;
+  padding: $spacing-xl $spacing-lg;
   background: linear-gradient(135deg, $primary-color 0%, $primary-dark 100%);
   
   .app-icon {
@@ -131,7 +162,7 @@ const showFeedback = () => {
 }
 
 .about-content {
-  height: calc(100vh - 480rpx);
+  height: calc(100vh - 400rpx);
 }
 
 .about-section {

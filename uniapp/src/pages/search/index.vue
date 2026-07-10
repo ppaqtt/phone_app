@@ -159,10 +159,15 @@ loadHistory()
 </script>
 
 <style lang="scss" scoped>
+.container {
+  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+}
+
 .search-header {
-  padding: $spacing-md;
-  padding-top: calc(env(safe-area-inset-top) + #{$spacing-md});
-  background: $card-bg;
+  padding: $spacing-lg $spacing-md;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
+  background: #FFFFFF;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 }
 
 .search-bar {
@@ -170,57 +175,102 @@ loadHistory()
   align-items: center;
   gap: $spacing-sm;
   padding: $spacing-sm $spacing-md;
-  background: $bg-color;
+  background: rgba(0, 0, 0, 0.04);
   border-radius: 100rpx;
+  border: 2rpx solid rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  
+  &:focus-within {
+    border-color: $primary-color;
+    background: rgba($primary-color, 0.04);
+    box-shadow: 0 4rpx 12rpx rgba($primary-color, 0.12);
+  }
 }
 
 .back-btn {
-  font-size: $font-size-xxl;
-  color: $text-secondary;
+  font-size: 48rpx;
+  color: $text-primary;
   padding: 0 $spacing-xs;
   line-height: 1;
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  
+  &:active {
+    transform: scale(0.9);
+  }
 }
 
 .search-icon {
-  font-size: $font-size-lg;
+  font-size: 32rpx;
+  opacity: 0.5;
 }
 
 .search-input {
   flex: 1;
-  font-size: $font-size-base;
+  font-size: $font-size-lg;
   color: $text-primary;
   background: transparent;
+  font-weight: 500;
 }
 
 .clear-btn {
-  font-size: $font-size-xl;
+  font-size: 32rpx;
   color: $text-hint;
   padding: $spacing-xs;
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  
+  &:active {
+    transform: scale(0.9);
+    background: rgba(0, 0, 0, 0.12);
+  }
 }
 
 .search-results {
-  height: calc(100vh - 180rpx);
+  height: calc(100vh - 220rpx);
+  padding: $spacing-md;
 }
 
 .search-history {
-  padding: $spacing-md;
+  padding: $spacing-lg $spacing-md;
 }
 
 .section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: $spacing-md;
+  margin-bottom: $spacing-lg;
 }
 
 .section-title {
-  font-size: $font-size-sm;
-  color: $text-secondary;
+  font-size: $font-size-lg;
+  color: $text-primary;
+  font-weight: 600;
 }
 
 .clear-all {
-  font-size: $font-size-sm;
+  font-size: $font-size-base;
   color: $primary-color;
+  font-weight: 500;
+  padding: $spacing-sm $spacing-md;
+  background: rgba($primary-color, 0.08);
+  border-radius: $radius-sm;
+  transition: all 0.2s ease;
+  
+  &:active {
+    transform: scale(0.95);
+    background: rgba($primary-color, 0.12);
+  }
 }
 
 .history-tags {
@@ -230,15 +280,18 @@ loadHistory()
 }
 
 .history-tag {
-  padding: $spacing-xs $spacing-md;
-  background: $bg-color;
+  padding: $spacing-sm $spacing-md;
+  background: rgba(0, 0, 0, 0.04);
   border-radius: 100rpx;
-  font-size: $font-size-sm;
+  font-size: $font-size-base;
   color: $text-secondary;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 500;
   
   &:active {
-    background: rgba($primary-color, 0.1);
+    background: rgba($primary-color, 0.12);
     color: $primary-color;
+    transform: scale(0.95);
   }
 }
 
@@ -247,21 +300,23 @@ loadHistory()
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 120rpx $spacing-lg;
+  padding: 160rpx $spacing-lg;
   
   .empty-icon {
-    font-size: 120rpx;
+    font-size: 160rpx;
     margin-bottom: $spacing-lg;
+    opacity: 0.4;
   }
   
   .empty-text {
-    font-size: $font-size-lg;
-    color: $text-secondary;
+    font-size: $font-size-xl;
+    color: $text-primary;
     margin-bottom: $spacing-sm;
+    font-weight: 600;
   }
   
   .empty-hint {
-    font-size: $font-size-sm;
+    font-size: $font-size-base;
     color: $text-hint;
   }
 }
@@ -275,50 +330,79 @@ loadHistory()
   padding: $spacing-lg;
   border-radius: $radius-lg;
   margin-bottom: $spacing-md;
-  box-shadow: $shadow-sm;
+  background: #FFFFFF;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.06);
+  border: 1rpx solid rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  &:active {
+    transform: scale(0.98);
+    box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.08);
+  }
 }
 
 .lock-badge {
   position: absolute;
-  right: $spacing-md;
-  top: $spacing-md;
-  font-size: $font-size-base;
+  right: $spacing-lg;
+  top: $spacing-lg;
+  font-size: 28rpx;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 50%;
+  width: 48rpx;
+  height: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .note-category {
   display: inline-block;
-  padding: 4rpx 16rpx;
+  padding: 6rpx 18rpx;
   border-radius: $radius-sm;
   font-size: $font-size-xs;
   color: #FFFFFF;
   margin-bottom: $spacing-sm;
+  font-weight: 500;
+  letter-spacing: 1rpx;
+  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.15);
 }
 
 .note-title {
-  font-size: $font-size-lg;
+  font-size: $font-size-xl;
   font-weight: 600;
   color: $text-primary;
-  margin-bottom: $spacing-xs;
+  margin-bottom: $spacing-sm;
+  line-height: 1.4;
   
   mark {
-    background: rgba($primary-color, 0.2);
+    background: linear-gradient(135deg, rgba($primary-color, 0.25) 0%, rgba($primary-color, 0.15) 100%);
     color: $primary-color;
     border-radius: 4rpx;
-    padding: 0 4rpx;
+    padding: 2rpx 6rpx;
+    font-weight: 600;
   }
 }
 
 .note-preview {
-  font-size: $font-size-sm;
+  font-size: $font-size-base;
   color: $text-secondary;
   line-height: 1.6;
+  opacity: 0.85;
   
   mark {
-    background: rgba($primary-color, 0.2);
+    background: linear-gradient(135deg, rgba($primary-color, 0.25) 0%, rgba($primary-color, 0.15) 100%);
     color: $primary-color;
     border-radius: 4rpx;
-    padding: 0 4rpx;
+    padding: 2rpx 6rpx;
+    font-weight: 600;
   }
+}
+
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .note-footer {
@@ -328,6 +412,7 @@ loadHistory()
 .note-time {
   font-size: $font-size-xs;
   color: $text-hint;
+  font-weight: 400;
 }
 
 .list-footer {

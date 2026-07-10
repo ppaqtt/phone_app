@@ -64,7 +64,7 @@
         <view class="section-title">联系我们</view>
         <view class="section-body">
           如您对本用户须知有任何疑问，欢迎通过以下方式联系我们：
-          <view class="contact">📧 pdpdxpz@qq.com</view>
+          <view class="contact">📧 ppdxpz@qq.com</view>
         </view>
       </view>
 
@@ -75,7 +75,7 @@
 
 <script setup lang="ts">
 const goBack = () => {
-  uni.navigateBack()
+  uni.switchTab({ url: '/pages/settings/index' })
 }
 </script>
 

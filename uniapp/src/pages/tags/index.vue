@@ -1,6 +1,7 @@
 <template>
   <view class="container">
     <view class="page-header">
+      <text class="back-btn" @click="goBack">‹</text>
       <view class="header-title">标签管理</view>
     </view>
 
@@ -78,9 +79,35 @@ const deleteTag = (tag: string) => {
     }
   })
 }
+
+const goBack = () => {
+  uni.switchTab({ url: '/pages/settings/index' })
+}
 </script>
 
 <style lang="scss" scoped>
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: $spacing-md;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-md});
+  background: $card-bg;
+}
+
+.back-btn {
+  font-size: $font-size-xxl;
+  color: $text-secondary;
+  padding: 0 $spacing-sm;
+  margin-right: $spacing-sm;
+  line-height: 1;
+}
+
+.header-title {
+  font-size: $font-size-lg;
+  font-weight: 600;
+  color: $text-primary;
+}
+
 .tags-list {
   height: calc(100vh - 200rpx);
   padding: 0 $spacing-md;

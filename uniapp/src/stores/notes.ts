@@ -10,6 +10,54 @@ export const useNotesStore = defineStore('notes', () => {
   const categories = ref<Category[]>([])
   const tagGroups = ref<TagGroup[]>([])
 
+  // 应用锁定相关状态
+  const isAppLocked = ref(false)
+  const appPin = ref<string>('')
+  const hasPin = computed(() => !!appPin.value)
+
+  // 初始化时从存储加载锁定状态
+  const loadLockState = () => {
+    appPin.value = getStorage<string>('qingjian_app_pin', '')
+    isAppLocked.value = getStorage<boolean>('qingjian_app_locked', false)
+  }
+
+  // 设置 PIN 码
+  const setPin = (pin: string) => {
+    if (pin.length >= 4 && pin.length <= 6) {
+      appPin.value = pin
+      setStorage('qingjian_app_pin', pin)
+      return true
+    }
+    return false
+  }
+
+  // 验证 PIN 码
+  const verifyPin = (pin: string): boolean => {
+    return appPin.value === pin
+  }
+
+  // 锁定应用
+  const lockApp = () => {
+    if (hasPin.value) {
+      isAppLocked.value = true
+      setStorage('qingjian_app_locked', true)
+    }
+  }
+
+  // 解锁应用
+  const unlockApp = () => {
+    isAppLocked.value = false
+    setStorage('qingjian_app_locked', false)
+  }
+
+  // 移除 PIN 码
+  const removePin = () => {
+    appPin.value = ''
+    isAppLocked.value = false
+    setStorage('qingjian_app_pin', '')
+    setStorage('qingjian_app_locked', false)
+  }
+
   const activeNotes = computed(() => 
     notes.value.filter(n => !n.isDeleted).sort((a, b) => b.updatedAt - a.updatedAt)
   )
@@ -27,6 +75,7 @@ export const useNotesStore = defineStore('notes', () => {
     notes.value = getStorage<Note[]>(STORAGE_KEYS.NOTES, [])
     categories.value = getStorage<Category[]>(STORAGE_KEYS.CATEGORIES, [])
     tagGroups.value = getStorage<TagGroup[]>(STORAGE_KEYS.TAG_GROUPS, [])
+    loadLockState()
 
     if (categories.value.length === 0) {
       categories.value = [
@@ -145,6 +194,14 @@ export const useNotesStore = defineStore('notes', () => {
     permanentlyDeleteNote,
     addCategory,
     updateCategory,
-    deleteCategory
+    deleteCategory,
+    // 锁定相关
+    isAppLocked,
+    hasPin,
+    setPin,
+    verifyPin,
+    lockApp,
+    unlockApp,
+    removePin
   }
 })

@@ -1,6 +1,13 @@
 {
   "pages": [
     {
+      "path": "pages/lock/index",
+      "style": {
+        "navigationBarTitleText": "应用锁定",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/notes/index",
       "style": {
         "navigationBarTitleText": "清笺",

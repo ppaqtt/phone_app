@@ -228,3 +228,11 @@ ipcMain.handle('show-open-dialog', async () => {
   })
   return result
 })
+
+ipcMain.handle('write-file', async (_, filePath: string, data: string) => {
+  fs.writeFileSync(filePath, data, 'utf-8')
+})
+
+ipcMain.handle('read-file', async (_, filePath: string) => {
+  return fs.readFileSync(filePath, 'utf-8')
+})

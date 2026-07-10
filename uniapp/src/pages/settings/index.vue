@@ -1,10 +1,35 @@
 <template>
   <view class="container">
     <view class="page-header">
+      <text class="back-btn" @click="goBack">‹</text>
       <view class="header-title">设置</view>
     </view>
 
     <scroll-view class="settings-list" scroll-y>
+      <view class="settings-section">
+        <view class="section-title">安全设置</view>
+        <view class="settings-item" @click="handleAppLock">
+          <view class="item-left">
+            <text class="item-icon">🔐</text>
+            <text class="item-text">应用锁定</text>
+          </view>
+          <view class="item-right">
+            <text class="item-hint">{{ notesStore.hasPin ? '已启用' : '未设置' }}</text>
+            <text class="item-arrow">›</text>
+          </view>
+        </view>
+        <view v-if="notesStore.hasPin" class="settings-item" @click="handleRemovePin">
+          <view class="item-left">
+            <text class="item-icon">🔓</text>
+            <text class="item-text">关闭锁定</text>
+          </view>
+          <view class="item-right">
+            <text class="item-hint">移除 PIN 码</text>
+            <text class="item-arrow">›</text>
+          </view>
+        </view>
+      </view>
+
       <view class="settings-section">
         <view class="section-title">数据管理</view>
         <view class="settings-item" @click="handleExportBackup">
@@ -124,8 +149,7 @@ const handleExportBackup = async () => {
   if (electronAPI) {
     const result = await electronAPI.showSaveDialog()
     if (!result.canceled && result.filePath) {
-      const fs = require('fs')
-      fs.writeFileSync(result.filePath, json, 'utf-8')
+      await electronAPI.writeFile(result.filePath, json)
       uni.showToast({ title: '已导出', icon: 'success' })
     }
   } else {
@@ -143,8 +167,7 @@ const handleImportFile = async () => {
   if (electronAPI) {
     const result = await electronAPI.showOpenDialog()
     if (!result.canceled && result.filePaths.length > 0) {
-      const fs = require('fs')
-      const json = fs.readFileSync(result.filePaths[0], 'utf-8')
+      const json = await electronAPI.readFile(result.filePaths[0])
       const success = doImportBackup(json)
       if (success) {
         notesStore.loadFromStorage()
@@ -191,6 +214,39 @@ const goToTerms = () => {
   uni.navigateTo({ url: '/pages/terms/index' })
 }
 
+const handleAppLock = () => {
+  if (notesStore.hasPin) {
+    uni.showModal({
+      title: '应用锁定',
+      content: '已设置 PIN 码，是否重新设置？',
+      confirmText: '重新设置',
+      cancelText: '取消',
+      success: (res) => {
+        if (res.confirm) {
+          notesStore.removePin()
+          uni.navigateTo({ url: '/pages/lock/index?mode=set' })
+        }
+      }
+    })
+  } else {
+    uni.navigateTo({ url: '/pages/lock/index?mode=set' })
+  }
+}
+
+const handleRemovePin = () => {
+  uni.showModal({
+    title: '关闭锁定',
+    content: '确定要关闭应用锁定功能吗？',
+    confirmColor: '#EF5350',
+    success: (res) => {
+      if (res.confirm) {
+        notesStore.removePin()
+        uni.showToast({ title: '已关闭锁定', icon: 'success' })
+      }
+    }
+  })
+}
+
 const clearAllData = () => {
   uni.showModal({
     title: '清空数据',
@@ -205,32 +261,84 @@ const clearAllData = () => {
     }
   })
 }
+
+const goBack = () => {
+  uni.switchTab({ url: '/pages/notes/index' })
+}
 </script>
 
 <style lang="scss" scoped>
+.container {
+  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  padding: $spacing-lg $spacing-md;
+  padding-top: calc(env(safe-area-inset-top) + #{$spacing-lg});
+  background: #FFFFFF;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+
+.back-btn {
+  font-size: 48rpx;
+  color: $text-primary;
+  padding: 0 $spacing-sm;
+  margin-right: $spacing-sm;
+  line-height: 1;
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba($primary-color, 0.08);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  
+  &:active {
+    transform: scale(0.9);
+    background: rgba($primary-color, 0.12);
+  }
+}
+
+.header-title {
+  font-size: $font-size-xl;
+  font-weight: 700;
+  color: $text-primary;
+  letter-spacing: 2rpx;
+}
+
 .settings-list {
   height: calc(100vh - 200rpx);
+  padding: $spacing-lg $spacing-md;
 }
 
 .settings-section {
-  margin: $spacing-md;
-  background: $card-bg;
+  margin-bottom: $spacing-lg;
+  background: #FFFFFF;
   border-radius: $radius-lg;
   overflow: hidden;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.06);
+  border: 1rpx solid rgba(0, 0, 0, 0.04);
 }
 
 .section-title {
   padding: $spacing-md $spacing-lg $spacing-sm;
-  font-size: $font-size-xs;
-  color: $text-hint;
+  font-size: $font-size-sm;
+  color: $primary-color;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+  background: rgba($primary-color, 0.04);
 }
 
 .settings-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: $spacing-lg;
-  border-bottom: 1rpx solid $border-color;
+  padding: $spacing-lg $spacing-lg;
+  border-bottom: 2rpx solid rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
   
   &:last-child {
     border-bottom: none;
@@ -240,10 +348,14 @@ const clearAllData = () => {
     .item-text {
       color: $error-color;
     }
+    
+    .item-icon {
+      filter: grayscale(0) brightness(1);
+    }
   }
   
   &:active {
-    background: $bg-color;
+    background: rgba(0, 0, 0, 0.04);
   }
 }
 
@@ -254,12 +366,14 @@ const clearAllData = () => {
 }
 
 .item-icon {
-  font-size: $font-size-xl;
+  font-size: 36rpx;
+  filter: grayscale(0.2);
 }
 
 .item-text {
-  font-size: $font-size-base;
+  font-size: $font-size-lg;
   color: $text-primary;
+  font-weight: 500;
 }
 
 .item-right {
@@ -271,11 +385,13 @@ const clearAllData = () => {
 .item-hint {
   font-size: $font-size-sm;
   color: $text-secondary;
+  font-weight: 400;
 }
 
 .item-arrow {
-  font-size: $font-size-lg;
+  font-size: 28rpx;
   color: $text-hint;
+  font-weight: 600;
 }
 
 .version-info {
@@ -292,6 +408,8 @@ const clearAllData = () => {
   .version-sub {
     font-size: $font-size-xs;
     margin-top: $spacing-xs;
+    color: $text-hint;
+    opacity: 0.6;
   }
 }
 
