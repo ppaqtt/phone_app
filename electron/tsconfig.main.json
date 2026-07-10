@@ -8,10 +8,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "dist/main",
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    },
+    "rootDir": "src/main",
     "types": ["node"]
   },
   "include": ["src/main/**/*"]

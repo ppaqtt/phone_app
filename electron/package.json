@@ -44,11 +44,14 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.png",
-      "artifactName": "qingjian-${version}-windows.exe"
+      "artifactName": "qingjian-${version}-windows.exe",
+      "signingHashAlgorithms": ["sha256"]
     },
     "nsis": {
       "oneClick": false,
@@ -62,7 +65,9 @@
       "target": [
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.png",
@@ -72,11 +77,11 @@
       "maintainer": "Qingjian Notes <qingjian@example.com>"
     }
   },
-  "dependencies": {},
   "devDependencies": {
+    "@types/electron": "^1.4.38",
+    "@types/node": "^20.19.43",
     "electron": "^28.0.0",
     "electron-builder": "^24.9.1",
-    "typescript": "^5.4.5",
-    "@types/node": "^20.12.7"
+    "typescript": "^5.4.5"
   }
 }
