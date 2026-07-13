@@ -4,6 +4,7 @@ import type { Note, Category, TagGroup } from '@/types'
 import { NOTE_COLORS, CATEGORY_COLORS } from '@/types'
 import { getStorage, setStorage, STORAGE_KEYS } from '@/utils/storage'
 import { generateId } from '@/utils/id'
+import { hashPin, verifyPin as verifyPinHash, isPinHashed } from '@/utils/crypto'
 
 export const useNotesStore = defineStore('notes', () => {
   const notes = ref<Note[]>([])
@@ -12,20 +13,28 @@ export const useNotesStore = defineStore('notes', () => {
 
   // 应用锁定相关状态
   const isAppLocked = ref(false)
-  const appPin = ref<string>('')
-  const hasPin = computed(() => !!appPin.value)
+  const appPinHash = ref<string>('')
+  const hasPin = computed(() => !!appPinHash.value)
 
   // 初始化时从存储加载锁定状态
   const loadLockState = () => {
-    appPin.value = getStorage<string>('qingjian_app_pin', '')
+    const storedPin = getStorage<string>('qingjian_app_pin', '')
+    if (storedPin && !isPinHashed(storedPin)) {
+      const hashed = hashPin(storedPin)
+      appPinHash.value = hashed
+      setStorage('qingjian_app_pin', hashed)
+    } else {
+      appPinHash.value = storedPin
+    }
     isAppLocked.value = getStorage<boolean>('qingjian_app_locked', false)
   }
 
   // 设置 PIN 码
   const setPin = (pin: string) => {
     if (pin.length >= 4 && pin.length <= 6) {
-      appPin.value = pin
-      setStorage('qingjian_app_pin', pin)
+      const hashed = hashPin(pin)
+      appPinHash.value = hashed
+      setStorage('qingjian_app_pin', hashed)
       return true
     }
     return false
@@ -33,7 +42,7 @@ export const useNotesStore = defineStore('notes', () => {
 
   // 验证 PIN 码
   const verifyPin = (pin: string): boolean => {
-    return appPin.value === pin
+    return verifyPinHash(pin, appPinHash.value)
   }
 
   // 锁定应用
@@ -52,7 +61,7 @@ export const useNotesStore = defineStore('notes', () => {
 
   // 移除 PIN 码
   const removePin = () => {
-    appPin.value = ''
+    appPinHash.value = ''
     isAppLocked.value = false
     setStorage('qingjian_app_pin', '')
     setStorage('qingjian_app_locked', false)

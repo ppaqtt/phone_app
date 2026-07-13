@@ -8,6 +8,8 @@
       </view>
       <view class="header-center">
         <text class="header-title">{{ isNew ? '新建笔记' : '编辑笔记' }}</text>
+        <text v-if="autoSaveStatus === 'saving'" class="header-subtitle">保存中...</text>
+        <text v-else-if="autoSaveStatus === 'saved'" class="header-subtitle">已自动保存</text>
       </view>
       <view class="header-right">
         <view class="action-btn" @click="showMoreMenu">
@@ -144,6 +146,10 @@ const isLocked = ref(false)
 const newTag = ref('')
 const showColorPanel = ref(false)
 const showMorePanel = ref(false)
+const autoSaveStatus = ref<'idle' | 'saving' | 'saved'>('idle')
+
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null
+let isSaving = false
 
 const colorOptions = [
   { name: '白色', value: '#FFFFFF' },
@@ -195,6 +201,55 @@ const loadNote = () => {
   }
 }
 
+const hasContent = computed(() => title.value.trim() !== '' || content.value.trim() !== '')
+
+const doAutoSave = () => {
+  if (isSaving || isReadOnly.value) return
+  if (!hasContent.value) return
+
+  isSaving = true
+  autoSaveStatus.value = 'saving'
+
+  if (isNew.value) {
+    const newNote = notesStore.addNote({
+      title: title.value,
+      content: content.value,
+      tags: tags.value,
+      categoryId: currentCategory.value,
+      color: noteColor.value,
+      isLocked: isLocked.value
+    })
+    noteId.value = newNote.id
+  } else {
+    notesStore.updateNote(noteId.value!, {
+      title: title.value,
+      content: content.value,
+      tags: tags.value,
+      categoryId: currentCategory.value,
+      color: noteColor.value,
+      isLocked: isLocked.value
+    })
+  }
+
+  setTimeout(() => {
+    autoSaveStatus.value = 'saved'
+    isSaving = false
+    setTimeout(() => {
+      autoSaveStatus.value = 'idle'
+    }, 1500)
+  }, 200)
+}
+
+const scheduleAutoSave = () => {
+  if (isReadOnly.value) return
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(doAutoSave, 800)
+}
+
+watch([title, content], () => {
+  scheduleAutoSave()
+})
+
 const saveNote = () => {
   if (isNew.value) {
     notesStore.addNote({
@@ -224,16 +279,12 @@ const saveNote = () => {
 }
 
 const goBack = () => {
-  if (title.value || content.value) {
-    uni.showModal({
-      title: '提示',
-      content: '笔记未保存，确定离开吗？',
-      success: (res) => {
-        if (res.confirm) {
-          uni.switchTab({ url: '/pages/notes/index' })
-        }
-      }
-    })
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+    doAutoSave()
+    setTimeout(() => {
+      uni.switchTab({ url: '/pages/notes/index' })
+    }, 300)
   } else {
     uni.switchTab({ url: '/pages/notes/index' })
   }
@@ -427,6 +478,14 @@ const copyContent = () => {
   color: #FFFFFF;
   letter-spacing: 2rpx;
   text-shadow: 0 2rpx 4rpx rgba(0, 0, 0, 0.2);
+}
+
+.header-subtitle {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 4rpx;
+  display: block;
+  letter-spacing: 1rpx;
 }
 
 /* 编辑内容区域 */

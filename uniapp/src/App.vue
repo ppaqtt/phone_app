@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
 import { useNotesStore } from "@/stores/notes";
+import { initStorage } from "@/utils/storage";
 
-onLaunch(() => {
+onLaunch(async () => {
+  await initStorage();
   const notesStore = useNotesStore();
   notesStore.loadFromStorage();
   console.log("App Launch");

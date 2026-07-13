@@ -7,6 +7,45 @@ let tray: Tray | null = null
 
 const isDev = !app.isPackaged
 
+const getDataDir = (): string => {
+  const dir = path.join(app.getPath('userData'), 'data')
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
+  }
+  return dir
+}
+
+const getDataFilePath = (key: string): string => {
+  const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, '_')
+  return path.join(getDataDir(), `${safeKey}.json`)
+}
+
+const readDataFile = <T>(key: string, defaultValue: T): T => {
+  try {
+    const filePath = getDataFilePath(key)
+    if (!fs.existsSync(filePath)) {
+      return defaultValue
+    }
+    const data = fs.readFileSync(filePath, 'utf-8')
+    return data ? JSON.parse(data) : defaultValue
+  } catch (e) {
+    console.error('Read data file error:', key, e)
+    return defaultValue
+  }
+}
+
+const writeDataFile = (key: string, value: any): void => {
+  try {
+    const filePath = getDataFilePath(key)
+    const tmpPath = filePath + '.tmp'
+    fs.writeFileSync(tmpPath, JSON.stringify(value), 'utf-8')
+    fs.renameSync(tmpPath, filePath)
+  } catch (e) {
+    console.error('Write data file error:', key, e)
+    throw e
+  }
+}
+
 const getRendererPath = (): string => {
   if (isDev) {
     return path.join(__dirname, '../../src/renderer/h5')
@@ -235,4 +274,42 @@ ipcMain.handle('write-file', async (_, filePath: string, data: string) => {
 
 ipcMain.handle('read-file', async (_, filePath: string) => {
   return fs.readFileSync(filePath, 'utf-8')
+})
+
+ipcMain.handle('data-store-get', async (_, key: string, defaultValue: any) => {
+  return readDataFile(key, defaultValue)
+})
+
+ipcMain.handle('data-store-set', async (_, key: string, value: any) => {
+  writeDataFile(key, value)
+  return true
+})
+
+ipcMain.handle('data-store-remove', async (_, key: string) => {
+  try {
+    const filePath = getDataFilePath(key)
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath)
+    }
+    return true
+  } catch (e) {
+    console.error('Remove data file error:', key, e)
+    return false
+  }
+})
+
+ipcMain.handle('data-store-clear', async () => {
+  try {
+    const dir = getDataDir()
+    const files = fs.readdirSync(dir)
+    files.forEach(file => {
+      if (file.endsWith('.json')) {
+        fs.unlinkSync(path.join(dir, file))
+      }
+    })
+    return true
+  } catch (e) {
+    console.error('Clear data store error:', e)
+    return false
+  }
 })
