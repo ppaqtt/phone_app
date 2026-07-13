@@ -51,7 +51,9 @@
       ],
       "icon": "build/icon.png",
       "artifactName": "qingjian-${version}-windows.exe",
-      "signingHashAlgorithms": ["sha256"]
+      "signingHashAlgorithms": [
+        "sha256"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -64,14 +66,14 @@
     "linux": {
       "target": [
         {
-          "target": "deb",
+          "target": "AppImage",
           "arch": [
             "x64"
           ]
         }
       ],
       "icon": "build/icon.png",
-      "artifactName": "qingjian_${version}_amd64.deb",
+      "artifactName": "qingjian_${version}_amd64.AppImage",
       "category": "Office",
       "description": "完全本地化的笔记应用",
       "maintainer": "Qingjian Notes <qingjian@example.com>"
