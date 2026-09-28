@@ -8,7 +8,7 @@ coreKtx = "1.12.0"
 lifecycle = "2.6.2"
 activityCompose = "1.7.2"
 composeBom = "2023.08.00"
-composeCompiler = "1.5.10"
+composeCompiler = "1.4.8"
 navigationCompose = "2.7.5"
 
 room = "2.5.2"
