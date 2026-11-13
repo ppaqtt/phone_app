@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
@@ -99,7 +100,8 @@ fun NotesListScreen(
     onOpenSettings: () -> Unit,
     onOpenTrash: () -> Unit,
     onOpenStats: () -> Unit,
-    onOpenTodos: () -> Unit
+    onOpenTodos: () -> Unit,
+    onOpenGraph: () -> Unit
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
@@ -239,6 +241,15 @@ fun NotesListScreen(
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenTodos()
+                                }
+                            )
+                            // 知识图谱入口
+                            DropdownMenuItem(
+                                text = { Text("知识图谱") },
+                                leadingIcon = { Icon(Icons.Filled.AccountTree, contentDescription = "图谱") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenGraph()
                                 }
                             )
                         }

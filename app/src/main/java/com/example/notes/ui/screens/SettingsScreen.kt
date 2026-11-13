@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,23 +22,29 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Feedback
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -56,9 +63,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
@@ -152,6 +163,44 @@ fun SettingsScreen(
         }
     }
 
+    // === WebDAV 同步状态提示 ===
+    val webDavState by viewModel.webDavState.collectAsState()
+    LaunchedEffect(webDavState) {
+        when (val s = webDavState) {
+            is NotesViewModel.WebDavState.Success -> {
+                snackbarHostState.showSnackbar(s.message)
+                viewModel.consumeWebDavState()
+            }
+            is NotesViewModel.WebDavState.Error -> {
+                context.toastLong(s.message)
+                viewModel.consumeWebDavState()
+            }
+            else -> Unit
+        }
+    }
+
+    // === 静态站导出 ===
+    val categories by viewModel.categories.collectAsState()
+    var showSiteCategoryPicker by remember { mutableStateOf(false) }
+    var pendingSiteCategoryId by remember { mutableStateOf<Long?>(null) }
+    var pendingSiteTitle by remember { mutableStateOf("我的笔记") }
+    val createSiteLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val title = pendingSiteTitle
+                runCatching {
+                    viewModel.exportStaticSite(context, uri, pendingSiteCategoryId, title)
+                }.onSuccess { count ->
+                    snackbarHostState.showSnackbar("静态站已导出: $count 篇笔记 (ZIP)")
+                }.onFailure { e ->
+                    context.toastLong("导出失败: ${e.message ?: "未知错误"}")
+                }
+            }
+        }
+    }
+
     if (legalPage != null) {
         val (title, rawResId) = when (legalPage) {
             LegalPage.PRIVACY -> "隐私政策" to R.raw.privacy_policy
@@ -206,6 +255,10 @@ fun SettingsScreen(
                     openDocumentLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                 }
             )
+            // WebDAV 双向同步 (坚果云)
+            WebDavCard(viewModel = viewModel)
+            // 一键生成静态站
+            StaticSiteCard(onClick = { showSiteCategoryPicker = true })
             // F9: 应用锁
             AppLockCard(viewModel = viewModel)
             UpdateCheckCard(
@@ -280,6 +333,69 @@ fun SettingsScreen(
                     showImportConfirm = false
                     pendingImportUri = null
                 }) { Text("取消") }
+            }
+        )
+    }
+
+    // 静态站: 选择要导出的分类 (目录)
+    if (showSiteCategoryPicker) {
+        AlertDialog(
+            onDismissRequest = { showSiteCategoryPicker = false },
+            title = { Text("选择要导出的目录") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    // 全部笔记
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                pendingSiteCategoryId = null
+                                pendingSiteTitle = "我的笔记"
+                                showSiteCategoryPicker = false
+                                createSiteLauncher.launch("qingjian_site_all.zip")
+                            }
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Language,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text("全部笔记", style = MaterialTheme.typography.bodyLarge)
+                    }
+                    categories.forEach { category ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    pendingSiteCategoryId = category.id
+                                    pendingSiteTitle = category.name
+                                    showSiteCategoryPicker = false
+                                    val safeName = category.name
+                                        .replace(Regex("[\\\\/:*?\"<>|\\s]+"), "_")
+                                        .take(20)
+                                        .ifBlank { "category" }
+                                    createSiteLauncher.launch("qingjian_site_$safeName.zip")
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(12.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(androidx.compose.ui.graphics.Color(category.color))
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Text(category.name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSiteCategoryPicker = false }) { Text("取消") }
             }
         )
     }
@@ -496,6 +612,161 @@ private fun BackupRowButton(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * WebDAV 同步卡片 (坚果云兼容)。
+ * 配置直接写 SharedPreferences, 不需要"保存"按钮; 密码使用应用密码。
+ */
+@Composable
+private fun WebDavCard(viewModel: NotesViewModel) {
+    val context = LocalContext.current
+    val app = context.applicationContext as com.example.notes.NotesApplication
+    val settings = remember { app.webDavSettings }
+    var server by remember { mutableStateOf(settings.serverUrl) }
+    var username by remember { mutableStateOf(settings.username) }
+    var password by remember { mutableStateOf(settings.password) }
+    var remoteDir by remember { mutableStateOf(settings.remoteDir) }
+    val state by viewModel.webDavState.collectAsState()
+    val working = state is NotesViewModel.WebDavState.Working
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Cloud,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "WebDAV 同步",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "坚果云 dav.jianguoyun.com · 双向同步; 时间戳相同但内容不同时自动保留冲突副本",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = server,
+                onValueChange = { server = it; settings.serverUrl = it },
+                label = { Text("服务器地址") },
+                singleLine = true,
+                enabled = !working,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it; settings.username = it },
+                label = { Text("账号 (邮箱)") },
+                singleLine = true,
+                enabled = !working,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it; settings.password = it },
+                label = { Text("应用密码") },
+                singleLine = true,
+                enabled = !working,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = remoteDir,
+                onValueChange = { remoteDir = it; settings.remoteDir = it },
+                label = { Text("远程目录") },
+                singleLine = true,
+                enabled = !working,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = { viewModel.testWebDav(context) },
+                    enabled = !working
+                ) { Text("测试连接") }
+                Button(
+                    onClick = { viewModel.syncWebDav(context) },
+                    enabled = !working
+                ) {
+                    if (working) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (working) "同步中…" else "立即同步")
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "提示: 密码不是坚果云登录密码, 请在「账户信息 → 安全选项 → 第三方应用管理」生成应用密码。",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** 一键生成静态站卡片 */
+@Composable
+private fun StaticSiteCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Language,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "一键生成静态站",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "把某个分类导出为 HTML 小站 (ZIP): index.html + 每篇独立页面 + 样式, 解压后可直接上传到「平平的小破站」等静态托管",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            BackupRowButton(
+                icon = Icons.Filled.Language,
+                title = "选择目录导出",
+                subtitle = "生成可直接托管的静态站点",
+                enabled = true,
+                onClick = onClick
             )
         }
     }

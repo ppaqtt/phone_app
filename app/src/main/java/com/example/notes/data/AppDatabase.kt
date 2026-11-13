@@ -14,6 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class],
+    // v11 → v12: notes 增 sync_uid (WebDAV 跨设备唯一 id) + 索引
     // v10 → v11: 添加 todos 表（待办任务）
     // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
     //           给 note_images 加 position 索引 (手动 MIGRATION_9_10)
@@ -22,7 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
-    version = 11,
+    version = 12,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -74,6 +75,26 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_priority` ON `notes` (`priority`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_created_at` ON `notes` (`created_at`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_images_position` ON `note_images` (`position`)")
+            }
+        }
+
+        /**
+         * v11 → v12: notes 增 sync_uid 字段 + 索引, 用于 WebDAV 跨设备同步。
+         * 老数据默认空串, 首次同步前由 Repository 统一补填 UUID。
+         */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `sync_uid` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_notes_sync_uid` ON `notes` (`sync_uid`)")
+            }
+        }
+
+        /**
+         * v12 → v11: 降级时移除索引 (保留列, SQLite 低版本不支持 DROP COLUMN)。
+         */
+        private val MIGRATION_12_11 = object : Migration(12, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_notes_sync_uid`")
             }
         }
 
@@ -203,7 +224,7 @@ abstract class AppDatabase : RoomDatabase() {
                 .addMigrations(
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
                     MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_10,
-                    MIGRATION_10_9
+                    MIGRATION_10_9, MIGRATION_11_12, MIGRATION_12_11
                 )
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {

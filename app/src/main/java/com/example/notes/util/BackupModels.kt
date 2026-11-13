@@ -12,7 +12,8 @@ package com.example.notes.util
 data class BackupPayload(
     val version: Int = CURRENT_VERSION,
     val exportedAt: Long = System.currentTimeMillis(),
-    val appVersion: String,
+    /** v12: WebDAV 远端可能由老版本写入, 缺少该字段时按空串处理 */
+    val appVersion: String = "",
     val categories: List<CategoryBackup> = emptyList(),
     val notes: List<NoteBackup> = emptyList(),
     val images: List<ImageBackup> = emptyList()
@@ -51,7 +52,11 @@ data class NoteBackup(
      */
     val reminderRepeat: String = "NONE",
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /** v12: WebDAV 跨设备唯一 id (老备份/老版本没有此字段时为空串) */
+    val syncUid: String = "",
+    /** v12: 回收站墓碑; null = 正常笔记 */
+    val deletedAt: Long? = null
 )
 
 data class ImageBackup(

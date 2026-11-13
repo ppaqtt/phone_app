@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
@@ -83,6 +84,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -121,10 +123,14 @@ import com.example.notes.ui.components.TableData
 import com.example.notes.ui.components.findAllMatches
 import com.example.notes.ui.components.findCodeBlocks
 import com.example.notes.ui.components.parseMarkdownTable
+import com.example.notes.ui.components.LegacyAudioRow
+import com.example.notes.ui.components.VoiceAttachmentCard
 import com.example.notes.ui.theme.NoteSwatches
 import com.example.notes.ui.viewmodel.NotesViewModel
+import com.example.notes.util.AudioRecorderHelper
 import com.example.notes.util.ImageUtils
 import com.example.notes.util.ReminderManager
+import com.example.notes.util.VoiceAttachmentParser
 import com.example.notes.util.insertAtCursor
 import com.example.notes.util.toastLong
 import com.example.notes.util.toastShort
@@ -188,8 +194,6 @@ fun NoteEditScreen(
     // P115-FIX: SnapshotStateList 不能用 rememberSaveable (cannot be saved using SaveableStateRegistry)
     // 改用普通 remember, 数据从 viewModel 流恢复, 不依赖 Activity 重建状态保存
     val imageUris: SnapshotStateList<String> = remember { mutableStateListOf() }
-    // 音频 (作为 URI 列表插入正文, 显示为可点击条目)
-    val audioUris: SnapshotStateList<String> = remember { mutableStateListOf() }
     // P115-FIX: reminderTime 和 reminderRepeat 改用 remember, 避免 R8 混淆后枚举/Long
     // 在 SaveableStateRegistry 反序列化时类型不匹配. 这两个状态从 viewModel 流恢复即可
     var reminderTime by remember { mutableStateOf<Long?>(null) }
@@ -281,6 +285,72 @@ fun NoteEditScreen(
         } else {
             context.toastShort("需要录音权限才能使用语音转文字")
         }
+    }
+
+    // === 真·语音附件: MediaRecorder 落盘 + 转写 + 时间戳 ===
+    var isRecording by remember { mutableStateOf(false) }
+    var recordSeconds by remember { mutableStateOf(0) }
+    var isTranscribing by remember { mutableStateOf(false) }
+    val recorder = remember { AudioRecorderHelper(context.applicationContext) }
+    LaunchedEffect(isRecording) {
+        if (isRecording) {
+            recordSeconds = 0
+            while (isRecording) {
+                delay(1_000L)
+                recordSeconds += 1
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { recorder.cancel() }
+    }
+
+    fun startVoiceRecording() {
+        if (isRecording) return
+        if (recorder.start()) {
+            isRecording = true
+            recordSeconds = 0
+        } else {
+            context.toastShort("录音启动失败, 请检查麦克风是否被占用")
+        }
+    }
+
+    fun stopVoiceRecording() {
+        if (!isRecording) return
+        isRecording = false
+        val result = recorder.stop()
+        if (result == null) {
+            context.toastShort("录音太短, 未保存")
+            return
+        }
+        val uri = Uri.fromFile(result.file).toString()
+        val marker = VoiceAttachmentParser.buildMarker(uri, result.durationMs, emptyList())
+        val prefix = if (content.text.isEmpty() || content.text.endsWith("\n")) "" else "\n\n"
+        content = content.copy(text = content.text + prefix + marker + "\n")
+        pushHistory()
+        // 尝试用系统识别器对文件转写 (Android 13+ 且识别器支持 EXTRA_AUDIO_SOURCE)
+        scope.launch {
+            isTranscribing = true
+            val text = runCatching { speechHelper.transcribeFile(result.file, "zh-CN") }.getOrNull()
+            isTranscribing = false
+            if (!text.isNullOrBlank()) {
+                val lines = VoiceAttachmentParser.withTimestamps(text, result.durationMs)
+                val newMarker = VoiceAttachmentParser.buildMarker(uri, result.durationMs, lines)
+                if (content.text.contains(marker)) {
+                    content = content.copy(text = content.text.replace(marker, newMarker))
+                    pushHistory()
+                }
+                context.toastShort("转写完成, 已生成时间戳")
+            } else {
+                context.toastShort("暂不支持文件转写, 可点击附件右上角手动编辑")
+            }
+        }
+    }
+
+    val requestVoiceRecordPermission = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted: Boolean ->
+        if (granted) startVoiceRecording() else context.toastShort("需要麦克风权限才能录音")
     }
 
     // F17: OCR 图片选择器
@@ -404,7 +474,6 @@ fun NoteEditScreen(
                     uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
             }
-            audioUris.add(uri.toString())
             val marker = "\n🎵 [音频](${uri})\n"
             content = if (content.text.isEmpty()) {
                 content.copy(text = marker.trimStart())
@@ -536,16 +605,6 @@ fun NoteEditScreen(
                 imageUris.addAll(images.map { it.uri })
             }
         }
-    }
-
-    // 从内容中提取音频URI (P62: 加 500ms debounce 避免长文输入卡顿)
-    LaunchedEffect(loaded, content.text) {
-        if (!loaded || content.text.isEmpty()) return@LaunchedEffect
-        delay(500L)
-        val audioPattern = Regex("\\[音频\\]\\(([^)]+)\\)")
-        val foundUris = audioPattern.findAll(content.text).map { it.groupValues[1] }.toList()
-        audioUris.clear()
-        audioUris.addAll(foundUris)
     }
 
     /**
@@ -896,8 +955,32 @@ fun NoteEditScreen(
                 content = content,
                 onContentChange = { updateContent(it) },
                 imageUris = imageUris,
-                audioUris = audioUris,
                 onRemoveImage = { imageUris.remove(it) },
+                onRemoveVoice = { marker ->
+                    // 顺手删掉私有目录里的录音文件, 避免附件越积越多
+                    VoiceAttachmentParser.parseAll(marker).firstOrNull()?.uri?.let { voiceUri ->
+                        runCatching {
+                            val parsed = Uri.parse(voiceUri)
+                            val path = parsed.path
+                            if (parsed.scheme == "file" && path != null && path.contains("/audio/")) {
+                                java.io.File(path).takeIf { it.exists() }?.delete()
+                            }
+                        }
+                    }
+                    content = content.copy(
+                        text = content.text.replace(marker, "")
+                            .replace(Regex("\n{3,}"), "\n\n")
+                    )
+                    pushHistory()
+                },
+                onUpdateVoiceTranscript = { attachment, text ->
+                    val lines = VoiceAttachmentParser.withTimestamps(text, attachment.durationMs)
+                    val newMarker = VoiceAttachmentParser.buildMarker(
+                        attachment.uri, attachment.durationMs, lines
+                    )
+                    content = content.copy(text = content.text.replace(attachment.marker, newMarker))
+                    pushHistory()
+                },
                 onTableEdit = { oldBlock, newBlock -> replaceTableBlock(oldBlock, newBlock) },
                 modifier = Modifier
                     .weight(1f, fill = true)
@@ -1002,6 +1085,22 @@ fun NoteEditScreen(
                     },
                     speechText = speechText,
                     isListening = isListening,
+                    // 真·语音附件
+                    isRecording = isRecording,
+                    recordSeconds = recordSeconds,
+                    isTranscribing = isTranscribing,
+                    onRecordClick = {
+                        if (isRecording) {
+                            stopVoiceRecording()
+                        } else {
+                            // 录音与实时识别都要占用麦克风, 先停掉正在进行的识别
+                            if (isListening) {
+                                speechHelper.stopListening()
+                                isListening = false
+                            }
+                            requestVoiceRecordPermission.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    },
                     // F17: OCR 文字识别
                     onOcrClick = {
                         pickOcrImage.launch(
@@ -1435,8 +1534,9 @@ private fun NoteBody(
     content: TextFieldValue,
     onContentChange: (TextFieldValue) -> Unit,
     imageUris: List<String>,
-    audioUris: List<String>,
     onRemoveImage: (String) -> Unit,
+    onRemoveVoice: (String) -> Unit,
+    onUpdateVoiceTranscript: (com.example.notes.util.VoiceAttachment, String) -> Unit,
     onTableEdit: (oldBlock: String, newBlock: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1449,6 +1549,12 @@ private fun NoteBody(
     // 编译可能错误地把 receiver 链关联到非 Composable scope, 报
     // "@Composable invocations can only happen from the context of a @Composable function"
     val codeBlocks = remember(content.text) { findCodeBlocks(content.text) }
+
+    // 语音附件 / 旧版音频标记 (直接从正文解析, 随文本编辑实时更新)
+    val voiceAttachments = remember(content.text) { VoiceAttachmentParser.parseAll(content.text) }
+    val legacyAudioUris = remember(content.text) {
+        VoiceAttachmentParser.parseLegacyAudio(content.text)
+    }
 
     // 全屏图片查看器状态 (uri 非空时显示)
     var viewerUri by remember { mutableStateOf<String?>(null) }
@@ -1478,28 +1584,29 @@ private fun NoteBody(
                 }
             }
         }
-        if (audioUris.isNotEmpty()) {
+        if (voiceAttachments.isNotEmpty()) {
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 12.dp)) {
-                    audioUris.forEach { uri ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Icon(Icons.Filled.AudioFile, contentDescription = "音频文件", tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.size(8.dp))
-                            Text(
-                                text = "音频: " + uri.substringAfterLast('/').take(28),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                ) {
+                    voiceAttachments.forEach { attachment ->
+                        VoiceAttachmentCard(
+                            attachment = attachment,
+                            onDelete = { onRemoveVoice(attachment.marker) },
+                            onUpdateTranscript = { text -> onUpdateVoiceTranscript(attachment, text) }
+                        )
                     }
+                }
+            }
+        }
+        if (legacyAudioUris.isNotEmpty()) {
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.padding(bottom = 12.dp)
+                ) {
+                    legacyAudioUris.forEach { uri -> LegacyAudioRow(uri) }
                 }
             }
         }
@@ -1731,6 +1838,11 @@ private fun ToolPanel(
     onSpeechClick: () -> Unit,
     speechText: String,
     isListening: Boolean,
+    // 真·语音附件
+    isRecording: Boolean,
+    recordSeconds: Int,
+    isTranscribing: Boolean,
+    onRecordClick: () -> Unit,
     // F17: OCR 文字识别
     onOcrClick: () -> Unit
 ) {
@@ -1789,7 +1901,11 @@ private fun ToolPanel(
             BottomTool.SPEECH -> SpeechPanel(
                 onSpeechClick = onSpeechClick,
                 speechText = speechText,
-                isListening = isListening
+                isListening = isListening,
+                isRecording = isRecording,
+                recordSeconds = recordSeconds,
+                isTranscribing = isTranscribing,
+                onRecordClick = onRecordClick
             )
             BottomTool.MORE -> Row(
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -1900,7 +2016,116 @@ private fun TemplatesGrid(onInsert: (String) -> Unit) {
         "📅 日程" to "\n【日程】\n时间:\n地点:\n参与者:\n",
         "📖 日记" to "\n【日记】\n日期:\n心情:\n\n",
         "🎯 目标" to "\n【目标】\n目标:\n计划:\n进度:\n",
-        "📝 笔记" to "\n【笔记】\n主题:\n要点:\n"
+        "📝 笔记" to "\n【笔记】\n主题:\n要点:\n",
+        "🏛 康奈尔笔记" to """
+            |
+            |【康奈尔笔记】
+            |课程/主题:
+            |日期:
+            |
+            |── 线索 (关键词/问题) ──
+            |-
+            |-
+            |
+            |── 笔记 (详细内容) ──
+            |-
+            |
+            |── 总结 (一句话概括) ──
+            |-
+            |""".trimMargin(),
+        "🗣 会议纪要" to """
+            |
+            |【会议纪要】
+            |会议主题:
+            |时间:
+            |地点 / 线上:
+            |参会人:
+            |主持人:
+            |
+            |── 议题 ──
+            |1.
+            |
+            |── 讨论要点 ──
+            |-
+            |
+            |── 结论 / 决议 ──
+            |-
+            |
+            |── 待办 (负责人 / 截止时间) ──
+            |☐  | @ |
+            |""".trimMargin(),
+        "📊 周报" to """
+            |
+            |【周报】 第 __ 周 (__.__ - __.__)
+            |
+            |── 本周完成 ──
+            |1.
+            |
+            |── 进行中 ──
+            |-
+            |
+            |── 风险 / 阻塞 ──
+            |-
+            |
+            |── 下周计划 ──
+            |1.
+            |
+            |── 需要支持 ──
+            |-
+            |""".trimMargin(),
+        "🗓 日报" to """
+            |
+            |【日报】 __年__月__日
+            |
+            |── 今日完成 ──
+            |1.
+            |
+            |── 明日计划 ──
+            |1.
+            |
+            |── 问题 / 风险 ──
+            |-
+            |""".trimMargin(),
+        "📚 读书笔记" to """
+            |
+            |【读书笔记】
+            |书名:
+            |作者:
+            |阅读进度: __ / __ 页
+            |
+            |── 核心观点 ──
+            |1.
+            |
+            |── 金句摘录 ──
+            |>
+            |
+            |── 我的思考 ──
+            |-
+            |
+            |── 行动清单 ──
+            |☐
+            |""".trimMargin(),
+        "🧭 面试复盘" to """
+            |
+            |【面试复盘】
+            |公司 / 岗位:
+            |时间:
+            |面试官:
+            |
+            |── 问题记录 ──
+            |1. 问题:
+            |   我的回答:
+            |   更好的回答:
+            |
+            |── 表现亮点 ──
+            |-
+            |
+            |── 待提升 ──
+            |-
+            |
+            |── 下一步 ──
+            |☐
+            |""".trimMargin()
     )
     StyleGrid(items, onInsert)
 }
@@ -1916,7 +2141,7 @@ private fun StyleGrid(items: List<Pair<String, String>>, onInsert: (String) -> U
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(64.dp)
+                            .height(72.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(MaterialTheme.colorScheme.surface)
                             .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
@@ -1925,7 +2150,7 @@ private fun StyleGrid(items: List<Pair<String, String>>, onInsert: (String) -> U
                     ) {
                         Text(
                             display,
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -2145,47 +2370,100 @@ private fun ToolSubItem(
     }
 }
 
-/* ---------- F16: 语音转文字面板 ---------- */
+/* ---------- F16: 语音面板 (实时输入 + 真·录音附件) ---------- */
 @Composable
 private fun SpeechPanel(
     onSpeechClick: () -> Unit,
     speechText: String,
-    isListening: Boolean
+    isListening: Boolean,
+    isRecording: Boolean,
+    recordSeconds: Int,
+    isTranscribing: Boolean,
+    onRecordClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // 麦克风大按钮
-        Box(
-            modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isListening) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant
-                )
-                .clickable { onSpeechClick() },
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            Icon(
-                Icons.Filled.Mic,
-                contentDescription = "语音输入",
-                tint = if (isListening) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(32.dp)
+            // 左: 实时语音输入 (识别完直接插入正文)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isListening) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .clickable { onSpeechClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Mic,
+                        contentDescription = "语音输入",
+                        tint = if (isListening) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (isListening) "聆听中…" else "语音输入",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // 右: 录音附件 (MediaRecorder 落盘, 支持转写与时间戳跳转)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isRecording) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        )
+                        .clickable { onRecordClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
+                        contentDescription = if (isRecording) "停止录音" else "录音附件",
+                        tint = if (isRecording) MaterialTheme.colorScheme.onError
+                        else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (isRecording) {
+                        "录音中 ${recordSeconds / 60}:${(recordSeconds % 60).toString().padStart(2, '0')}"
+                    } else {
+                        "录音附件"
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (isRecording) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (isTranscribing) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "正在转写录音…",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = if (isListening) "正在聆听... 点击停止" else "点击开始语音输入",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
         if (speechText.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = speechText,
                 style = MaterialTheme.typography.bodySmall,

@@ -47,6 +47,11 @@ class NotesApplication : Application() {
     /** F9: 应用锁状态 (PIN 哈希 + 启用标志 + 解锁时间) */
     val appLockStore: AppLockStore by lazy { AppLockStore(this) }
 
+    /** WebDAV 同步配置 (服务器 / 账号 / 应用密码) */
+    val webDavSettings: com.example.notes.util.WebDavSettings by lazy {
+        com.example.notes.util.WebDavSettings(this)
+    }
+
     // P115-FIX: ThemePreference 必须是单例, 否则每个 Composable 重新 new 会丢状态
     val themePreference: com.example.notes.ui.theme.ThemePreference by lazy {
         com.example.notes.ui.theme.ThemePreference(this)

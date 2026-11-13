@@ -15,6 +15,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.notes.NotesApplication
 import com.example.notes.ui.screens.CategoriesScreen
+import com.example.notes.ui.screens.GraphScreen
 import com.example.notes.ui.screens.NoteEditScreen
 import com.example.notes.ui.screens.NotesListScreen
 import com.example.notes.ui.screens.SearchScreen
@@ -39,6 +40,9 @@ object Routes {
     const val STATS = "stats"
     // 待办任务
     const val TODOS = "todos"
+
+    // 知识图谱 (双链关系图)
+    const val GRAPH = "graph"
 
     fun edit(noteId: Long) = "edit/$noteId"
 }
@@ -115,7 +119,9 @@ fun NotesNavGraph(
                 // F13: 统计
                 onOpenStats = { navController.navigate(Routes.STATS) { launchSingleTop = true } },
                 // 待办任务
-                onOpenTodos = { navController.navigate(Routes.TODOS) { launchSingleTop = true } }
+                onOpenTodos = { navController.navigate(Routes.TODOS) { launchSingleTop = true } },
+                // 知识图谱
+                onOpenGraph = { navController.navigate(Routes.GRAPH) { launchSingleTop = true } }
             )
         }
         composable(
@@ -173,6 +179,14 @@ fun NotesNavGraph(
         composable(Routes.TODOS) {
             TodoListScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+        // 知识图谱
+        composable(Routes.GRAPH) {
+            GraphScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenNote = { id -> navController.navigate(Routes.edit(id)) { launchSingleTop = true } }
             )
         }
     }

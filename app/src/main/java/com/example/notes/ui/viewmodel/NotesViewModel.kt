@@ -119,6 +119,14 @@ class NotesViewModel(
             initialValue = emptyList()
         )
 
+    /** 全部笔记 (不受分类筛选影响), 知识图谱页使用 */
+    val allNotes: StateFlow<List<NoteWithCategory>> = repository.observeNotes()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
     /**
      * F13: 一次性拉全量笔记内容, 客户端做字数 / 月度统计。
      * 不放在 Flow 里是因为这种"全量快照 + 客户端计算"的方式, 重新发射
@@ -402,6 +410,71 @@ class NotesViewModel(
         if (_backupState.value is BackupState.Success || _backupState.value is BackupState.Error) {
             _backupState.value = BackupState.Idle
         }
+    }
+
+    // --- WebDAV 同步 ------------------------------------------------------
+
+    sealed interface WebDavState {
+        object Idle : WebDavState
+        object Working : WebDavState
+        data class Success(val message: String) : WebDavState
+        data class Error(val message: String) : WebDavState
+    }
+
+    private val _webDavState = MutableStateFlow<WebDavState>(WebDavState.Idle)
+    val webDavState: StateFlow<WebDavState> = _webDavState.asStateFlow()
+
+    /** 测试连接 (仅探测目录/鉴权, 不传输数据) */
+    fun testWebDav(context: Context) {
+        launchSafe("testWebDav") {
+            _webDavState.value = WebDavState.Working
+            val settings = com.example.notes.util.WebDavSettings(context.applicationContext)
+            val result = com.example.notes.util.WebDavSyncManager(repository, settings).test()
+            _webDavState.value = result.fold(
+                onSuccess = { WebDavState.Success("连接成功: $it") },
+                onFailure = { WebDavState.Error("连接失败: ${it.message ?: "未知错误"}") }
+            )
+        }
+    }
+
+    /** 立即双向同步 */
+    fun syncWebDav(context: Context) {
+        launchSafe("syncWebDav") {
+            _webDavState.value = WebDavState.Working
+            val settings = com.example.notes.util.WebDavSettings(context.applicationContext)
+            val result = runCatching {
+                com.example.notes.util.WebDavSyncManager(repository, settings)
+                    .sync(com.example.notes.BuildConfig.VERSION_NAME)
+            }
+            _webDavState.value = result.fold(
+                onSuccess = { WebDavState.Success(it.message) },
+                onFailure = { WebDavState.Error("同步失败: ${it.message ?: "未知错误"}") }
+            )
+        }
+    }
+
+    fun consumeWebDavState() {
+        if (_webDavState.value is WebDavState.Success || _webDavState.value is WebDavState.Error) {
+            _webDavState.value = WebDavState.Idle
+        }
+    }
+
+    // --- 静态站导出 --------------------------------------------------------
+
+    /**
+     * 把某分类 (null = 全部) 的笔记导出为可解压的 HTML 小站 ZIP。
+     * @return 导出的笔记篇数
+     */
+    suspend fun exportStaticSite(
+        context: Context,
+        targetUri: Uri,
+        categoryId: Long?,
+        siteTitle: String
+    ): Int = withContext(Dispatchers.IO) {
+        val notes = repository.getNotesOnce(categoryId)
+        context.contentResolver.openOutputStream(targetUri, "wt")?.use { output ->
+            com.example.notes.util.StaticSiteExporter.export(output, siteTitle, notes)
+        } ?: throw IllegalStateException("无法写入目标文件")
     }
 }
 

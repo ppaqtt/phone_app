@@ -2,14 +2,19 @@ package com.example.notes.util
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioFormat
+import android.os.Build
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
+import java.io.File
 
 /**
  * F16: 语音转文字 (SpeechRecognizer)。
@@ -97,6 +102,78 @@ class SpeechToTextHelper(private val context: Context) {
         try { recognizer?.stopListening() } catch (_: Exception) {}
         destroy()
     }
+
+    /**
+     * 把已经录好的音频文件转成文字 (语音附件转写)。
+     *
+     * 说明: 只有 Android 13 (API 33) 及以上、且系统识别器支持
+     * [RecognizerIntent.EXTRA_AUDIO_SOURCE] 时才能离线"读文件"转写。
+     * 不支持时返回 null, UI 会提示用户手动编辑转写文本, 不会崩溃。
+     *
+     * 注意: 必须在主线程调用 (SpeechRecognizer 的线程约束)。
+     */
+    suspend fun transcribeFile(file: File, languageTag: String = "zh-CN"): String? =
+        suspendCancellableCoroutine { cont ->
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || !isAvailable()) {
+                if (cont.isActive) cont.resumeWith(Result.success(null))
+                return@suspendCancellableCoroutine
+            }
+            val rec = SpeechRecognizer.createSpeechRecognizer(context)
+            var pfd: ParcelFileDescriptor? = null
+            var finished = false
+
+            fun finish(value: String?) {
+                if (finished) return
+                finished = true
+                runCatching { rec.destroy() }
+                runCatching { pfd?.close() }
+                if (cont.isActive) cont.resumeWith(Result.success(value))
+            }
+
+            cont.invokeOnCancellation {
+                runCatching { rec.destroy() }
+                runCatching { pfd?.close() }
+            }
+
+            rec.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {}
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+                override fun onPartialResults(partialResults: Bundle?) {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+                override fun onError(error: Int) {
+                    Timber.w("transcribeFile error: $error")
+                    finish(null)
+                }
+
+                override fun onResults(results: Bundle?) {
+                    val text = results
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull()
+                        .orEmpty()
+                    finish(text.ifBlank { null })
+                }
+            })
+
+            try {
+                pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                    putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, pfd)
+                    putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
+                    putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+                    putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, 16_000)
+                }
+                rec.startListening(intent)
+            } catch (e: Exception) {
+                Timber.w(e, "transcribeFile failed to start")
+                finish(null)
+            }
+        }
 
     private fun destroy() {
         try { recognizer?.destroy() } catch (_: Exception) {}

@@ -105,7 +105,9 @@ object BackupManager {
                 reminderTime = it.reminderTime,
                 reminderRepeat = it.reminderRepeat,
                 createdAt = it.createdAt,
-                updatedAt = it.updatedAt
+                updatedAt = it.updatedAt,
+                syncUid = it.syncUid,
+                deletedAt = it.deletedAt
             )
         },
         images = images.map {

@@ -68,6 +68,60 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deleted_at IS NULL")
     suspend fun getAllNotesForSync(): List<NoteEntity>
 
+    // --- WebDAV (v12) ----------------------------------------------------
+
+    /** 含回收站墓碑在内的全量笔记, 供多端同步合并使用 */
+    @Query("SELECT * FROM notes")
+    suspend fun getAllIncludingDeleted(): List<NoteEntity>
+
+    /** 给老数据补填全局同步 id */
+    @Query("UPDATE notes SET sync_uid = :uid WHERE id = :id")
+    suspend fun setSyncUid(id: Long, uid: String)
+
+    /**
+     * WebDAV 远端覆盖本地时使用真正的 UPDATE, 而不是 REPLACE。
+     * REPLACE 会先 DELETE 再 INSERT, 触发 note_images 的 ON DELETE CASCADE,
+     * 导致本地图片被误删。
+     */
+    @Query(
+        """
+        UPDATE notes SET
+            title = :title,
+            content = :content,
+            category_id = :categoryId,
+            tags = :tags,
+            is_pinned = :isPinned,
+            priority = :priority,
+            color = :color,
+            reminder_time = :reminderTime,
+            reminder_repeat = :reminderRepeat,
+            created_at = :createdAt,
+            updated_at = :updatedAt,
+            deleted_at = :deletedAt
+        WHERE id = :id
+        """
+    )
+    suspend fun updateFromSync(
+        id: Long,
+        title: String,
+        content: String,
+        categoryId: Long?,
+        tags: String,
+        isPinned: Boolean,
+        priority: Int,
+        color: Int,
+        reminderTime: Long?,
+        reminderRepeat: String,
+        createdAt: Long,
+        updatedAt: Long,
+        deletedAt: Long?
+    )
+
+    /** 静态站导出: 某分类下全部有效笔记 (非响应式) */
+    @Transaction
+    @Query("SELECT * FROM notes WHERE category_id = :categoryId AND deleted_at IS NULL ORDER BY updated_at DESC")
+    suspend fun getByCategoryOnce(categoryId: Long): List<NoteWithCategory>
+
     /**
      * F3: 桌面小部件取最近 N 条笔记 (按 updated_at 倒序, 仅未删除)。
      * suspend fun 让小部件刷新走 IO, 不阻塞 AppWidgetProvider 回调。
@@ -115,13 +169,16 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
     fun observeTrash(): Flow<List<NoteWithCategory>>
 
-    /** F2: 软删除 — 把 deleted_at 设为当前时间戳 */
-    @Query("UPDATE notes SET deleted_at = :deletedAt WHERE id = :id")
+    /**
+     * F2: 软删除 — 把 deleted_at 设为当前时间戳。
+     * v12: 同时刷新 updated_at, 让 WebDAV 同步时"删除墓碑"能赢过其他设备的旧副本。
+     */
+    @Query("UPDATE notes SET deleted_at = :deletedAt, updated_at = :deletedAt WHERE id = :id")
     suspend fun softDelete(id: Long, deletedAt: Long = System.currentTimeMillis())
 
-    /** F2: 从回收站恢复 — 把 deleted_at 置 NULL */
-    @Query("UPDATE notes SET deleted_at = NULL WHERE id = :id")
-    suspend fun restoreFromTrash(id: Long)
+    /** F2: 从回收站恢复 — 把 deleted_at 置 NULL, 同时刷新 updated_at 让恢复动作参与同步 */
+    @Query("UPDATE notes SET deleted_at = NULL, updated_at = :updatedAt WHERE id = :id")
+    suspend fun restoreFromTrash(id: Long, updatedAt: Long = System.currentTimeMillis())
 
     /** F2: 真删 — 硬删除 (回收站条目永久删除按钮) */
     @Query("DELETE FROM notes WHERE id = :id")

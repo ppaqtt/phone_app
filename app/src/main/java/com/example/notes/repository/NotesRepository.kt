@@ -9,12 +9,17 @@ import com.example.notes.data.NoteImageEntity
 import com.example.notes.data.NoteStatsRow
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.util.BackupManager
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import timber.log.Timber
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
 /**
  * Single source of truth for the UI layer. The ViewModel never talks to the
@@ -53,11 +58,21 @@ class NotesRepository(
         if (query.isBlank()) noteDao.observeAll() else noteDao.search(query)
 
     suspend fun saveNote(note: NoteEntity): Long {
-        return if (note.id == 0L) {
-            noteDao.insert(note.copy(updatedAt = System.currentTimeMillis()))
+        // v12: 保证每条笔记都有跨设备唯一 id; 编辑时沿用已有 id, 不重新生成
+        val uid = note.syncUid.ifBlank {
+            if (note.id != 0L) {
+                noteDao.getNoteOnce(note.id)?.syncUid?.takeIf { it.isNotBlank() }
+                    ?: java.util.UUID.randomUUID().toString()
+            } else {
+                java.util.UUID.randomUUID().toString()
+            }
+        }
+        val withUid = note.copy(syncUid = uid)
+        return if (withUid.id == 0L) {
+            noteDao.insert(withUid.copy(updatedAt = System.currentTimeMillis()))
         } else {
-            noteDao.update(note.copy(updatedAt = System.currentTimeMillis()))
-            note.id
+            noteDao.update(withUid.copy(updatedAt = System.currentTimeMillis()))
+            withUid.id
         }
     }
 
@@ -357,7 +372,10 @@ class NotesRepository(
                         reminderTime = n.reminderTime,
                         reminderRepeat = n.reminderRepeat,
                         createdAt = n.createdAt,
-                        updatedAt = n.updatedAt
+                        updatedAt = n.updatedAt,
+                        // v12: 老备份没有 syncUid, 留空让保存/同步时补填
+                        syncUid = n.syncUid,
+                        deletedAt = n.deletedAt
                     )
                 )
                 noteIdMap[n.oldId] = newId
@@ -382,4 +400,189 @@ class NotesRepository(
             Triple(categoryIdMap.size, noteIdMap.size, imageEntities.size)
         }
     }
+
+    // --- WebDAV 双向同步 (v12) -------------------------------------------
+
+    /**
+     * 同步用快照: 与普通备份的区别是
+     * 1) 包含回收站墓碑 (deleted_at 非空), 否则删除操作无法同步到其他设备;
+     * 2) 不包含图片 (content:// URI 是设备本地的, 跨设备无意义)。
+     */
+    suspend fun exportSyncPayload(appVersion: String): BackupPayload = database.withTransaction {
+        ensureSyncUidsLocked()
+        BackupManager.buildPayload(
+            appVersion = appVersion,
+            categories = categoryDao.getAllOnce(),
+            notes = noteDao.getAllIncludingDeleted(),
+            images = emptyList()
+        )
+    }
+
+    /** 给 v12 之前的老笔记补填全局同步 id (幂等) */
+    private suspend fun ensureSyncUidsLocked() {
+        noteDao.getAllIncludingDeleted().forEach { note ->
+            if (note.syncUid.isBlank()) {
+                noteDao.setSyncUid(note.id, UUID.randomUUID().toString())
+            }
+        }
+    }
+
+    /** 静态站导出: 取某个分类 (null=全部) 的有效笔记, 非响应式 */
+    suspend fun getNotesOnce(categoryId: Long?): List<NoteEntity> =
+        if (categoryId == null) {
+            noteDao.getAllNotesForSync()
+        } else {
+            noteDao.getByCategoryOnce(categoryId).map { it.note }
+        }
+
+    /**
+     * 把远端 payload 合并进本地库, 并返回合并后的全量 payload (用于回传远端)。
+     *
+     * 合并规则:
+     * - 分类按 name 合并 (本地唯一索引), 远端 oldId 映射到本地 id;
+     * - 笔记按 syncUid 匹配:
+     *   · 仅远端有 → 插入本地;
+     *   · 仅本地有 → 保留, 随回传 payload 上传;
+     *   · 两边都有 → 比较 updatedAt, 新者胜;
+     *   · updatedAt 相同但内容不同 → 本地保留原笔记, 另存一份"冲突副本", 两条都回传。
+     */
+    suspend fun mergeWebDav(remote: BackupPayload, appVersion: String): WebDavMergeResult =
+        database.withTransaction {
+            ensureSyncUidsLocked()
+
+            // 1) 分类
+            val nameToId = HashMap<String, Long>()
+            categoryDao.getAllOnce().forEach { nameToId[it.name] = it.id }
+            val remoteCategoryToLocal = HashMap<Long, Long>()
+            remote.categories.forEach { rc ->
+                val localId = nameToId[rc.name] ?: run {
+                    val newId = categoryDao.insert(
+                        CategoryEntity(name = rc.name, color = rc.color, createdAt = rc.createdAt)
+                    )
+                    nameToId[rc.name] = newId
+                    newId
+                }
+                remoteCategoryToLocal[rc.oldId] = localId
+            }
+            // 第二轮修 parent_id, 确保父分类已插入
+            remote.categories.forEach { rc ->
+                val localId = remoteCategoryToLocal[rc.oldId] ?: return@forEach
+                val parentId = rc.parentOldId?.let { remoteCategoryToLocal[it] }
+                if (parentId != null && parentId != localId) {
+                    categoryDao.setParent(localId, parentId)
+                }
+            }
+
+            // 2) 笔记
+            val localByUid = HashMap<String, NoteEntity>()
+            noteDao.getAllIncludingDeleted().forEach { note ->
+                if (note.syncUid.isNotBlank()) localByUid[note.syncUid] = note
+            }
+            var downloaded = 0
+            var conflicts = 0
+
+            remote.notes.forEach { rn ->
+                val uid = rn.syncUid
+                if (uid.isBlank()) return@forEach
+                val remoteCategoryId = rn.categoryOldId?.let { remoteCategoryToLocal[it] }
+                val local = localByUid[uid]
+
+                if (local == null) {
+                    val newId = noteDao.insert(
+                        NoteEntity(
+                            title = rn.title,
+                            content = rn.content,
+                            categoryId = remoteCategoryId,
+                            tags = rn.tags,
+                            isPinned = rn.isPinned,
+                            priority = rn.priority,
+                            color = rn.color,
+                            reminderTime = rn.reminderTime,
+                            reminderRepeat = rn.reminderRepeat,
+                            createdAt = rn.createdAt,
+                            updatedAt = rn.updatedAt,
+                            deletedAt = rn.deletedAt,
+                            syncUid = uid
+                        )
+                    )
+                    downloaded++
+                    localByUid[uid] = NoteEntity(
+                        id = newId, title = rn.title, content = rn.content,
+                        syncUid = uid, updatedAt = rn.updatedAt, deletedAt = rn.deletedAt
+                    )
+                } else {
+                    val same = local.title == rn.title &&
+                        local.content == rn.content &&
+                        local.tags == rn.tags &&
+                        local.deletedAt == rn.deletedAt
+                    if (same) return@forEach
+                    when {
+                        rn.updatedAt > local.updatedAt -> {
+                            // 远端更新: 覆盖本地正文 (真正的 UPDATE, 不用 REPLACE, 避免级联删图片)
+                            noteDao.updateFromSync(
+                                id = local.id,
+                                title = rn.title,
+                                content = rn.content,
+                                categoryId = remoteCategoryId,
+                                tags = rn.tags,
+                                isPinned = rn.isPinned,
+                                priority = rn.priority,
+                                color = rn.color,
+                                reminderTime = rn.reminderTime,
+                                reminderRepeat = rn.reminderRepeat,
+                                createdAt = rn.createdAt,
+                                updatedAt = rn.updatedAt,
+                                deletedAt = rn.deletedAt
+                            )
+                            downloaded++
+                        }
+                        rn.updatedAt < local.updatedAt -> Unit
+                        else -> {
+                            // 时间戳完全相同但内容不同: 保留远端为冲突副本, 避免覆盖本地编辑
+                            val now = System.currentTimeMillis()
+                            val conflictId = noteDao.insert(
+                                NoteEntity(
+                                    title = conflictCopyTitle(rn.title),
+                                    content = rn.content,
+                                    categoryId = remoteCategoryId,
+                                    tags = rn.tags,
+                                    isPinned = false,
+                                    priority = rn.priority,
+                                    color = rn.color,
+                                    reminderTime = rn.reminderTime,
+                                    reminderRepeat = rn.reminderRepeat,
+                                    createdAt = now,
+                                    updatedAt = now,
+                                    deletedAt = null,
+                                    syncUid = UUID.randomUUID().toString()
+                                )
+                            )
+                            conflicts++
+                            Timber.tag("WebDav").i("conflict copy created: $conflictId (${rn.title})")
+                        }
+                    }
+                }
+            }
+
+            val merged = BackupManager.buildPayload(
+                appVersion = appVersion,
+                categories = categoryDao.getAllOnce(),
+                notes = noteDao.getAllIncludingDeleted(),
+                images = emptyList()
+            )
+            WebDavMergeResult(merged, downloaded, conflicts)
+        }
+
+    private fun conflictCopyTitle(title: String): String {
+        val stamp = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date())
+        val base = title.ifBlank { "无标题" }
+        return "$base（冲突副本 $stamp）"
+    }
 }
+
+/** WebDAV 合并结果 */
+data class WebDavMergeResult(
+    val payload: BackupPayload,
+    val downloaded: Int,
+    val conflicts: Int
+)

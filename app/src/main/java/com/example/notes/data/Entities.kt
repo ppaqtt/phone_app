@@ -36,7 +36,9 @@ const val DEFAULT_COLOR: Int = 0xFFFFFFFF.toInt()
         Index("tags"),
         Index("reminder_time"),
         Index("priority"),
-        Index("created_at")
+        Index("created_at"),
+        // v12: WebDAV 同步用的全局唯一 id
+        Index("sync_uid")
     ]
 )
 data class NoteEntity(
@@ -91,7 +93,16 @@ data class NoteEntity(
      * 3) 0L 当作 1970 不会被误当有效值, 因为回收站逻辑只看 IS NULL。
      */
     @ColumnInfo(name = "deleted_at", defaultValue = "NULL")
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+
+    /**
+     * v12: WebDAV / 多端同步的全局唯一标识。
+     * 本机自增 id 在不同设备上会重复, 不能作为跨设备主键;
+     * 首次保存时生成 UUID, 之后即使换设备也保持不变。
+     * 老数据迁移后为空串, 同步前由 Repository 补填。
+     */
+    @ColumnInfo(name = "sync_uid", defaultValue = "''")
+    val syncUid: String = ""
 )
 
 @Entity(
