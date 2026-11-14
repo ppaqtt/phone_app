@@ -79,44 +79,62 @@ object BackupManager {
         categories: List<CategoryEntity>,
         notes: List<NoteEntity>,
         images: List<NoteImageEntity>
-    ): BackupPayload = BackupPayload(
-        version = BackupPayload.CURRENT_VERSION,
-        exportedAt = System.currentTimeMillis(),
-        appVersion = appVersion,
-        categories = categories.map {
-            CategoryBackup(
-                oldId = it.id,
-                name = it.name,
-                color = it.color,
-                parentOldId = it.parentId,
-                createdAt = it.createdAt
-            )
-        },
-        notes = notes.map {
-            NoteBackup(
-                oldId = it.id,
-                title = it.title,
-                content = it.content,
-                categoryOldId = it.categoryId,
-                tags = it.tags,
-                isPinned = it.isPinned,
-                priority = it.priority,
-                color = it.color,
-                reminderTime = it.reminderTime,
-                reminderRepeat = it.reminderRepeat,
-                createdAt = it.createdAt,
-                updatedAt = it.updatedAt
-            )
-        },
-        images = images.map {
-            ImageBackup(
-                oldId = it.id,
-                noteOldId = it.noteId,
-                uri = it.uri,
-                position = it.position
-            )
-        }
-    )
+    ): BackupPayload {
+        val catSyncById = categories.associate { it.id to it.syncId }
+        return BackupPayload(
+            version = BackupPayload.CURRENT_VERSION,
+            exportedAt = System.currentTimeMillis(),
+            appVersion = appVersion,
+            categories = categories.map {
+                CategoryBackup(
+                    oldId = it.id,
+                    name = it.name,
+                    color = it.color,
+                    parentOldId = it.parentId,
+                    createdAt = it.createdAt,
+                    syncId = it.syncId
+                )
+            },
+            notes = notes.map {
+                NoteBackup(
+                    oldId = it.id,
+                    title = it.title,
+                    content = it.content,
+                    categoryOldId = it.categoryId,
+                    tags = it.tags,
+                    isPinned = it.isPinned,
+                    priority = it.priority,
+                    color = it.color,
+                    reminderTime = it.reminderTime,
+                    reminderRepeat = it.reminderRepeat,
+                    createdAt = it.createdAt,
+                    updatedAt = it.updatedAt,
+                    deletedAt = it.deletedAt,
+                    syncId = it.syncId,
+                    categorySyncId = it.categoryId?.let { id -> catSyncById[id] }
+                )
+            },
+            images = images.map {
+                ImageBackup(
+                    oldId = it.id,
+                    noteOldId = it.noteId,
+                    uri = it.uri,
+                    position = it.position
+                )
+            }
+        )
+    }
+
+    /**
+     * 构建 WebDAV 同步快照:
+     * - 包含软删除笔记 (删除墓碑), 否则另一台设备会把已删笔记重新上传;
+     * - 不包含图片: content:// URI 只在本机有效, 上传到云端反而会污染其他设备。
+     */
+    fun buildSyncPayload(
+        appVersion: String,
+        categories: List<CategoryEntity>,
+        notes: List<NoteEntity>
+    ): BackupPayload = buildPayload(appVersion, categories, notes, emptyList())
 
     /**
      * 解析 DTO 内的备份文件 schema 版本号, 用于决定是否做兼容处理。

@@ -44,6 +44,21 @@ class NotesApplication : Application() {
         TodoRepository(database.todoDao())
     }
 
+    /** 闪卡数据仓库 */
+    val flashcardRepository: com.example.notes.repository.FlashcardRepository by lazy {
+        com.example.notes.repository.FlashcardRepository(database.flashcardDao())
+    }
+
+    /** WebDAV 同步配置 (密码走 Android Keystore 加密) */
+    val syncConfigStore: com.example.notes.util.SyncConfigStore by lazy {
+        com.example.notes.util.SyncConfigStore(this)
+    }
+
+    /** WebDAV 双向同步 */
+    val webDavSyncManager: com.example.notes.util.WebDavSyncManager by lazy {
+        com.example.notes.util.WebDavSyncManager(repository, syncConfigStore)
+    }
+
     /** F9: 应用锁状态 (PIN 哈希 + 启用标志 + 解锁时间) */
     val appLockStore: AppLockStore by lazy { AppLockStore(this) }
 
@@ -86,6 +101,15 @@ class NotesApplication : Application() {
         // F2: 调度回收站清理 worker, 24h 后跑, 之后 KEEP 策略幂等。
         runCatching { TrashJanitorWorker.schedule(this) }
             .onFailure { Timber.tag("NotesApplication").w(it, "worker schedule failed") }
+
+        // 闪卡每日复习提醒 + WebDAV 自动同步 (仅在用户开启时真正联网)
+        runCatching { com.example.notes.work.FlashcardWorker.schedule(this) }
+            .onFailure { Timber.tag("NotesApplication").w(it, "flashcard worker schedule failed") }
+        runCatching {
+            if (syncConfigStore.config.value.enabled && syncConfigStore.config.value.autoSync) {
+                com.example.notes.work.SyncWorker.schedule(this)
+            }
+        }.onFailure { Timber.tag("NotesApplication").w(it, "sync worker schedule failed") }
 
         // P105-FIX: 应用启动时自动创建数据库本地备份。
         // 每次启动都复制一份 notes.db 到 cacheDir/auto_backup/,

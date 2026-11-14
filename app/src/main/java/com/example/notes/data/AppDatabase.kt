@@ -13,7 +13,11 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * 启用外键约束 (SQLite 默认关闭), 防止删除分类时存在孤儿 category_id。
  */
 @Database(
-    entities = [NoteEntity::class, CategoryEntity::class, NoteImageEntity::class, TodoEntity::class],
+    entities = [
+        NoteEntity::class, CategoryEntity::class, NoteImageEntity::class,
+        TodoEntity::class, FlashcardEntity::class
+    ],
+    // v11 → v12: notes/categories 增加 sync_id (WebDAV 同步), 新增 flash_cards 表
     // v10 → v11: 添加 todos 表（待办任务）
     // v9 → v10: 给 notes 加 tags / reminder_time / priority / created_at 索引,
     //           给 note_images 加 position 索引 (手动 MIGRATION_9_10)
@@ -22,7 +26,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     // F15: v6 → v7 给 notes 加 reminder_repeat 字段
     // F2: v5 → v6 给 notes 加 deleted_at 字段
     // P98: v4 → v5 给 notes.category_id 加外键
-    version = 11,
+    version = 12,
     // P110-FIX: 移除所有 AutoMigration, 改用手动 Migration。
     // 原因: AutoMigration 需要历史 schema JSON (5.json/6.json/7.json/8.json)
     // 做对比验证, 但项目首次 build 时这些文件不存在, 编译会失败。
@@ -36,6 +40,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun noteImageDao(): NoteImageDao
     abstract fun todoDao(): TodoDao
+    abstract fun flashcardDao(): FlashcardDao
 
     companion object {
         @Volatile
@@ -101,6 +106,49 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_reminder_time` ON `todos` (`reminder_time`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_created_at` ON `todos` (`created_at`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_todos_is_completed` ON `todos` (`is_completed`)")
+            }
+        }
+
+        /**
+         * v11 → v12: WebDAV 同步标识 + 笔记闪卡表。
+         *
+         * sync_id 默认空串, 首次同步时由 Repository 批量补齐 UUID;
+         * 这样老数据无需在迁移里逐行生成 UUID, 迁移保持 O(1)。
+         */
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `notes` ADD COLUMN `sync_id` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `categories` ADD COLUMN `sync_id` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `flash_cards` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `note_id` INTEGER NOT NULL,
+                        `front` TEXT NOT NULL,
+                        `back` TEXT NOT NULL,
+                        `due_at` INTEGER NOT NULL,
+                        `interval_days` REAL NOT NULL,
+                        `ease_factor` REAL NOT NULL,
+                        `repetitions` INTEGER NOT NULL,
+                        `lapses` INTEGER NOT NULL,
+                        `last_reviewed_at` INTEGER,
+                        `created_at` INTEGER NOT NULL,
+                        `source_key` TEXT NOT NULL,
+                        FOREIGN KEY(`note_id`) REFERENCES `notes`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_flash_cards_note_id` ON `flash_cards` (`note_id`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_flash_cards_due_at` ON `flash_cards` (`due_at`)")
+            }
+        }
+
+        /**
+         * v12 → v11: 降级时删除闪卡表。sync_id 列保留 (旧版 SELECT * 不受影响)。
+         */
+        private val MIGRATION_12_11 = object : Migration(12, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_flash_cards_note_id`")
+                db.execSQL("DROP INDEX IF EXISTS `index_flash_cards_due_at`")
+                db.execSQL("DROP TABLE IF EXISTS `flash_cards`")
             }
         }
 
@@ -202,8 +250,8 @@ abstract class AppDatabase : RoomDatabase() {
                 // 注册所有版本间的迁移。顺序无所谓, Room 会自动选择路径。
                 .addMigrations(
                     MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8,
-                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_10,
-                    MIGRATION_10_9
+                    MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12,
+                    MIGRATION_12_11, MIGRATION_11_10, MIGRATION_10_9
                 )
                 // 启用 SQLite 外键约束, 保护 category_id 引用完整性
                 .addCallback(object : Callback() {

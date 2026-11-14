@@ -6,79 +6,212 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.core.graphics.scale
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.suspendCancellableCoroutine
 import timber.log.Timber
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * F17: OCR 文字识别 (ML Kit Text Recognition v2)。
+ * OCR 文字识别 (ML Kit Text Recognition v2)。
  *
- * 设计取舍:
- * 1) 使用 Google ML Kit 中文文本识别 (on-device, 无需网络/API Key)。
- *    需要在 build.gradle.kts 加依赖:
- *    implementation("com.google.mlkit:text-recognition-chinese:16.0.0")
- * 2) 大图先缩放到 max 1920px 再识别, 平衡精度与速度/内存。
- * 3) 识别结果按行拼接, 保留换行结构。
- * 4) 不保存临时文件, 直接从 URI 解码 Bitmap。
+ * 支持两种语言模型:
+ * - 中文模型 (含中文与拉丁字符);
+ * - 拉丁模型 (纯英文/数字/符号场景识别更准)。
+ *
+ * [Script.AUTO] 会先跑中文模型, 若整段没有任何 CJK 字符再用拉丁模型复核,
+ * 取字符更多的结果。既保证中文场景, 又避免英文扫描件被中文模型拆错。
+ *
+ * 另提供表格结构化: 按行/列聚类 ML Kit 的 line boundingBox, 输出 Markdown 表格。
+ * 结构不明显时自动退回普通文本。
  */
 object OcrHelper {
 
-    private val recognizer by lazy {
+    enum class Script { AUTO, CHINESE, LATIN }
+
+    private val chineseRecognizer: TextRecognizer by lazy {
         TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
     }
 
-    /**
-     * 从图片 URI 识别文字, 返回识别到的文本字符串。
-     * 失败时抛出异常 (调用方用 runCatching 包裹)。
-     */
-    suspend fun recognizeText(context: Context, uri: Uri): String {
-        val bitmap = loadBitmap(context, uri)
-        val scaled = scaleIfNeeded(bitmap)
-        val image = InputImage.fromBitmap(scaled, 0)
+    private val latinRecognizer: TextRecognizer by lazy {
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    }
 
-        return suspendCancellableCoroutine { continuation ->
-            recognizer.process(image)
-                .addOnSuccessListener { visionText ->
-                    val result = visionText.text
-                    // P-FIX-003: 不在日志中输出图片 URI, 避免泄露用户图片路径
-                    Timber.d("OCR recognized ${result.length} chars")
-                    if (scaled != bitmap) {
-                        runCatching { scaled.recycle() }
-                    }
-                    runCatching { bitmap.recycle() }
-                    continuation.resume(result)
-                }
-                .addOnFailureListener { e ->
-                    Timber.e(e, "OCR failed")
-                    if (scaled != bitmap) {
-                        runCatching { scaled.recycle() }
-                    }
-                    runCatching { bitmap.recycle() }
-                    continuation.resumeWithException(e)
-                }
-            continuation.invokeOnCancellation {
-                // ML Kit Task 没有 cancel() — 通过让监听器捕获异常间接终止
-                // (recognizer.process 返回的 Task 内部已绑定 InputImage 生命周期)
-            }
+    /** 从图片 URI 识别文字 */
+    suspend fun recognizeText(
+        context: Context,
+        uri: Uri,
+        script: Script = Script.AUTO
+    ): String {
+        val bitmap = loadBitmap(context, uri)
+        return try {
+            process(bitmap, script, table = false)
+        } finally {
+            runCatching { bitmap.recycle() }
+        }
+    }
+
+    /** 从图片 URI 识别表格, 返回 Markdown */
+    suspend fun recognizeTable(
+        context: Context,
+        uri: Uri,
+        script: Script = Script.AUTO
+    ): String {
+        val bitmap = loadBitmap(context, uri)
+        return try {
+            process(bitmap, script, table = true)
+        } finally {
+            runCatching { bitmap.recycle() }
         }
     }
 
     /**
+     * 识别内存中的位图 (PDF 导入用)。
+     * 不回收调用方的 bitmap, 由调用方负责生命周期。
+     */
+    suspend fun recognizeBitmap(bitmap: Bitmap, script: Script = Script.AUTO): String =
+        process(bitmap, script, table = false)
+
+    private suspend fun process(bitmap: Bitmap, script: Script, table: Boolean): String {
+        val scaled = scaleIfNeeded(bitmap)
+        return try {
+            val text = recognize(scaled, script)
+            if (table) buildMarkdownTable(text) else text.text
+        } finally {
+            if (scaled !== bitmap) runCatching { scaled.recycle() }
+        }
+    }
+
+    private suspend fun recognize(bitmap: Bitmap, script: Script): Text {
+        return when (script) {
+            Script.CHINESE -> runRecognizer(chineseRecognizer, bitmap)
+            Script.LATIN -> runRecognizer(latinRecognizer, bitmap)
+            Script.AUTO -> {
+                val chinese = runRecognizer(chineseRecognizer, bitmap)
+                if (countCjk(chinese.text) > 0 || chinese.text.isBlank()) {
+                    chinese
+                } else {
+                    // 没有中文, 用拉丁模型复核, 取更完整的结果
+                    val latin = runRecognizer(latinRecognizer, bitmap)
+                    if (latin.text.length > chinese.text.length) latin else chinese
+                }
+            }
+        }
+    }
+
+    private suspend fun runRecognizer(recognizer: TextRecognizer, bitmap: Bitmap): Text =
+        suspendCancellableCoroutine { continuation ->
+            recognizer.process(InputImage.fromBitmap(bitmap, 0))
+                .addOnSuccessListener { result ->
+                    Timber.d("OCR recognized ${result.text.length} chars")
+                    if (continuation.isActive) continuation.resume(result)
+                }
+                .addOnFailureListener { error ->
+                    Timber.e(error, "OCR failed")
+                    if (continuation.isActive) continuation.resumeWithException(error)
+                }
+        }
+
+    /**
+     * 按行/列聚类版面, 生成 Markdown 表格。
+     * 少于 2 行或 2 列时认为不是表格, 直接返回原始文本。
+     */
+    private fun buildMarkdownTable(text: Text): String {
+        val spans = text.textBlocks
+            .flatMap { it.lines }
+            .mapNotNull { line ->
+                val box = line.boundingBox ?: return@mapNotNull null
+                val content = line.text.trim()
+                if (content.isEmpty()) null
+                else OcrSpan(
+                    text = content,
+                    height = box.height().toFloat(),
+                    centerY = box.centerY().toFloat(),
+                    centerX = box.centerX().toFloat()
+                )
+            }
+        if (spans.size < 4) return text.text
+
+        val avgHeight = spans.map { it.height }.average().toFloat().coerceAtLeast(8f)
+        val rowTolerance = avgHeight * 0.6f
+
+        // 1) 按 y 聚行
+        val rows = mutableListOf<MutableList<OcrSpan>>()
+        val sortedByY = spans.sortedBy { it.centerY }
+        var currentRow = mutableListOf<OcrSpan>()
+        var currentY = sortedByY.first().centerY
+        sortedByY.forEach { span ->
+            if (currentRow.isEmpty() || kotlin.math.abs(span.centerY - currentY) <= rowTolerance) {
+                currentRow.add(span)
+                currentY = currentRow.map { it.centerY }.average().toFloat()
+            } else {
+                rows.add(currentRow)
+                currentRow = mutableListOf(span)
+                currentY = span.centerY
+            }
+        }
+        if (currentRow.isNotEmpty()) rows.add(currentRow)
+
+        // 2) 按 x 聚类列
+        val columnGap = avgHeight * 1.5f
+        val columnCenters = mutableListOf<Float>()
+        spans.sortedBy { it.centerX }.forEach { span ->
+            if (columnCenters.none { kotlin.math.abs(it - span.centerX) <= columnGap }) {
+                columnCenters.add(span.centerX)
+            }
+        }
+        columnCenters.sort()
+
+        if (rows.size < 2 || columnCenters.size < 2) return text.text
+
+        // 3) 填格子
+        val matrix = rows.map { row ->
+            val cells = Array(columnCenters.size) { StringBuilder() }
+            row.forEach { span ->
+                val index = columnCenters.indices.minByOrNull {
+                    kotlin.math.abs(columnCenters[it] - span.centerX)
+                } ?: 0
+                if (cells[index].isNotEmpty()) cells[index].append(' ')
+                cells[index].append(span.text)
+            }
+            cells.map { it.toString().trim() }
+        }
+
+        val builder = StringBuilder()
+        val header = matrix.first()
+        builder.append("| ")
+            .append(header.joinToString(" | ") { escapeCell(it) })
+            .append(" |\n")
+        builder.append("| ")
+            .append(header.indices.joinToString(" | ") { "---" })
+            .append(" |\n")
+        matrix.drop(1).forEach { row ->
+            builder.append("| ")
+                .append(row.joinToString(" | ") { escapeCell(it) })
+                .append(" |\n")
+        }
+        return builder.toString().trimEnd()
+    }
+
+    private fun escapeCell(value: String): String =
+        value.replace("|", "\\|").replace("\n", " ").ifBlank { " " }
+
+    private fun countCjk(text: String): Int =
+        text.count { it.code in 0x4E00..0x9FFF || it.code in 0x3400..0x4DBF }
+
+    /**
      * 从 ContentResolver 加载 Bitmap, 自动按 [maxDim] 采样压缩。
-     * P99-FIX: 先用 inJustDecodeBounds 获取尺寸再采样, 避免超大图直接加载导致 OOM。
+     * 先用 inJustDecodeBounds 获取尺寸再采样, 避免超大图直接加载导致 OOM。
      */
     private fun loadBitmap(context: Context, uri: Uri, maxDim: Int = 1920): Bitmap {
         return context.contentResolver.openInputStream(uri)?.use { stream ->
-            // 第一步: 只读取尺寸, 不加载像素
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = true
-            }
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeStream(stream, null, options)
-            
-            // 第二步: 计算采样率
+
             val w = options.outWidth
             val h = options.outHeight
             var sampleSize = 1
@@ -88,20 +221,18 @@ object OcrHelper {
                 sampleSize = maxOf(wRatio, hRatio)
             }
             Timber.d("OCR image ${w}x${h}, sampleSize=$sampleSize")
-            
-            // 第三步: 重新打开流并按采样率加载
+
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val decodeOptions = BitmapFactory.Options().apply {
                     inSampleSize = sampleSize
-                    inPreferredConfig = Bitmap.Config.RGB_565 // 节省内存
+                    inPreferredConfig = Bitmap.Config.RGB_565
                 }
                 BitmapFactory.decodeStream(input, null, decodeOptions)
             }
         } ?: throw IllegalArgumentException("无法加载图片: $uri")
     }
 
-    /** 如果任一边超过 1920, 等比缩放到 1920 以内。
-     *  返回新 bitmap 时回收原图, 避免大图缩放时短时间持有 2x 内存。*/
+    /** 任一边超过 [maxDim] 时等比缩放, 返回新 bitmap (不回收原图) */
     private fun scaleIfNeeded(bitmap: Bitmap, maxDim: Int = 1920): Bitmap {
         val w = bitmap.width
         val h = bitmap.height
@@ -116,11 +247,14 @@ object OcrHelper {
             newH = maxDim
             newW = (maxDim * ratio).toInt()
         }
-        val scaled = bitmap.scale(newW, newH)
-        if (scaled != bitmap) {
-            // 新建的缩放 bitmap 不会与原图共享像素, 立刻回收原图释放 native 内存
-            runCatching { bitmap.recycle() }
-        }
-        return scaled
+        return bitmap.scale(newW, newH)
     }
 }
+
+/** OCR 表格聚类用的一行文字块 */
+private data class OcrSpan(
+    val text: String,
+    val height: Float,
+    val centerY: Float,
+    val centerX: Float
+)

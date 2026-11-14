@@ -166,6 +166,14 @@ class NotesViewModel(
         val savedId = repository.saveNote(note)
         // 替换图片 (用于新建和编辑时以最终结果为准)
         repository.replaceNoteImages(savedId, imageUris)
+        // 保存后同步闪卡: `#card` / `==高亮==` 内容变化时自动增删卡片, 不影响已有复习进度
+        runCatching {
+            (context.applicationContext as com.example.notes.NotesApplication)
+                .flashcardRepository
+                .syncFromNote(savedId, note.title, note.content)
+        }.onFailure {
+            Timber.tag("NotesViewModel").w(it, "flashcard sync failed")
+        }
         // F3: 通知桌面小部件刷新
         NotesAppWidget.requestRefresh(context)
         return savedId

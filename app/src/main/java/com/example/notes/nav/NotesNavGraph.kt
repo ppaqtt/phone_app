@@ -14,13 +14,16 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.notes.NotesApplication
+import com.example.notes.ui.screens.BacklinkGraphScreen
 import com.example.notes.ui.screens.CategoriesScreen
+import com.example.notes.ui.screens.FlashcardsScreen
 import com.example.notes.ui.screens.NoteEditScreen
 import com.example.notes.ui.screens.NotesListScreen
 import com.example.notes.ui.screens.SearchScreen
 import com.example.notes.ui.screens.SettingsScreen
 import com.example.notes.ui.screens.StatsScreen
 import com.example.notes.ui.screens.TagsScreen
+import com.example.notes.ui.screens.TemplateGalleryScreen
 import com.example.notes.ui.screens.TodoListScreen
 import com.example.notes.ui.screens.TrashScreen
 import com.example.notes.ui.viewmodel.NotesViewModel
@@ -39,6 +42,10 @@ object Routes {
     const val STATS = "stats"
     // 待办任务
     const val TODOS = "todos"
+    // 模板库 / 闪卡复习 / 双链图谱
+    const val TEMPLATES = "templates"
+    const val FLASHCARDS = "flashcards"
+    const val GRAPH = "graph"
 
     fun edit(noteId: Long) = "edit/$noteId"
 }
@@ -115,7 +122,10 @@ fun NotesNavGraph(
                 // F13: 统计
                 onOpenStats = { navController.navigate(Routes.STATS) { launchSingleTop = true } },
                 // 待办任务
-                onOpenTodos = { navController.navigate(Routes.TODOS) { launchSingleTop = true } }
+                onOpenTodos = { navController.navigate(Routes.TODOS) { launchSingleTop = true } },
+                onOpenTemplates = { navController.navigate(Routes.TEMPLATES) { launchSingleTop = true } },
+                onOpenFlashcards = { navController.navigate(Routes.FLASHCARDS) { launchSingleTop = true } },
+                onOpenGraph = { navController.navigate(Routes.GRAPH) { launchSingleTop = true } }
             )
         }
         composable(
@@ -146,7 +156,10 @@ fun NotesNavGraph(
         composable(Routes.SETTINGS) {
             SettingsScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNoteImported = { id ->
+                    navController.navigate(Routes.edit(id)) { launchSingleTop = true }
+                }
             )
         }
         composable(Routes.TAGS) {
@@ -173,6 +186,35 @@ fun NotesNavGraph(
         composable(Routes.TODOS) {
             TodoListScreen(
                 onBack = { navController.popBackStack() }
+            )
+        }
+        // 模板库
+        composable(Routes.TEMPLATES) {
+            TemplateGalleryScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
+                onOpenNote = { id ->
+                    navController.navigate(Routes.edit(id)) { launchSingleTop = true }
+                }
+            )
+        }
+        // 闪卡复习
+        composable(Routes.FLASHCARDS) {
+            FlashcardsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenNote = { id ->
+                    navController.navigate(Routes.edit(id)) { launchSingleTop = true }
+                }
+            )
+        }
+        // 双链图谱
+        composable(Routes.GRAPH) {
+            BacklinkGraphScreen(
+                repository = repository,
+                onBack = { navController.popBackStack() },
+                onOpenNote = { id ->
+                    navController.navigate(Routes.edit(id)) { launchSingleTop = true }
+                }
             )
         }
     }

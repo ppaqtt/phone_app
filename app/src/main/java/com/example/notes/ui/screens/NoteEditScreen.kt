@@ -65,6 +65,8 @@ import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material3.AlertDialog
@@ -285,6 +287,8 @@ fun NoteEditScreen(
 
     // F17: OCR 图片选择器
     var isOcrProcessing by remember { mutableStateOf(false) }
+    // true = 识别表格结构并插入 Markdown 表格
+    var ocrAsTable by remember { mutableStateOf(false) }
     val pickOcrImage = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
@@ -292,12 +296,17 @@ fun NoteEditScreen(
             scope.launch {
                 isOcrProcessing = true
                 runCatching {
-                    val text = com.example.notes.util.OcrHelper.recognizeText(context, uri)
+                    val text = if (ocrAsTable) {
+                        com.example.notes.util.OcrHelper.recognizeTable(context, uri)
+                    } else {
+                        com.example.notes.util.OcrHelper.recognizeText(context, uri)
+                    }
                     if (text.isNotBlank()) {
+                        val snippet = if (ocrAsTable) "\n$text\n" else text
                         content = if (content.text.isEmpty()) {
-                            content.copy(text = text)
+                            content.copy(text = snippet.trimStart())
                         } else {
-                            content.copy(text = content.text + "\n" + text)
+                            content.copy(text = content.text + "\n" + snippet)
                         }
                         pushHistory()
                         context.toastShort("识别完成, 已插入 ${text.length} 字")
@@ -775,6 +784,37 @@ fun NoteEditScreen(
                                     createImageLauncher.launch(fileName)
                                 }
                             )
+                            // 闪卡: 从 #card / ==高亮== 生成复习卡片
+                            DropdownMenuItem(
+                                text = { Text("生成复习卡片") },
+                                leadingIcon = {
+                                    Icon(Icons.Filled.Style, contentDescription = "闪卡")
+                                },
+                                onClick = {
+                                    showExportMenu = false
+                                    scope.launch {
+                                        val saved = runCatching { saveNote() }.isSuccess
+                                        if (!saved) {
+                                            context.toastShort("保存失败, 无法生成卡片")
+                                            return@launch
+                                        }
+                                        val savedId = lastSaved?.id ?: return@launch
+                                        val app = context.applicationContext
+                                            as com.example.notes.NotesApplication
+                                        val count = runCatching {
+                                            app.flashcardRepository.syncFromNote(
+                                                noteId = savedId,
+                                                noteTitle = title.ifBlank { "笔记" },
+                                                content = content.text
+                                            )
+                                        }.getOrDefault(0)
+                                        context.toastShort(
+                                            if (count > 0) "已生成 $count 张复习卡片"
+                                            else "未找到 #card 或 ==高亮== 标记"
+                                        )
+                                    }
+                                }
+                            )
                         }
                     }
                 },
@@ -1004,6 +1044,13 @@ fun NoteEditScreen(
                     isListening = isListening,
                     // F17: OCR 文字识别
                     onOcrClick = {
+                        ocrAsTable = false
+                        pickOcrImage.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    onOcrTableClick = {
+                        ocrAsTable = true
                         pickOcrImage.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
@@ -1732,7 +1779,8 @@ private fun ToolPanel(
     speechText: String,
     isListening: Boolean,
     // F17: OCR 文字识别
-    onOcrClick: () -> Unit
+    onOcrClick: () -> Unit,
+    onOcrTableClick: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -1784,6 +1832,12 @@ private fun ToolPanel(
                     icon = Icons.Filled.TextFields,
                     label = "识别文字",
                     onClick = onOcrClick
+                )
+                // OCR 表格识别
+                ToolSubItem(
+                    icon = Icons.Filled.TableChart,
+                    label = "识别表格",
+                    onClick = onOcrTableClick
                 )
             }
             BottomTool.SPEECH -> SpeechPanel(
@@ -1894,14 +1948,15 @@ private fun DividersGrid(onInsert: (String) -> Unit) {
 
 @Composable
 private fun TemplatesGrid(onInsert: (String) -> Unit) {
-    val items = listOf(
-        "📌 待办清单" to "\n【待办清单】\n☐ \n☐ \n☐ \n",
-        "💡 想法" to "\n【灵感】\n\n",
-        "📅 日程" to "\n【日程】\n时间:\n地点:\n参与者:\n",
-        "📖 日记" to "\n【日记】\n日期:\n心情:\n\n",
-        "🎯 目标" to "\n【目标】\n目标:\n计划:\n进度:\n",
-        "📝 笔记" to "\n【笔记】\n主题:\n要点:\n"
-    )
+    // 与首页「模板库」共用同一份 10 种模板, 避免内容分叉。
+    // 编辑器里已有标题栏, 插入时去掉模板首行的一级标题。
+    val items = com.example.notes.util.TemplateLibrary.all.map { template ->
+        val body = template.content.lineSequence()
+            .dropWhile { it.startsWith("# ") }
+            .joinToString("\n")
+            .trim()
+        "${template.emoji} ${template.name}" to "\n$body\n"
+    }
     StyleGrid(items, onInsert)
 }
 

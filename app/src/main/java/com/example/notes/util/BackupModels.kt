@@ -19,7 +19,8 @@ data class BackupPayload(
 ) {
     companion object {
         /** DTO 当前版本号, 每次结构变更 +1, 导入时做兼容判断 */
-        const val CURRENT_VERSION = 1
+        // v2: 增加 syncId / categorySyncId / deletedAt, 支持 WebDAV 双向合并
+        const val CURRENT_VERSION = 2
     }
 }
 
@@ -32,7 +33,9 @@ data class CategoryBackup(
      * 默认 null 保证与 v1 老备份文件兼容。
      */
     val parentOldId: Long? = null,
-    val createdAt: Long
+    val createdAt: Long,
+    /** v2: 跨设备同步标识; 老备份为空 */
+    val syncId: String? = null
 )
 
 data class NoteBackup(
@@ -51,7 +54,13 @@ data class NoteBackup(
      */
     val reminderRepeat: String = "NONE",
     val createdAt: Long,
-    val updatedAt: Long
+    val updatedAt: Long,
+    /** v2: 软删除时间戳, 作为跨设备删除墓碑 */
+    val deletedAt: Long? = null,
+    /** v2: 笔记的跨设备唯一标识 */
+    val syncId: String? = null,
+    /** v2: 所属分类的 syncId (跨设备 id 不可复用) */
+    val categorySyncId: String? = null
 )
 
 data class ImageBackup(

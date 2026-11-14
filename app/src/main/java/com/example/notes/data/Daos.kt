@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -44,7 +45,12 @@ interface NoteDao {
     @Query("UPDATE notes SET updated_at = :updatedAt WHERE id = :id")
     suspend fun touch(id: Long, updatedAt: Long = System.currentTimeMillis())
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    /**
+     * 编辑已有笔记。用 @Update (UPDATE 语句) 而非 @Insert(REPLACE):
+     * REPLACE 会先 DELETE 旧行, 触发 note_images 的 ON DELETE CASCADE,
+     * 导致同步/普通保存时图片被误删。
+     */
+    @Update
     suspend fun update(note: NoteEntity)
 
     @Delete
@@ -115,13 +121,13 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
     fun observeTrash(): Flow<List<NoteWithCategory>>
 
-    /** F2: 软删除 — 把 deleted_at 设为当前时间戳 */
-    @Query("UPDATE notes SET deleted_at = :deletedAt WHERE id = :id")
+    /** F2: 软删除 — 把 deleted_at 设为当前时间戳; 同时推进 updated_at 供同步传播删除 */
+    @Query("UPDATE notes SET deleted_at = :deletedAt, updated_at = :deletedAt WHERE id = :id")
     suspend fun softDelete(id: Long, deletedAt: Long = System.currentTimeMillis())
 
-    /** F2: 从回收站恢复 — 把 deleted_at 置 NULL */
-    @Query("UPDATE notes SET deleted_at = NULL WHERE id = :id")
-    suspend fun restoreFromTrash(id: Long)
+    /** F2: 从回收站恢复 — 把 deleted_at 置 NULL, 并推进 updated_at */
+    @Query("UPDATE notes SET deleted_at = NULL, updated_at = :restoredAt WHERE id = :id")
+    suspend fun restoreFromTrash(id: Long, restoredAt: Long = System.currentTimeMillis())
 
     /** F2: 真删 — 硬删除 (回收站条目永久删除按钮) */
     @Query("DELETE FROM notes WHERE id = :id")
@@ -159,7 +165,30 @@ interface NoteDao {
     /** F15: 更新提醒重复模式 (NONE / DAILY / WEEKLY / MONTHLY / YEARLY) */
     @Query("UPDATE notes SET reminder_repeat = :repeat WHERE id = :id")
     suspend fun setReminderRepeat(id: Long, repeat: String)
+
+    // --- Sync / Graph ----------------------------------------------------
+
+    /** 同步导出需要包含软删除笔记 (作为删除墓碑), 否则云端会把它"复活" */
+    @Query("SELECT * FROM notes")
+    suspend fun getAllOnceIncludingDeleted(): List<NoteEntity>
+
+    @Query("SELECT * FROM notes WHERE sync_id = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): NoteEntity?
+
+    @Query("UPDATE notes SET sync_id = :syncId WHERE id = :id")
+    suspend fun setSyncId(id: Long, syncId: String)
+
+    /** 双链图谱只关心 id / 标题 / 正文 */
+    @Query("SELECT id, title, content FROM notes WHERE deleted_at IS NULL ORDER BY updated_at DESC")
+    suspend fun getLinkRows(): List<NoteLinkRow>
 }
+
+/** 双链图谱用的轻量投影 */
+data class NoteLinkRow(
+    val id: Long,
+    val title: String,
+    val content: String
+)
 
 /** F13: stats 用的轻量投影, 只取 4 个字段减少 IO */
 data class NoteStatsRow(
@@ -223,6 +252,15 @@ interface CategoryDao {
      */
     @Query("DELETE FROM categories")
     suspend fun clearAll()
+
+    @Query("SELECT * FROM categories WHERE sync_id = :syncId LIMIT 1")
+    suspend fun findBySyncId(syncId: String): CategoryEntity?
+
+    @Query("SELECT * FROM categories WHERE name = :name LIMIT 1")
+    suspend fun findByName(name: String): CategoryEntity?
+
+    @Query("UPDATE categories SET sync_id = :syncId WHERE id = :id")
+    suspend fun setSyncId(id: Long, syncId: String)
 }
 
 /** 笔记图片 DAO */

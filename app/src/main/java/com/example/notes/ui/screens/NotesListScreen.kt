@@ -29,6 +29,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.Grade
+import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Style
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
@@ -99,7 +102,10 @@ fun NotesListScreen(
     onOpenSettings: () -> Unit,
     onOpenTrash: () -> Unit,
     onOpenStats: () -> Unit,
-    onOpenTodos: () -> Unit
+    onOpenTodos: () -> Unit,
+    onOpenTemplates: () -> Unit,
+    onOpenFlashcards: () -> Unit,
+    onOpenGraph: () -> Unit
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
@@ -239,6 +245,33 @@ fun NotesListScreen(
                                 onClick = {
                                     showMoreMenu = false
                                     onOpenTodos()
+                                }
+                            )
+                            // 模板库入口
+                            DropdownMenuItem(
+                                text = { Text("模板库") },
+                                leadingIcon = { Icon(Icons.Filled.AutoAwesome, contentDescription = "模板") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenTemplates()
+                                }
+                            )
+                            // 闪卡复习入口
+                            DropdownMenuItem(
+                                text = { Text("闪卡复习") },
+                                leadingIcon = { Icon(Icons.Filled.Style, contentDescription = "闪卡") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenFlashcards()
+                                }
+                            )
+                            // 双链图谱入口
+                            DropdownMenuItem(
+                                text = { Text("关系图谱") },
+                                leadingIcon = { Icon(Icons.Filled.Hub, contentDescription = "图谱") },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onOpenGraph()
                                 }
                             )
                         }

@@ -91,7 +91,14 @@ data class NoteEntity(
      * 3) 0L 当作 1970 不会被误当有效值, 因为回收站逻辑只看 IS NULL。
      */
     @ColumnInfo(name = "deleted_at", defaultValue = "NULL")
-    val deletedAt: Long? = null
+    val deletedAt: Long? = null,
+
+    /**
+     * 同步标识: 跨设备唯一且稳定的 UUID, 首次同步时补齐。
+     * 云端合并按此字段对齐, 避免自增 id 在不同设备上碰撞。
+     */
+    @ColumnInfo(name = "sync_id", defaultValue = "''")
+    val syncId: String = ""
 )
 
 @Entity(
@@ -117,7 +124,11 @@ data class CategoryEntity(
     val parentId: Long? = null,
 
     @ColumnInfo(name = "created_at")
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+
+    /** 同步标识, 含义同 [NoteEntity.syncId] */
+    @ColumnInfo(name = "sync_id", defaultValue = "''")
+    val syncId: String = ""
 )
 
 /** 笔记关联的多张图片, 一对多 */

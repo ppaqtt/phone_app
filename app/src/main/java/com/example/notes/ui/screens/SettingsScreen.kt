@@ -22,22 +22,29 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Feedback
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -59,10 +66,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.example.notes.BuildConfig
+import com.example.notes.NotesApplication
 import com.example.notes.R
+import com.example.notes.data.DEFAULT_COLOR
 import com.example.notes.ui.theme.ColorTheme
 import com.example.notes.ui.theme.DarkMode
 import com.example.notes.ui.theme.FontScale
@@ -73,11 +83,16 @@ import com.example.notes.util.AppLockStore
 import com.example.notes.util.AppUpdateChecker
 import com.example.notes.util.BiometricHelper
 import com.example.notes.util.ChangelogData
+import com.example.notes.util.DocumentImporter
 import com.example.notes.util.NoUpdateDialog
+import com.example.notes.util.SyncConfig
 import com.example.notes.util.UpdateAvailableDialog
+import com.example.notes.util.WebDavSyncManager
 import com.example.notes.util.toastLong
 import com.example.notes.util.toastShort
+import com.example.notes.work.SyncWorker
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -99,7 +114,8 @@ private enum class LegalPage { PRIVACY, TERMS }
 @Composable
 fun SettingsScreen(
     viewModel: NotesViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNoteImported: (Long) -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -108,6 +124,38 @@ fun SettingsScreen(
     var showNoUpdateTip by remember { mutableStateOf(false) }
     var isChecking by remember { mutableStateOf(false) }
     var lastCheckResult by remember { mutableStateOf<AppUpdateChecker.UpdateCheckResult?>(null) }
+
+    // 文档导入 (PDF / DOCX / 文本)
+    var isImporting by remember { mutableStateOf(false) }
+    val importDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            isImporting = true
+            scope.launch {
+                val result = runCatching {
+                    val document = DocumentImporter.import(context, uri)
+                    viewModel.saveNote(
+                        context = context,
+                        id = 0L,
+                        title = document.title,
+                        content = document.content,
+                        categoryId = null,
+                        tags = emptyList(),
+                        isPinned = false,
+                        color = DEFAULT_COLOR
+                    ) to document
+                }
+                isImporting = false
+                result.onSuccess { (noteId, document) ->
+                    context.toastLong("已导入《${document.title}》(${document.content.length} 字)")
+                    onNoteImported(noteId)
+                }.onFailure {
+                    context.toastLong("导入失败: ${it.message}")
+                }
+            }
+        }
+    }
 
     // 法律页面本地切换 (隐私政策 / 使用条款)
     var legalPage by remember { mutableStateOf<LegalPage?>(null) }
@@ -206,6 +254,23 @@ fun SettingsScreen(
                     openDocumentLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                 }
             )
+            // 文档导入 (PDF / Word)
+            ImportDocumentCard(
+                isWorking = isImporting,
+                onImport = {
+                    importDocumentLauncher.launch(
+                        arrayOf(
+                            "application/pdf",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "text/plain",
+                            "text/markdown",
+                            "*/*"
+                        )
+                    )
+                }
+            )
+            // WebDAV 同步
+            WebDavCard()
             // F9: 应用锁
             AppLockCard(viewModel = viewModel)
             UpdateCheckCard(
@@ -283,6 +348,298 @@ fun SettingsScreen(
             }
         )
     }
+
+    // 文档导入进度 (PDF 需逐页 OCR, 可能耗时)
+    if (isImporting) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("正在导入") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text("PDF 会逐页 OCR，页数较多时请耐心等待…")
+                }
+            },
+            confirmButton = { }
+        )
+    }
+}
+
+/**
+ * 文档导入卡片: PDF (PdfRenderer + OCR) / DOCX (XML 文本提取) / 纯文本。
+ */
+@Composable
+private fun ImportDocumentCard(
+    isWorking: Boolean,
+    onImport: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "从文档导入",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "导入 PDF / Word / 文本并生成一条新笔记。PDF 走本地 OCR，不联网。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+            BackupRowButton(
+                icon = Icons.Filled.FileOpen,
+                title = "选择文档",
+                subtitle = if (isWorking) "正在解析…" else "支持 .pdf / .docx / .txt / .md",
+                enabled = !isWorking,
+                onClick = onImport
+            )
+            if (isWorking) {
+                Spacer(Modifier.height(12.dp))
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+        }
+    }
+}
+
+/**
+ * WebDAV 同步卡片。
+ *
+ * 配置字段直接写入 [SyncConfigStore] (密码由 Keystore 加密),
+ * "测试连接"走 PROPFIND, "立即同步"执行双向合并并上传。
+ */
+@Composable
+private fun WebDavCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val app = context.applicationContext as NotesApplication
+    val store = remember { app.syncConfigStore }
+    val config by store.config.collectAsState()
+
+    var serverUrl by remember { mutableStateOf(config.serverUrl) }
+    var username by remember { mutableStateOf(config.username) }
+    var password by remember { mutableStateOf(config.appPassword) }
+    var remoteDir by remember { mutableStateOf(config.remoteDir) }
+    var allowSelfSigned by remember { mutableStateOf(config.allowSelfSigned) }
+    var enabled by remember { mutableStateOf(config.enabled) }
+    var autoSync by remember { mutableStateOf(config.autoSync) }
+
+    var testing by remember { mutableStateOf(false) }
+    var syncing by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf(config.lastSyncSummary) }
+
+    fun currentConfig() = SyncConfig(
+        serverUrl = serverUrl,
+        username = username,
+        appPassword = password,
+        remoteDir = remoteDir,
+        enabled = enabled,
+        autoSync = autoSync,
+        allowSelfSigned = allowSelfSigned,
+        lastSyncAt = config.lastSyncAt,
+        lastSyncSummary = config.lastSyncSummary
+    )
+
+    fun persist() {
+        store.save(currentConfig())
+        if (enabled && autoSync) SyncWorker.schedule(context) else SyncWorker.cancel(context)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                "WebDAV 同步",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "坚果云填 https://dav.jianguoyun.com/dav/，Nextcloud 填服务器地址 + 应用密码。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = serverUrl,
+                onValueChange = { serverUrl = it },
+                label = { Text("服务器地址") },
+                placeholder = { Text("https://dav.jianguoyun.com/dav/") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("账号") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("应用密码") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = remoteDir,
+                onValueChange = { remoteDir = it },
+                label = { Text("远程目录") },
+                placeholder = { Text("qingjian") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(10.dp))
+            SwitchRow(
+                label = "启用同步",
+                checked = enabled,
+                onCheckedChange = {
+                    enabled = it
+                    persist()
+                }
+            )
+            SwitchRow(
+                label = "自动同步 (每 6 小时)",
+                checked = autoSync,
+                onCheckedChange = {
+                    autoSync = it
+                    persist()
+                }
+            )
+            SwitchRow(
+                label = "信任自签名证书 (仅内网)",
+                checked = allowSelfSigned,
+                onCheckedChange = {
+                    allowSelfSigned = it
+                    persist()
+                }
+            )
+
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        if (!testing && !syncing) {
+                            persist()
+                            testing = true
+                            message = "正在连接…"
+                            scope.launch {
+                                runCatching {
+                                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        com.example.notes.util.WebDavClient(currentConfig()).testConnection()
+                                    }
+                                }.onSuccess {
+                                    message = "连接成功"
+                                    context.toastShort("连接成功")
+                                }.onFailure {
+                                    message = "连接失败: ${it.message}"
+                                    context.toastLong("连接失败: ${it.message}")
+                                }
+                                testing = false
+                            }
+                        }
+                    },
+                    enabled = !testing && !syncing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (testing) "测试中…" else "测试连接")
+                }
+                Button(
+                    onClick = {
+                        if (!testing && !syncing) {
+                            persist()
+                            syncing = true
+                            message = "正在同步…"
+                            scope.launch {
+                                runCatching { app.webDavSyncManager.sync(BuildConfig.VERSION_NAME) }
+                                    .onSuccess { outcome: WebDavSyncManager.SyncOutcome ->
+                                        message = "同步完成: 云端 ${outcome.uploadedNotes} 条 · " +
+                                            "新增 ${outcome.notesCreated} · 更新 ${outcome.notesUpdated}"
+                                        context.toastLong(message)
+                                    }
+                                    .onFailure {
+                                        message = "同步失败: ${it.message}"
+                                        context.toastLong("同步失败: ${it.message}")
+                                    }
+                                syncing = false
+                            }
+                        }
+                    },
+                    enabled = !testing && !syncing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (syncing) "同步中…" else "立即同步")
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.CloudSync,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        message.ifBlank { "尚未同步" },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "上次同步: " + formatSyncTime(config.lastSyncAt),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Filled.Sync,
+                    contentDescription = "同步状态",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+private fun formatSyncTime(time: Long): String {
+    if (time <= 0L) return "从未同步"
+    return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(time))
 }
 
 @Composable

@@ -9,12 +9,15 @@ import com.example.notes.data.NoteImageEntity
 import com.example.notes.data.NoteStatsRow
 import com.example.notes.data.NoteWithCategory
 import com.example.notes.data.NoteWithCategoryAndImages
+import com.example.notes.data.NoteLinkRow
+import com.example.notes.util.BackupManager
 import com.example.notes.util.BackupPayload
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import timber.log.Timber
+import java.util.UUID
 
 /**
  * Single source of truth for the UI layer. The ViewModel never talks to the
@@ -53,10 +56,28 @@ class NotesRepository(
         if (query.isBlank()) noteDao.observeAll() else noteDao.search(query)
 
     suspend fun saveNote(note: NoteEntity): Long {
+        val now = System.currentTimeMillis()
         return if (note.id == 0L) {
-            noteDao.insert(note.copy(updatedAt = System.currentTimeMillis()))
+            noteDao.insert(
+                note.copy(
+                    updatedAt = now,
+                    syncId = note.syncId.ifBlank { UUID.randomUUID().toString() }
+                )
+            )
         } else {
-            noteDao.update(note.copy(updatedAt = System.currentTimeMillis()))
+            // 编辑时保留创建时间 / 同步标识 / 回收站状态, 避免整行 REPLACE 丢掉这些字段
+            val existing = noteDao.getNoteOnce(note.id)
+            noteDao.update(
+                note.copy(
+                    createdAt = existing?.createdAt ?: note.createdAt,
+                    updatedAt = now,
+                    syncId = note.syncId.ifBlank {
+                        existing?.syncId?.ifBlank { UUID.randomUUID().toString() }
+                            ?: UUID.randomUUID().toString()
+                    },
+                    deletedAt = existing?.deletedAt ?: note.deletedAt
+                )
+            )
             note.id
         }
     }
@@ -92,7 +113,10 @@ class NotesRepository(
      */
     suspend fun restoreNoteFromSnapshot(snapshot: NoteWithCategoryAndImages) {
         database.withTransaction {
-            val restored = snapshot.note.copy(deletedAt = null)
+            val restored = snapshot.note.copy(
+                deletedAt = null,
+                updatedAt = System.currentTimeMillis()
+            )
             noteDao.insertWithId(restored)
             noteImageDao.deleteByNote(snapshot.note.id)
             val images = snapshot.images.map { it.copy(id = 0) }
@@ -324,7 +348,8 @@ class NotesRepository(
                         id = c.oldId,
                         name = c.name,
                         color = c.color,
-                        createdAt = c.createdAt
+                        createdAt = c.createdAt,
+                        syncId = c.syncId.orEmpty()
                     )
                 )
                 categoryIdMap[c.oldId] = newId
@@ -357,7 +382,9 @@ class NotesRepository(
                         reminderTime = n.reminderTime,
                         reminderRepeat = n.reminderRepeat,
                         createdAt = n.createdAt,
-                        updatedAt = n.updatedAt
+                        updatedAt = n.updatedAt,
+                        deletedAt = n.deletedAt,
+                        syncId = n.syncId.orEmpty()
                     )
                 )
                 noteIdMap[n.oldId] = newId
@@ -380,6 +407,139 @@ class NotesRepository(
             Timber.tag("Backup")
                 .i("imported categories=${categoryIdMap.size} notes=${noteIdMap.size} images=${imageEntities.size}")
             Triple(categoryIdMap.size, noteIdMap.size, imageEntities.size)
+        }
+    }
+
+    // --- WebDAV Sync ------------------------------------------------------
+
+    /** 双链图谱: 取全部未删除笔记的 id/标题/正文 */
+    suspend fun getLinkRows(): List<NoteLinkRow> = noteDao.getLinkRows()
+
+    /**
+     * 给所有缺少 sync_id 的笔记/分类补 UUID。
+     * 首次同步前调用, 之后每条记录都有稳定的跨设备标识。
+     */
+    suspend fun ensureSyncIds() {
+        database.withTransaction {
+            noteDao.getAllOnceIncludingDeleted().forEach { note ->
+                if (note.syncId.isBlank()) {
+                    noteDao.setSyncId(note.id, UUID.randomUUID().toString())
+                }
+            }
+            categoryDao.getAllOnce().forEach { category ->
+                if (category.syncId.isBlank()) {
+                    categoryDao.setSyncId(category.id, UUID.randomUUID().toString())
+                }
+            }
+        }
+    }
+
+    /**
+     * 同步快照: 含软删除墓碑, 不含本机 content:// 图片。
+     * 调用前应先 [ensureSyncIds]。
+     */
+    suspend fun buildSyncPayload(appVersion: String): BackupPayload = database.withTransaction {
+        val categories = categoryDao.getAllOnce()
+        val notes = noteDao.getAllOnceIncludingDeleted()
+        BackupManager.buildSyncPayload(appVersion, categories, notes)
+    }
+
+    data class SyncApplyResult(
+        val categoriesCreated: Int,
+        val notesCreated: Int,
+        val notesUpdated: Int
+    )
+
+    /**
+     * 把合并后的快照写回本地 (不删除本地数据)。
+     *
+     * 合并规则:
+     * - 分类按 syncId 对齐, 老数据无 syncId 时退化为按名称匹配;
+     * - 笔记按 syncId 对齐, 远端 updatedAt 更新时才覆盖本地;
+     * - 远端墓碑 (deletedAt != null) 会同步为本地软删除。
+     */
+    suspend fun applySyncPayload(payload: BackupPayload): SyncApplyResult {
+        return database.withTransaction {
+            var categoriesCreated = 0
+            var notesCreated = 0
+            var notesUpdated = 0
+
+            val catIdBySync = HashMap<String, Long>()
+            val catIdByOld = HashMap<Long, Long>()
+            payload.categories.forEach { c ->
+                val syncKey = c.syncId?.takeIf { it.isNotBlank() }
+                val bySync = syncKey?.let { categoryDao.findBySyncId(it) }
+                // 分类名在本地唯一; 两台设备各自建了同名分类时, 复用本地那条并补上 syncId
+                val existing = bySync ?: categoryDao.findByName(c.name)
+                val id = if (existing != null) {
+                    if (syncKey != null && existing.syncId.isBlank()) {
+                        categoryDao.setSyncId(existing.id, syncKey)
+                    }
+                    existing.id
+                } else {
+                    categoriesCreated++
+                    categoryDao.insert(
+                        CategoryEntity(
+                            name = c.name,
+                            color = c.color,
+                            createdAt = c.createdAt,
+                            syncId = syncKey.orEmpty()
+                        )
+                    )
+                }
+                syncKey?.let { catIdBySync[it] = id }
+                catIdByOld[c.oldId] = id
+            }
+
+            payload.notes.forEach { n ->
+                val syncId = n.syncId?.takeIf { it.isNotBlank() }
+                    ?: "legacy-${n.oldId}-${n.createdAt}"
+                val existing = noteDao.findBySyncId(syncId)
+                val resolvedCategory = n.categorySyncId?.let { catIdBySync[it] }
+                    ?: n.categoryOldId?.let { catIdByOld[it] }
+                    ?: existing?.categoryId
+
+                if (existing == null) {
+                    noteDao.insert(
+                        NoteEntity(
+                            title = n.title,
+                            content = n.content,
+                            categoryId = resolvedCategory,
+                            tags = n.tags,
+                            isPinned = n.isPinned,
+                            priority = n.priority,
+                            color = n.color,
+                            reminderTime = n.reminderTime,
+                            reminderRepeat = n.reminderRepeat,
+                            createdAt = n.createdAt,
+                            updatedAt = n.updatedAt,
+                            deletedAt = n.deletedAt,
+                            syncId = syncId
+                        )
+                    )
+                    notesCreated++
+                } else if (n.updatedAt > existing.updatedAt) {
+                    noteDao.update(
+                        existing.copy(
+                            title = n.title,
+                            content = n.content,
+                            categoryId = resolvedCategory,
+                            tags = n.tags,
+                            isPinned = n.isPinned,
+                            priority = n.priority,
+                            color = n.color,
+                            reminderTime = n.reminderTime,
+                            reminderRepeat = n.reminderRepeat,
+                            createdAt = n.createdAt,
+                            updatedAt = n.updatedAt,
+                            deletedAt = n.deletedAt
+                        )
+                    )
+                    notesUpdated++
+                }
+            }
+
+            SyncApplyResult(categoriesCreated, notesCreated, notesUpdated)
         }
     }
 }

@@ -177,6 +177,8 @@ dependencies {
 
     // F17: ML Kit 中文 OCR
     implementation(libs.mlkit.text.recognition.chinese)
+    // 英文 / 拉丁字符 OCR
+    implementation(libs.mlkit.text.recognition.latin)
 
     // Biometric (指纹/人脸解锁)
     implementation(libs.androidx.biometric)
